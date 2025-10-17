@@ -1,0 +1,569 @@
+# Data Flow Verification: Comment Lifecycle
+
+flow_name: "Complete Comment Lifecycle"
+description: "Verifies data transformations from comment creation through persistence and retrieval"
+
+# Flow 1: Comment Creation and Serialization
+creation_flow:
+  name: "Comment Creation to Persistence"
+
+  steps:
+    - step: "User Input"
+      input:
+        user_action: "create_comment"
+        cursor_position: {line: 42, column: 10, offset: 1250}
+        comment_text: "This needs refactoring"
+        author: "alice"
+
+      verify:
+        - input_captured: true
+        - text_non_empty: true
+        - position_valid: true
+        - author_set: true
+
+    - step: "Comment Object Creation"
+      transformation:
+        from: "user input"
+        to: "Comment object"
+        operation: "CreateComment"
+
+      input:
+        text: "This needs refactoring"
+        author: "alice"
+        position: {line: 42, column: 10, offset: 1250}
+
+      output:
+        id: "generated_uuid"
+        document_id: "{doc_id}"
+        author: "alice"
+        line: 42
+        timestamp: "current_time"
+        text: "This needs refactoring"
+        status: "active"
+        position:
+          start_offset: 1250
+          end_offset: 1250
+          start_line: 42
+          start_column: 10
+
+      verify:
+        - id_is_unique: true
+        - timestamp_set: true
+        - all_fields_populated: true
+        - position_structure_valid: true
+
+    - step: "Validation"
+      transformation: "Validate Comment"
+
+      rules:
+        - author: "non_empty_string"
+        - text: "non_empty_string"
+        - line: "positive_integer"
+        - position: "within_document_bounds"
+
+      verify:
+        - validation_passed: true
+        - no_constraint_violations: true
+
+    - step: "Serialization to CriticMarkup"
+      transformation:
+        from: "Comment object"
+        to: "CriticMarkup string"
+        operation: "SerializeComment"
+
+      input:
+        comment: "{Comment object from step 2}"
+
+      output:
+        markup: "{>>[@alice:generated_uuid:42:2024-01-15T10:30:00Z] This needs refactoring <<}"
+
+      verify:
+        - format_valid: "CriticMarkup syntax"
+        - all_metadata_present: true
+        - text_preserved_exactly: true
+        - escapable_characters_handled: true
+
+    - step: "Document Insertion"
+      transformation:
+        from: "CriticMarkup string"
+        to: "Updated document content"
+        operation: "InsertAtPosition"
+
+      input:
+        document_content: "original content"
+        markup: "{>>[@alice:generated_uuid:42:2024-01-15T10:30:00Z] This needs refactoring <<}"
+        position: 1250
+
+      output:
+        updated_content: "original content with markup inserted"
+        new_length: "original_length + markup_length"
+
+      verify:
+        - markup_inserted_at_correct_position: true
+        - surrounding_content_unchanged: true
+        - document_integrity_maintained: true
+
+    - step: "Position Tracker Update"
+      transformation:
+        from: "Comment metadata"
+        to: "PositionMap entry"
+        operation: "UpdatePositionMap"
+
+      input:
+        comment_id: "generated_uuid"
+        position: {start: 1250, end: 1250, line: 42}
+
+      output:
+        position_map_entry:
+          comment_id: "generated_uuid"
+          position: {start: 1250, end: 1330, line: 42}
+
+      verify:
+        - position_map_contains_comment: true
+        - position_accurate: true
+        - end_offset_calculated: true
+
+    - step: "File Persistence"
+      transformation:
+        from: "Updated document content"
+        to: "File on disk"
+        operation: "SaveDocument"
+
+      input:
+        content: "updated_content"
+        filepath: "/path/to/document.md"
+
+      output:
+        file_written: true
+        bytes_written: "content.length"
+        backup_created: true
+
+      verify:
+        - file_exists: true
+        - content_matches_memory: true
+        - backup_valid: true
+        - atomic_write_used: true
+
+  end_to_end_verification:
+    - "Comment object serializes correctly"
+    - "Serialized format round-trips without data loss"
+    - "Document persisted with comment embedded"
+    - "Position tracking accurate"
+    - "No data corruption at any step"
+
+  invariants:
+    - "Comment ID immutable after creation"
+    - "Timestamp never changes after creation"
+    - "Author never empty"
+    - "Position always valid in document"
+
+# Flow 2: Comment Parsing and Extraction
+parsing_flow:
+  name: "Document Loading to Comment Extraction"
+
+  steps:
+    - step: "File Read"
+      transformation:
+        from: "File on disk"
+        to: "Raw content string"
+        operation: "ReadFile"
+
+      input:
+        filepath: "/path/to/document.md"
+
+      output:
+        raw_content: "file content as string"
+        encoding: "utf-8"
+        size: "bytes"
+
+      verify:
+        - file_read_successfully: true
+        - encoding_detected: true
+        - content_not_empty: true
+
+    - step: "Comment Tokenization"
+      transformation:
+        from: "Raw content"
+        to: "Token stream"
+        operation: "Tokenize"
+
+      input:
+        content: "text {>>[@alice:id:42:2024-01-15T10:30:00Z] comment <<} more"
+
+      output:
+        tokens:
+          - {type: "text", value: "text "}
+          - {type: "comment_start", value: "{>>"}
+          - {type: "metadata", value: "[@alice:id:42:2024-01-15T10:30:00Z]"}
+          - {type: "comment_text", value: " comment "}
+          - {type: "comment_end", value: "<<}"}
+          - {type: "text", value: " more"}
+
+      verify:
+        - comment_markers_identified: true
+        - metadata_extracted: true
+        - token_positions_tracked: true
+
+    - step: "Metadata Parsing"
+      transformation:
+        from: "Metadata token"
+        to: "Structured metadata"
+        operation: "ParseMetadata"
+
+      input:
+        metadata_string: "[@alice:id:42:2024-01-15T10:30:00Z]"
+
+      output:
+        author: "alice"
+        id: "id"
+        line: 42
+        timestamp: "2024-01-15T10:30:00Z"
+
+      verify:
+        - all_fields_extracted: true
+        - timestamp_valid_iso8601: true
+        - line_is_integer: true
+
+    - step: "Comment Object Reconstruction"
+      transformation:
+        from: "Parsed tokens and metadata"
+        to: "Comment object"
+        operation: "BuildComment"
+
+      input:
+        metadata: {author: "alice", id: "id", line: 42, timestamp: "2024-01-15T10:30:00Z"}
+        text: " comment "
+        position: {start: 5, end: 65}
+
+      output:
+        comment:
+          id: "id"
+          author: "alice"
+          line: 42
+          timestamp: "2024-01-15T10:30:00Z"
+          text: "comment"  # trimmed
+          position: {start_offset: 5, end_offset: 65, start_line: 1, start_column: 6}
+          status: "active"
+
+      verify:
+        - comment_complete: true
+        - text_trimmed: true
+        - position_calculated: true
+        - matches_serialized_format: true
+
+    - step: "Comment Collection"
+      transformation:
+        from: "Individual comments"
+        to: "Comments array"
+        operation: "CollectComments"
+
+      input:
+        comments: [comment1, comment2, comment3]
+
+      output:
+        collection: [comment1, comment2, comment3]
+        count: 3
+
+      verify:
+        - all_comments_present: true
+        - order_preserved: true
+        - no_duplicates: true
+
+    - step: "Thread Building"
+      transformation:
+        from: "Comments array"
+        to: "Thread hierarchy"
+        operation: "BuildThreads"
+
+      input:
+        comments:
+          - {id: "c1", parent: null}
+          - {id: "c2", parent: "c1"}
+          - {id: "c3", parent: "c1"}
+
+      output:
+        threads:
+          - id: "thread1"
+            root: "c1"
+            comments: [c1, c2, c3]
+            hierarchy:
+              c1: [c2, c3]
+
+      verify:
+        - parent_child_relationships_correct: true
+        - no_orphans: true
+        - no_cycles: true
+
+  end_to_end_verification:
+    - "File content parsed completely"
+    - "All comments extracted"
+    - "Comment objects match original creation data"
+    - "Threads reconstructed correctly"
+    - "No data loss during parsing"
+
+# Flow 3: Round-Trip Integrity
+round_trip_flow:
+  name: "Create-Serialize-Parse-Deserialize"
+
+  steps:
+    - step: "Original Comment"
+      data:
+        id: "test123"
+        author: "alice"
+        text: "Test comment with `code` and **bold**"
+        line: 10
+        timestamp: "2024-01-15T10:30:00Z"
+
+    - step: "Serialize"
+      operation: "CommentToMarkup"
+      output: "{>>[@alice:test123:10:2024-01-15T10:30:00Z] Test comment with `code` and **bold** <<}"
+
+    - step: "Insert into Document"
+      operation: "InsertMarkup"
+      document: "Line 1\nLine 2\n{markup}\nLine 3"
+
+    - step: "Parse Document"
+      operation: "ParseComments"
+      output: [parsed_comment]
+
+    - step: "Compare"
+      verification:
+        - parsed_comment.id == "test123"
+        - parsed_comment.author == "alice"
+        - parsed_comment.text == "Test comment with `code` and **bold**"
+        - parsed_comment.line == 10
+        - parsed_comment.timestamp == "2024-01-15T10:30:00Z"
+
+      expect:
+        - exact_match: true
+        - no_data_loss: true
+        - special_characters_preserved: true
+
+  iterations: 10
+
+  verify:
+    - stable_after: 1  # Should be identical after first round-trip
+    - no_drift: true
+    - idempotent: true
+
+# Flow 4: Position Update Propagation
+position_update_flow:
+  name: "Edit to Position Update"
+
+  steps:
+    - step: "Initial State"
+      document_length: 1000
+      comments:
+        - {id: "c1", position: 200}
+        - {id: "c2", position: 500}
+        - {id: "c3", position: 800}
+
+    - step: "User Edit"
+      operation: "InsertText"
+      position: 400
+      text: "inserted text"
+      length: 13
+
+    - step: "Edit Detection"
+      output:
+        edit_operation:
+          type: "insert"
+          position: 400
+          delta: 13
+
+      verify:
+        - edit_captured: true
+        - delta_calculated: true
+
+    - step: "Position Calculation"
+      transformation: "CalculateNewPositions"
+
+      for_each_comment:
+        - comment: "c1"
+          old_position: 200
+          comparison: "200 < 400"
+          result: "unchanged"
+          new_position: 200
+
+        - comment: "c2"
+          old_position: 500
+          comparison: "500 > 400"
+          result: "shifted"
+          new_position: 513  # 500 + 13
+
+        - comment: "c3"
+          old_position: 800
+          comparison: "800 > 400"
+          result: "shifted"
+          new_position: 813  # 800 + 13
+
+      verify:
+        - correct_comments_updated: true
+        - delta_applied_correctly: true
+        - unaffected_comments_unchanged: true
+
+    - step: "Position Map Update"
+      operation: "UpdatePositionMap"
+
+      input:
+        updates: [{c2: 513}, {c3: 813}]
+
+      output:
+        position_map:
+          c1: 200
+          c2: 513
+          c3: 813
+
+      verify:
+        - map_updated_atomically: true
+        - all_positions_valid: true
+
+    - step: "Document Reserialize"
+      operation: "UpdateDocumentMarkup"
+
+      verify:
+        - markup_positions_match_map: true
+        - document_integrity_maintained: true
+
+  verify:
+    - position_consistency: "map matches document"
+    - no_position_drift: true
+    - edit_propagation_complete: true
+
+# Flow 5: LLM Context to Response
+llm_flow:
+  name: "LLM Request to Comment Insertion"
+
+  steps:
+    - step: "Context Gathering"
+      input:
+        selection: {start: 100, end: 200}
+        document_content: "full document"
+        comments_near_selection: [c1, c2]
+
+      output:
+        context:
+          selected_text: "selected portion"
+          surrounding_lines: "5 before and after"
+          comments: [c1, c2]
+          query: "user question"
+
+      verify:
+        - selection_extracted: true
+        - context_complete: true
+        - token_count_calculated: true
+
+    - step: "Request Building"
+      transformation: "BuildLLMRequest"
+
+      output:
+        request:
+          model: "claude-3-sonnet"
+          messages: [{role: "user", content: "..."}]
+          max_tokens: 1000
+          stream: true
+
+      verify:
+        - request_valid: true
+        - context_included: true
+
+    - step: "API Call"
+      operation: "SendRequest"
+
+      verify:
+        - request_sent: true
+        - connection_established: true
+
+    - step: "Stream Reception"
+      transformation: "ReceiveChunks"
+
+      chunks: ["chunk1", "chunk2", "chunk3"]
+
+      verify:
+        - chunks_arrive_in_order: true
+        - chunks_accumulated: true
+
+    - step: "Response Completion"
+      output:
+        response:
+          content: "LLM generated suggestion"
+          tokens_used: 234
+          processing_time: 3500
+
+      verify:
+        - response_complete: true
+        - metadata_present: true
+
+    - step: "User Approval"
+      input:
+        action: "approve_as_comment"
+        position: {line: 15}
+
+      verify:
+        - approval_captured: true
+
+    - step: "Comment Creation"
+      transformation: "ResponseToComment"
+
+      input:
+        response_text: "LLM generated suggestion"
+        position: {line: 15}
+        author: "AI Assistant"
+
+      output:
+        comment: {/* comment object */}
+
+      verify:
+        - comment_created: true
+        - author_set_to_ai: true
+        - text_from_response: true
+
+    - step: "Insertion"
+      operation: "InsertComment"
+
+      verify:
+        - follows_normal_insertion_flow: true
+        - position_tracked: true
+        - document_updated: true
+
+  end_to_end_verification:
+    - "Context correctly gathered"
+    - "LLM receives proper input"
+    - "Response handled correctly"
+    - "Comment created from response"
+    - "Full lifecycle completes"
+
+# Data Integrity Checks
+integrity_checks:
+  - check: "Checksum validation"
+    at_steps: ["file_read", "file_write"]
+    verify: "content_hash_matches"
+
+  - check: "Position consistency"
+    at_steps: ["position_update", "reserialize"]
+    verify: "positions_match_actual_content"
+
+  - check: "Reference integrity"
+    at_steps: ["thread_building", "comment_deletion"]
+    verify: "no_dangling_references"
+
+  - check: "Type preservation"
+    at_all_transformations: true
+    verify: "data_types_maintained"
+
+# Performance Metrics
+performance_requirements:
+  - flow: "creation_flow"
+    total_time: "< 50ms"
+
+  - flow: "parsing_flow"
+    total_time: "< 500ms for 1MB document"
+
+  - flow: "round_trip_flow"
+    total_time: "< 100ms"
+
+  - flow: "position_update_flow"
+    total_time: "< 20ms"
+
+  - flow: "llm_flow"
+    total_time: "< 5 seconds excluding API latency"

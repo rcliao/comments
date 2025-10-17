@@ -1,0 +1,320 @@
+# Behavior: Maintaining Comment Positions During Document Edits
+
+behavior: "Position Tracking Through Edits"
+user_goal: "Ensure comments stay attached to correct content as document is edited"
+priority: critical
+
+scenarios:
+  - name: "Insert text before comment"
+    given:
+      - "Document has comment C1 at position 1000 (line 20)"
+      - "Comment anchored to text 'TODO: implement validation'"
+      - "Cursor at position 500 (line 10)"
+    when:
+      - "User inserts 100 characters at position 500"
+    then:
+      - "Edit detected: type=insert, position=500, length=100"
+      - "Position tracker calculates delta: +100"
+      - "C1 position updated: 1000 -> 1100"
+      - "C1 line number recalculated"
+      - "C1 still anchored to same text"
+      - "Document reserialized with updated positions"
+      - "UI reflects new positions immediately"
+    performance:
+      - "Position update completes in < 10ms"
+
+  - name: "Insert text after comment"
+    given:
+      - "Comment C1 at position 1000"
+      - "Cursor at position 1500"
+    when:
+      - "User inserts 50 characters at position 1500"
+    then:
+      - "Edit detected: type=insert, position=1500, length=50"
+      - "C1 position before edit: 1000"
+      - "C1 position after edit: 1000 (unchanged)"
+      - "Comments after position 1500 shifted"
+      - "No unnecessary updates to C1"
+
+  - name: "Delete text before comment"
+    given:
+      - "Comment C1 at position 1000"
+      - "Text selected from position 500 to 700"
+    when:
+      - "User deletes selected text (200 characters)"
+    then:
+      - "Edit detected: type=delete, start=500, end=700, length=200"
+      - "Position delta: -200"
+      - "C1 position updated: 1000 -> 800"
+      - "C1 line number decremented by deleted lines"
+      - "C1 anchor text preserved"
+      - "Position map updated atomically"
+
+  - name: "Delete text containing comment"
+    given:
+      - "Comment C1 at position 1000-1050"
+      - "Comment spans 'function getName()'"
+      - "User selects position 950-1100 for deletion"
+    when:
+      - "User deletes selected region"
+    then:
+      - "Edit detected: overlaps C1"
+      - "C1 marked as 'conflicted'"
+      - "Conflict resolution triggered"
+      - "Options presented: [Delete comment] [Move to boundary] [Keep as orphan]"
+      - "User chooses resolution"
+      - "Resolution applied"
+      - "Other comments updated normally"
+
+  - name: "Comment deletion conflict - auto-resolve"
+    given:
+      - "Comment C1 at position 1000"
+      - "Auto-resolution policy: move_to_start"
+      - "User deletes position 900-1100"
+    when:
+      - "Deletion overlaps C1"
+    then:
+      - "Conflict detected automatically"
+      - "C1 moved to position 900 (deletion start)"
+      - "C1 marked with 'position_adjusted' flag"
+      - "Warning note added to comment metadata"
+      - "User notified subtly of adjustment"
+      - "No interruption to edit flow"
+
+  - name: "Replace text at comment position"
+    given:
+      - "Comment C1 at position 1000"
+      - "Comment anchored to 'oldFunction()'"
+      - "User selects position 1000-1015"
+    when:
+      - "User replaces with 'newFunction()' (14 chars)"
+      - "Net change: -1 character"
+    then:
+      - "Edit type: replace"
+      - "Old text length: 15"
+      - "New text length: 14"
+      - "Delta: -1"
+      - "C1 position: 1000 (unchanged at start)"
+      - "C1 end position: 1049 -> 1048"
+      - "C1 now anchored to 'newFunction()'"
+      - "Comment text unchanged"
+      - "Warning if anchor text changed significantly"
+
+  - name: "Multi-line insertion affecting multiple comments"
+    given:
+      - "Comments at lines: C1@10, C2@20, C3@30"
+      - "Cursor at line 15"
+    when:
+      - "User inserts 8 new lines at line 15"
+    then:
+      - "Edit detected: insert 8 lines at line 15"
+      - "C1@10 unchanged (before edit)"
+      - "C2@20 moved to line 28 (20+8)"
+      - "C3@30 moved to line 38 (30+8)"
+      - "All three positions updated in batch"
+      - "Line start offsets recalculated"
+      - "Position map updated once"
+      - "Single document reserialize"
+
+  - name: "Rapid successive edits"
+    given:
+      - "Comments at various positions"
+    when:
+      - "User types continuously: 'hello world' (11 chars + space)"
+      - "Each character is separate edit"
+    then:
+      - "Edits buffered/debounced"
+      - "Position updates batched"
+      - "Comments updated once per batch (e.g., every 100ms)"
+      - "UI remains responsive"
+      - "Final positions correct after typing stops"
+      - "No intermediate states persisted"
+
+  - name: "Undo edit affecting positions"
+    given:
+      - "Document with comments"
+      - "User inserted text, shifting comment C1"
+      - "C1 position changed: 1000 -> 1100"
+    when:
+      - "User undoes the insertion"
+    then:
+      - "Edit operation reversed"
+      - "Position tracker processes reverse delta"
+      - "C1 position restored: 1100 -> 1000"
+      - "Document state matches pre-edit"
+      - "Undo/redo stack maintains position history"
+
+  - name: "Redo edit affecting positions"
+    given:
+      - "User has undone an edit"
+      - "Comment positions restored to original"
+    when:
+      - "User redoes the edit"
+    then:
+      - "Edit reapplied"
+      - "Position updates recalculated"
+      - "Comments shifted again"
+      - "State matches post-edit state"
+
+  - name: "Edit with multi-byte characters"
+    given:
+      - "Comment C1 at byte offset 1000"
+      - "Document contains emoji and UTF-8 characters"
+      - "User inserts '🎉' (4 bytes) at position 500"
+    when:
+      - "Insert operation executed"
+    then:
+      - "Byte offset delta calculated: +4"
+      - "C1 position updated: 1000 -> 1004"
+      - "Character vs byte positions handled correctly"
+      - "Line/column positions remain accurate"
+      - "No character boundary violations"
+
+  - name: "Paste large block of text"
+    given:
+      - "10 comments in document"
+      - "User copies 5000 characters"
+    when:
+      - "User pastes at position 500"
+    then:
+      - "Single large insert edit detected"
+      - "Delta: +5000"
+      - "All comments after position 500 updated"
+      - "Batch update for efficiency"
+      - "Position updates complete in < 50ms"
+      - "UI updates smoothly"
+
+  - name: "Delete entire line with comment"
+    given:
+      - "Line 25 contains comment C1"
+      - "Line 25 text: '// TODO: fix this'"
+    when:
+      - "User deletes entire line 25"
+    then:
+      - "Edit: delete line including newline"
+      - "C1 detected within deleted region"
+      - "Conflict resolution triggered"
+      - "Options: delete comment or move to previous/next line"
+      - "User decision or auto-policy applied"
+      - "Subsequent lines renumbered"
+
+edge_cases:
+  - name: "Edit at exact comment boundary"
+    condition: "Insert/delete at comment start or end position"
+    expected: "Comment boundary updated correctly, no overlap issues"
+
+  - name: "Zero-length comment"
+    condition: "Comment represents a point, not a range"
+    expected: "Position tracking treats as point, shifts appropriately"
+
+  - name: "Comment at document start"
+    condition: "Comment at position 0"
+    expected: "Insertions before still handled, position becomes >0"
+
+  - name: "Comment at document end"
+    condition: "Comment at final position"
+    expected: "Remains at end after appends, boundary handled"
+
+  - name: "Edit exactly matching comment range"
+    condition: "Selection equals comment position exactly"
+    expected: "Clear conflict, explicit resolution required"
+
+  - name: "Overlapping comments"
+    condition: "Two comments at same position"
+    expected: "Both updated with same delta, both remain at position"
+
+  - name: "Very long edit span"
+    condition: "Replace 10,000 characters"
+    expected: "Efficient delta calculation, no performance degradation"
+
+position_tracking_algorithm:
+  input:
+    - edit_operation: {type, start_pos, end_pos, delta}
+    - comment_positions: array<{id, start, end}>
+
+  process:
+    1. "Identify affected comments"
+    2: "For each comment:"
+       - "If comment.end < edit.start: no change"
+       - "If comment.start > edit.end: apply delta shift"
+       - "If overlap: mark as conflict"
+    3: "Batch apply updates"
+    4: "Recalculate line/column positions"
+    5: "Update position map"
+    6: "Trigger document reserialize"
+
+  optimizations:
+    - "Binary search for first affected comment"
+    - "Batch updates for efficiency"
+    - "Debounce rapid edits"
+    - "Incremental position map updates"
+
+conflict_resolution_strategies:
+  move_to_start:
+    description: "Move comment to start of deleted region"
+    use_case: "Preserve comment, attach to preceding content"
+
+  move_to_end:
+    description: "Move comment to end of deleted region"
+    use_case: "Attach comment to following content"
+
+  delete_comment:
+    description: "Remove comment as content is gone"
+    use_case: "Comment no longer relevant"
+
+  mark_orphan:
+    description: "Keep comment but mark as detached"
+    use_case: "User can manually reattach later"
+
+  split_comment:
+    description: "Split into before/after if partial overlap"
+    use_case: "Complex replacement scenarios"
+
+state_tracking:
+  position_map_fields:
+    - document_id: "Links to document"
+    - line_starts: "Byte offsets of each line start"
+    - comment_positions: "Map of comment ID -> Position"
+    - last_edit: "Most recent edit operation"
+    - version: "Increments on each edit"
+
+  comment_position_fields:
+    - start_offset: "Byte offset from document start"
+    - end_offset: "End byte offset"
+    - start_line: "1-based line number"
+    - start_column: "1-based column"
+    - end_line: "End line number"
+    - end_column: "End column"
+    - anchor_text: "Text at position (for validation)"
+
+invariants:
+  - "Position offsets never negative"
+  - "End offset always >= start offset"
+  - "Line numbers always positive"
+  - "All offsets within document bounds"
+  - "Position map version increments on each edit"
+  - "Comment count matches position count"
+  - "Line starts array always sorted"
+
+validation:
+  after_each_edit:
+    - "All positions within document length"
+    - "No overlapping conflict states"
+    - "Position map consistent with comments"
+    - "Line/column match offset calculations"
+
+quality_attributes:
+  accuracy:
+    - "Comments always track intended content"
+    - "Position calculations byte-accurate"
+    - "No position drift over many edits"
+
+  performance:
+    - "Update 1000 positions in < 100ms"
+    - "No lag during typing"
+    - "Efficient for large documents"
+
+  reliability:
+    - "No position corruption"
+    - "Atomic updates"
+    - "Recoverable from conflicts"

@@ -1,0 +1,243 @@
+# Behavior: Adding a Comment to a Specific Line
+
+behavior: "Comment Creation"
+user_goal: "Add a new comment at a specific position in the document"
+priority: critical
+
+scenarios:
+  - name: "Add comment at cursor position"
+    given:
+      - "Document is open and displayed"
+      - "Cursor positioned at line 42, column 10"
+      - "No existing comment at this position"
+      - "User is authenticated as 'alice'"
+    when:
+      - "User triggers comment creation (keyboard shortcut or command)"
+      - "User types comment text: 'This needs clarification'"
+      - "User confirms the comment"
+    then:
+      - "Unique comment ID generated"
+      - "Comment object created with metadata"
+      - "Author set to 'alice'"
+      - "Timestamp set to current time"
+      - "Position recorded as line 42, calculated offset"
+      - "Comment serialized to CriticMarkup format"
+      - "Markup inserted at position in document"
+      - "Position tracker updated with new comment"
+      - "Document marked as modified"
+      - "Comment appears in comment panel"
+      - "Visual indicator added at comment line"
+      - "Cursor returns to original position"
+    performance:
+      - "Comment insertion completes in < 50ms"
+      - "UI updates in < 20ms"
+
+  - name: "Add comment with text selection"
+    given:
+      - "User has selected text span from line 10 to line 15"
+      - "Selection contains 'function calculateTotal()'"
+    when:
+      - "User creates comment on selection"
+      - "User enters: 'Consider edge case for negative values'"
+    then:
+      - "Comment anchored to start of selection"
+      - "Comment metadata includes selection range"
+      - "Both start and end positions tracked"
+      - "Selected text highlighted in different color"
+      - "Comment shows context of selected text"
+      - "Selection cleared after comment created"
+
+  - name: "Add empty comment text"
+    given:
+      - "User initiates comment creation"
+    when:
+      - "User submits without entering text"
+    then:
+      - "Validation error triggered"
+      - "Error code EMPTY_COMMENT returned"
+      - "User shown message: 'Comment text cannot be empty'"
+      - "Comment input remains open"
+      - "No document modification occurs"
+      - "No partial comment object created"
+
+  - name: "Add comment at end of file"
+    given:
+      - "Document has 100 lines"
+      - "Cursor at line 100, end of line"
+    when:
+      - "User creates comment"
+      - "User enters text: 'Add conclusion section'"
+    then:
+      - "Comment created at end position"
+      - "Position calculated correctly at document boundary"
+      - "No off-by-one errors"
+      - "Comment markup appended properly"
+      - "Comment visible in both panes"
+
+  - name: "Add comment in rapid succession"
+    given:
+      - "User at line 20"
+    when:
+      - "User creates first comment"
+      - "User immediately moves to line 25"
+      - "User creates second comment within 1 second"
+      - "User moves to line 30"
+      - "User creates third comment"
+    then:
+      - "All three comments created successfully"
+      - "Each has unique ID"
+      - "Timestamps show correct sequence"
+      - "Positions all correct relative to insertions"
+      - "Position tracker handles all updates"
+      - "No race conditions occur"
+      - "All comments visible"
+
+  - name: "Add comment with special characters"
+    given:
+      - "User creating comment"
+    when:
+      - "User enters text with markdown syntax: '`code` and **bold**'"
+      - "Text includes CriticMarkup-like strings: '{>> nested <<}'"
+    then:
+      - "Special characters properly escaped"
+      - "Markdown preserved as literal text"
+      - "CriticMarkup delimiters escaped"
+      - "Comment text stored exactly as entered"
+      - "No parsing ambiguity created"
+      - "Round-trip serialization preserves content"
+
+  - name: "Add comment with multi-line text"
+    given:
+      - "User creates comment at line 30"
+    when:
+      - "User enters multi-line comment text spanning 5 lines"
+      - "Text includes blank lines"
+    then:
+      - "All lines captured in comment"
+      - "Line breaks preserved"
+      - "Blank lines maintained"
+      - "Comment markup wraps entire text"
+      - "Display shows all lines with proper formatting"
+
+  - name: "Add comment that triggers auto-save"
+    given:
+      - "Auto-save configured with 5 second debounce"
+      - "Document has unsaved changes"
+    when:
+      - "User adds comment"
+      - "5 seconds elapse with no further edits"
+    then:
+      - "Auto-save triggered"
+      - "Document persisted to disk"
+      - "Backup created according to policy"
+      - "Modified indicator cleared"
+      - "User notified of save (subtle indication)"
+
+  - name: "Add comment at same position as existing comment"
+    given:
+      - "Comment C1 exists at line 50, column 0"
+      - "User cursor at line 50, column 0"
+    when:
+      - "User creates new comment C2"
+    then:
+      - "Both comments exist at same line"
+      - "Comments distinguished by IDs"
+      - "Visual stacking shows multiple comments"
+      - "Comment panel shows both"
+      - "Insertion order preserved"
+      - "No position conflict"
+
+  - name: "Cancel comment creation"
+    given:
+      - "User initiated comment creation"
+      - "Comment input mode active"
+      - "User has typed partial text"
+    when:
+      - "User presses escape or cancel command"
+    then:
+      - "Comment creation cancelled"
+      - "No comment object created"
+      - "Document remains unmodified"
+      - "UI returns to normal mode"
+      - "Cursor position preserved"
+      - "Partial text discarded"
+
+edge_cases:
+  - name: "Comment at byte offset boundary"
+    condition: "Comment position is at multi-byte character boundary"
+    expected: "Position calculated correctly, no character splitting"
+
+  - name: "Comment with maximum text length"
+    condition: "Comment text is 10,000 characters"
+    expected: "Accepted, stored, displayed with scrolling in panel"
+
+  - name: "Comment exceeding max length"
+    condition: "User enters 100,000 character comment"
+    expected: "Validation error, suggest breaking into multiple comments"
+
+  - name: "Comment during active LLM request"
+    condition: "LLM response streaming when user adds comment"
+    expected: "Comment created independently, both operations succeed"
+
+  - name: "Comment in read-only mode"
+    condition: "Document opened in read-only mode"
+    expected: "Comment creation blocked, error shown"
+
+state_transitions:
+  initial_state: "document_viewing"
+  trigger: "comment_creation_command"
+  intermediate_states:
+    - state: "comment_input_mode"
+      data: "cursor_position, input_buffer"
+    - state: "comment_validating"
+      data: "comment_text, position"
+    - state: "comment_serializing"
+      data: "comment_object"
+    - state: "document_updating"
+      data: "insert_position, markup_text"
+  final_state: "document_viewing"
+  post_conditions:
+    - "document.modified = true"
+    - "comments.count += 1"
+    - "position_map updated"
+
+invariants:
+  - "Comment ID is always unique within document"
+  - "Comment timestamp never in future"
+  - "Comment position always within document bounds"
+  - "Author field always non-empty"
+  - "Serialized format always valid CriticMarkup"
+  - "Position tracker always reflects actual positions"
+
+validation_rules:
+  - field: "text"
+    rules:
+      - "non_empty"
+      - "max_length: 50000"
+      - "valid_unicode"
+  - field: "position"
+    rules:
+      - "within_document"
+      - "non_negative_offset"
+      - "valid_line_number"
+  - field: "author"
+    rules:
+      - "non_empty"
+      - "valid_identifier"
+
+quality_attributes:
+  usability:
+    - "Comment creation takes 2-3 keystrokes"
+    - "Immediate visual feedback"
+    - "Clear mode indicators"
+    - "Easy to cancel"
+
+  reliability:
+    - "Never lose comment text"
+    - "Atomic operation (all-or-nothing)"
+    - "No document corruption on failure"
+
+  performance:
+    - "Instant response to keystroke"
+    - "No UI lag during creation"
+    - "Efficient position calculation"

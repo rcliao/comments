@@ -1,0 +1,381 @@
+# Data Model Specification
+
+entities:
+  Document:
+    description: "Represents a markdown document with comments"
+    fields:
+      id: uuid
+      filepath: string
+      content: string
+      raw_content: string  # Original without processing
+      checksum: string     # For change detection
+      encoding: string
+      last_modified: timestamp
+      created_at: timestamp
+      metadata:
+        type: object
+        fields:
+          title: string
+          author: string
+          tags: array<string>
+    relationships:
+      comments: one-to-many<Comment>
+      ast: one-to-one<DocumentAST>
+      position_map: one-to-one<PositionMap>
+    storage: file_system
+    validations:
+      - filepath: valid_path
+      - encoding: supported_encoding
+    indexes: [filepath, last_modified]
+    lifecycle:
+      creation: on_file_open
+      updates: on_edit_save
+      deletion: manual_only
+      archival: backup_on_major_change
+
+  Comment:
+    description: "Individual comment with CriticMarkup format"
+    fields:
+      id: string          # Unique identifier
+      document_id: uuid   # Parent document
+      author: string      # Author username
+      line: integer       # Line number at creation
+      timestamp: timestamp
+      text: string        # Comment content
+      status: enum[active, resolved, deleted]
+      position:
+        type: object
+        fields:
+          start_offset: integer
+          end_offset: integer
+          start_line: integer
+          start_column: integer
+          end_line: integer
+          end_column: integer
+      metadata:
+        type: object
+        fields:
+          edited_at: timestamp
+          edit_count: integer
+          reactions: array<Reaction>
+          tags: array<string>
+    relationships:
+      document: many-to-one<Document>
+      thread: many-to-one<Thread>
+      replies: one-to-many<Comment>
+      parent: many-to-one<Comment>
+    storage: embedded_in_document
+    validations:
+      - author: non_empty_string
+      - text: non_empty_string
+      - line: positive_integer
+      - position: valid_document_position
+    indexes: [document_id, timestamp, author]
+    constraints:
+      - unique: [document_id, id]
+    lifecycle:
+      creation: user_action_or_llm_response
+      updates: user_edit_only
+      deletion: soft_delete_with_history
+      archival: with_document
+
+  Thread:
+    description: "Collection of related comments forming a conversation"
+    fields:
+      id: uuid
+      root_comment_id: string
+      document_id: uuid
+      created_at: timestamp
+      updated_at: timestamp
+      status: enum[open, closed, archived]
+      participants: array<string>
+      comment_count: integer
+      unread_count: integer  # Per user in real implementation
+    relationships:
+      comments: one-to-many<Comment>
+      document: many-to-one<Document>
+    storage: derived_from_comments
+    validations:
+      - root_comment_id: exists_in_document
+      - participants: non_empty_array
+    indexes: [document_id, updated_at, status]
+    lifecycle:
+      creation: on_first_reply
+      updates: on_new_comment
+      deletion: with_all_comments
+      archival: after_resolution
+
+  DocumentAST:
+    description: "Abstract syntax tree of parsed document"
+    fields:
+      document_id: uuid
+      nodes: array<ASTNode>
+      parse_time: timestamp
+      parser_version: string
+      errors: array<ParseError>
+      warnings: array<ParseWarning>
+    relationships:
+      document: one-to-one<Document>
+    storage: memory_cache
+    validations:
+      - nodes: valid_ast_structure
+    lifecycle:
+      creation: on_document_parse
+      updates: on_document_change
+      deletion: on_cache_clear
+      archival: not_persisted
+
+  ASTNode:
+    description: "Node in document AST"
+    fields:
+      type: enum[paragraph, heading, code, comment, list, blockquote, table]
+      content: string
+      children: array<ASTNode>
+      position:
+        type: object
+        fields:
+          start: integer
+          end: integer
+          line: integer
+          column: integer
+      attributes: object  # Type-specific attributes
+    storage: transient
+    validations:
+      - type: valid_node_type
+      - position: valid_range
+
+  Position:
+    description: "Text position tracking"
+    fields:
+      offset: integer       # Byte offset
+      line: integer        # 1-based line number
+      column: integer      # 1-based column number
+      length: integer      # Selection length
+    storage: transient
+    validations:
+      - offset: non_negative
+      - line: positive_integer
+      - column: positive_integer
+      - length: non_negative
+
+  PositionMap:
+    description: "Maps between different position representations"
+    fields:
+      document_id: uuid
+      line_starts: array<integer>  # Byte offsets of line starts
+      comment_positions: map<string, Position>  # Comment ID to position
+      last_update: timestamp
+    relationships:
+      document: one-to-one<Document>
+    storage: memory_cache
+    validations:
+      - line_starts: sorted_ascending
+    lifecycle:
+      creation: on_document_parse
+      updates: on_document_edit
+      deletion: on_document_close
+
+  LLMContext:
+    description: "Context for LLM requests"
+    fields:
+      id: uuid
+      document_id: uuid
+      selection: Position
+      surrounding_text: string
+      relevant_comments: array<Comment>
+      user_query: string
+      provider: enum[claude, openai, local, custom]
+      model: string
+      max_tokens: integer
+      temperature: float
+      system_prompt: string
+      created_at: timestamp
+    relationships:
+      document: many-to-one<Document>
+      response: one-to-one<LLMResponse>
+    storage: transient_session
+    validations:
+      - provider: supported_provider
+      - max_tokens: within_limits
+      - temperature: between_0_and_2
+    lifecycle:
+      creation: on_llm_request
+      updates: not_allowed
+      deletion: after_response_processed
+
+  LLMResponse:
+    description: "Response from LLM provider"
+    fields:
+      id: uuid
+      context_id: uuid
+      content: string
+      chunks: array<string>  # For streaming
+      status: enum[pending, streaming, complete, failed, cancelled]
+      error: string
+      tokens_used: integer
+      processing_time: integer  # milliseconds
+      provider_metadata: object
+      created_at: timestamp
+      completed_at: timestamp
+    relationships:
+      context: one-to-one<LLMContext>
+    storage: transient_session
+    validations:
+      - status: valid_status_transition
+    lifecycle:
+      creation: on_llm_request_sent
+      updates: during_streaming
+      deletion: on_session_end
+
+  UIState:
+    description: "Terminal UI state"
+    fields:
+      active_view: enum[document, comments, split, llm_preview]
+      cursor_position: Position
+      selection: Position
+      scroll_offset:
+        type: object
+        fields:
+          document: integer
+          comments: integer
+      focused_pane: enum[document, comments, input]
+      comment_filter:
+        type: object
+        fields:
+          author: string
+          status: enum[all, active, resolved]
+          date_range: object
+      visible_comments: array<string>  # Comment IDs
+      input_mode: enum[normal, insert, comment, search, command]
+      command_buffer: string
+      search_query: string
+      search_results: array<Position>
+    storage: memory_only
+    validations:
+      - cursor_position: within_document_bounds
+      - scroll_offset: non_negative
+    lifecycle:
+      creation: on_ui_start
+      updates: on_user_interaction
+      deletion: on_ui_close
+
+  EditOperation:
+    description: "Document edit operation for tracking"
+    fields:
+      id: uuid
+      document_id: uuid
+      type: enum[insert, delete, replace]
+      position: Position
+      old_text: string
+      new_text: string
+      timestamp: timestamp
+      source: enum[user, llm, system]
+    relationships:
+      document: many-to-one<Document>
+    storage: transient_undo_buffer
+    validations:
+      - position: valid_document_position
+    lifecycle:
+      creation: on_edit
+      updates: not_allowed
+      deletion: on_buffer_overflow
+
+  Session:
+    description: "User session state"
+    fields:
+      id: uuid
+      user: string
+      started_at: timestamp
+      last_activity: timestamp
+      open_documents: array<uuid>
+      active_document: uuid
+      preferences: object
+      command_history: array<string>
+    storage: memory_session
+    validations:
+      - user: non_empty_string
+    lifecycle:
+      creation: on_app_start
+      updates: on_activity
+      deletion: on_app_close
+
+  Reaction:
+    description: "Emoji reaction to comment"
+    fields:
+      emoji: string
+      author: string
+      timestamp: timestamp
+    storage: embedded_in_comment
+    validations:
+      - emoji: valid_emoji
+      - author: non_empty_string
+
+relationships:
+  document_comments:
+    type: one-to-many
+    parent: Document
+    child: Comment
+    cascade_delete: true
+
+  comment_thread:
+    type: hierarchical
+    parent: Comment
+    child: Comment
+    max_depth: 10
+
+  thread_hierarchy:
+    type: tree
+    root: Thread
+    nodes: Comment
+    ordering: timestamp
+
+storage_strategies:
+  persistent:
+    - Document (as files)
+    - Comment (embedded in document)
+
+  cache:
+    - DocumentAST
+    - PositionMap
+    - parsed metadata
+
+  session:
+    - UIState
+    - LLMContext
+    - LLMResponse
+    - EditOperation
+
+  transient:
+    - ASTNode
+    - Position
+
+indices:
+  primary:
+    - Document.filepath
+    - Comment.id
+    - Thread.id
+
+  secondary:
+    - Comment.timestamp
+    - Comment.author
+    - Thread.updated_at
+
+  composite:
+    - [Document.id, Comment.id]
+    - [Document.id, Comment.line]
+
+constraints:
+  uniqueness:
+    - Document.filepath
+    - Comment.id within Document
+
+  referential:
+    - Comment.document_id -> Document.id
+    - Comment.parent_id -> Comment.id
+    - Thread.root_comment_id -> Comment.id
+
+  business:
+    - Comment.line > 0
+    - Comment.timestamp <= now()
+    - Thread.comment_count >= 1
+    - Position.offset < Document.content.length

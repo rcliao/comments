@@ -1,0 +1,237 @@
+# Behavior: Creating Comment Threads through Replies
+
+behavior: "Comment Threading"
+user_goal: "Reply to existing comments to create threaded conversations"
+priority: high
+
+scenarios:
+  - name: "Reply to root comment"
+    given:
+      - "Comment C1 exists with id 'abc123'"
+      - "C1 has text 'What about error handling?'"
+      - "C1 has no existing replies"
+      - "User is authenticated as 'bob'"
+    when:
+      - "User selects reply action on C1"
+      - "User enters reply text: 'Good point, I'll add try-catch blocks'"
+      - "User submits reply"
+    then:
+      - "New comment C2 created with unique ID"
+      - "C2.parent_id set to 'abc123'"
+      - "Thread object created with root C1"
+      - "Thread contains [C1, C2] in order"
+      - "Thread.participants includes ['alice', 'bob']"
+      - "C2 displays indented under C1"
+      - "Thread connection visualized (line or indent)"
+      - "C1 shows reply count indicator"
+      - "Thread.updated_at set to C2.timestamp"
+
+  - name: "Reply to reply (nested thread)"
+    given:
+      - "Thread exists: C1 -> C2"
+      - "C1 author is 'alice'"
+      - "C2 author is 'bob'"
+      - "User is 'alice'"
+    when:
+      - "User replies to C2"
+      - "Reply text: 'Thanks! Also consider async errors'"
+    then:
+      - "Comment C3 created"
+      - "C3.parent_id set to C2.id"
+      - "Thread hierarchy: C1 -> C2 -> C3"
+      - "C3 indented more than C2"
+      - "Thread depth calculated as 2"
+      - "Participants remain ['alice', 'bob']"
+      - "Visual hierarchy clear in UI"
+
+  - name: "Multiple replies to same comment"
+    given:
+      - "Root comment C1 exists"
+    when:
+      - "User 'bob' replies creating C2"
+      - "User 'charlie' replies to C1 creating C3"
+      - "User 'diana' replies to C1 creating C4"
+    then:
+      - "Thread structure: C1 -> [C2, C3, C4]"
+      - "All replies at same nesting level"
+      - "Replies ordered by timestamp"
+      - "Each reply independently attached to C1"
+      - "Thread.comment_count equals 4"
+      - "Thread.participants includes all four users"
+      - "UI shows branching structure clearly"
+
+  - name: "Reply to non-existent parent"
+    given:
+      - "User attempts reply with parent_id 'invalid123'"
+      - "No comment with that ID exists"
+    when:
+      - "Reply submission attempted"
+    then:
+      - "Validation error triggered"
+      - "Error code PARENT_NOT_FOUND returned"
+      - "Error message: 'Parent comment does not exist'"
+      - "No reply comment created"
+      - "No thread modification occurs"
+      - "User can retry with correct parent"
+
+  - name: "Reply at maximum nesting depth"
+    given:
+      - "Thread exists with 10 levels of nesting (depth 9)"
+      - "Maximum configured depth is 10"
+      - "User viewing deepest comment C10"
+    when:
+      - "User attempts to reply to C10"
+    then:
+      - "Reply allowed, depth 10 reached"
+      - "Comment C11 created at depth 10"
+      - "No further replies allowed to C11"
+      - "Warning shown about depth limit"
+      - "Suggestion to start new thread"
+
+  - name: "Reply beyond maximum depth"
+    given:
+      - "Thread at maximum depth (10)"
+      - "Deepest comment is C11"
+    when:
+      - "User attempts reply to C11"
+    then:
+      - "Reply blocked"
+      - "Error: 'Maximum thread depth reached'"
+      - "Suggestion to create new top-level comment"
+      - "No comment created"
+      - "Thread structure unchanged"
+
+  - name: "Reply with @mention"
+    given:
+      - "Comment C1 exists"
+      - "Users 'alice' and 'bob' are participants"
+    when:
+      - "User 'charlie' replies: '@alice have you considered this?'"
+    then:
+      - "Reply created normally"
+      - "Mention '@alice' preserved in text"
+      - "Notification could be triggered for alice"
+      - "Reply appears in thread"
+      - "'charlie' added to participants"
+
+  - name: "Delete comment with replies"
+    given:
+      - "Thread: C1 -> [C2, C3]"
+      - "C2 has reply C4"
+      - "Structure: C1 -> [C2 -> C4, C3]"
+    when:
+      - "User attempts to delete C2 without delete_replies flag"
+    then:
+      - "Deletion blocked"
+      - "Error code HAS_REPLIES returned"
+      - "Message: 'Cannot delete comment with replies'"
+      - "Suggestion to use delete_replies=true"
+      - "C2 and C4 remain intact"
+
+  - name: "Delete comment cascade"
+    given:
+      - "Thread: C1 -> [C2 -> C4, C3]"
+    when:
+      - "User deletes C2 with delete_replies=true"
+    then:
+      - "C2 marked as deleted (soft delete)"
+      - "C4 also marked as deleted"
+      - "Thread now shows: C1 -> [C2(deleted) -> C4(deleted), C3]"
+      - "C3 remains active"
+      - "Thread.comment_count adjusted"
+      - "Deleted comments show as '[deleted]' in UI"
+
+  - name: "Resolve thread"
+    given:
+      - "Thread with 5 comments exists"
+      - "Thread status is 'open'"
+    when:
+      - "User marks thread as resolved"
+    then:
+      - "Thread.status changed to 'closed'"
+      - "All comments in thread marked resolved"
+      - "Visual indicator shows resolution"
+      - "Thread archived or filtered by default"
+      - "Can be unresolved if needed"
+
+  - name: "Concurrent replies"
+    given:
+      - "Comment C1 exists"
+      - "Two users viewing simultaneously"
+    when:
+      - "User 'alice' submits reply at time T"
+      - "User 'bob' submits reply at time T+0.5s"
+      - "Both replies targeting C1"
+    then:
+      - "Both replies created successfully"
+      - "Each gets unique ID"
+      - "Timestamps reflect submission order"
+      - "Both appear in thread"
+      - "No data race occurs"
+      - "UI updates show both replies"
+
+edge_cases:
+  - name: "Reply to deleted comment"
+    condition: "Parent comment soft-deleted but structure intact"
+    expected: "Reply allowed, maintains thread structure"
+
+  - name: "Orphaned reply"
+    condition: "Parent comment reference broken"
+    expected: "Detected as orphan, promoted to root or flagged"
+
+  - name: "Circular reference"
+    condition: "Comment somehow references itself as parent"
+    expected: "Detected and rejected during validation"
+
+  - name: "Thread with 100+ comments"
+    condition: "Very long discussion thread"
+    expected: "Paginated display, lazy loading, performance maintained"
+
+  - name: "Reply during document edit"
+    condition: "Someone editing while reply added"
+    expected: "Both operations succeed, positions updated correctly"
+
+thread_hierarchy_rules:
+  - "Root comments have parent_id = null"
+  - "Reply comments have valid parent_id"
+  - "No circular dependencies allowed"
+  - "Maximum depth enforced"
+  - "Thread ID derived from root comment"
+  - "Participants accumulated from all comments"
+
+thread_metadata:
+  calculated_fields:
+    - "comment_count: count of all comments in thread"
+    - "depth: maximum nesting level"
+    - "participants: unique set of authors"
+    - "created_at: timestamp of root comment"
+    - "updated_at: timestamp of most recent comment"
+
+  derived_properties:
+    - "unread_count: per-user tracking"
+    - "has_unresolved: boolean"
+    - "branch_count: number of reply branches"
+
+invariants:
+  - "Thread always has exactly one root comment"
+  - "All comments in thread reference same document"
+  - "Parent-child relationships form valid tree"
+  - "No comment is its own ancestor"
+  - "Timestamps never decrease in chain"
+  - "Participant list includes all comment authors"
+
+quality_attributes:
+  usability:
+    - "Reply action clearly available on each comment"
+    - "Visual hierarchy intuitive"
+    - "Easy to follow conversation flow"
+
+  reliability:
+    - "Thread structure always consistent"
+    - "No orphaned comments"
+    - "Cascade operations atomic"
+
+  performance:
+    - "Thread construction fast (<50ms)"
+    - "Deep threads don't degrade performance"
+    - "Efficient traversal algorithms"
