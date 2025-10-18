@@ -2,6 +2,8 @@
 
 A CLI tool for collaborative document writing with inline comments, designed for seamless LLM integration.
 
+[![asciicast](https://asciinema.org/a/z6fSaof32MYS36NOtZ5Oj84Lf.svg)](https://asciinema.org/a/z6fSaof32MYS36NOtZ5Oj84Lf)
+
 ## Overview
 
 `comments` brings Google Doc-style commenting to terminal-based markdown editing, enabling better collaboration between humans and LLM agents. Instead of having LLMs rewrite entire documents, you can add contextual comments at specific lines to guide iteration and discussion.
