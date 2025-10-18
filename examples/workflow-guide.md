@@ -1,18 +1,45 @@
 # Collaborative Document Writing with Comments CLI {>>[@claude-code:c1760732678547858000:c1760732678547858000:1:2025-10-17T13:24:38-07:00:true] [FEATURE] Added document context display in thread view! Now shows 2 lines before/after the commented line with highlighting. <<}
 
-A practical guide to using the comments CLI for human-AI collaboration on document creation.
+A practical guide to using the comments CLI for human-AI collaboration on document creation. {>>[@rcliao:c1760750402333942000:c1760750402333942000:3:2025-10-17T18:20:02-07:00:false] [S] or more of a note to myself: we can add a recording of the workflow here once we feel more comfortable as key demo <<}
 
 ## The Problem
 
 Traditional document collaboration with AI agents has a fundamental issue: when you ask an LLM to improve a document, it often rewrites the entire thing. This makes it hard to:
-- Review changes incrementally {>>[@reviewer:c1760730888549291000:c1760730888549291000:8:2025-10-17T12:54:48-07:00:false] [Q] Should we add a comparison table showing Comments CLI vs traditional methods? <<} {>>[@author:c1760730954757047000:c1760730888549291000:8:2025-10-17T12:55:54-07:00:false] Great idea\! A comparison table would make the value proposition clearer. I'll add one. <<} {>>[@rcliao:c1760741915721517000:c1760730888549291000:8:2025-10-17T15:58:35-07:00:false] Yup, agreed that we should add a comparison between traditional (both agent and human writing on the same doc getting messy or one writing style overwrite the other - often agent to utilizing comments to collaborate) <<}
+- Review changes incrementally
 - Provide contextual feedback
-- Iterate on specific sections {>>[@rcliao:c1760742030140343000:c1760742030140343000:10:2025-10-17T16:00:30-07:00:true] In addition to iterating on the specific section, I found tagging comment as question/suggestion/blocking helpful to get more than a whole text. Makes the review/edit cycle focused <<}
-- Maintain authorship and voice {>>[@rcliao:c1760750347999681000:c1760750347999681000:11:2025-10-17T18:19:07-07:00:false] [S] I think we can add a new section about incremental exploration of a suggestion/improvement rather than writing the whole section <<}
+- Iterate on specific sections
+- Maintain authorship and voice
+
+### Comparison: Comments CLI vs Traditional Methods
+
+| Aspect | Traditional (Same-Doc Editing) | Comments CLI |
+|--------|-------------------------------|--------------|
+| **Workflow** | AI rewrites entire sections | AI adds targeted comments |
+| **Review** | Diff entire document | Review comment-by-comment |
+| **Authorship** | AI voice overwrites human voice | Human maintains control, AI suggests |
+| **Iteration** | Start over each time | Incremental improvements |
+| **Context** | Lost in full rewrites | Preserved with inline comments |
+| **Collaboration** | Merge conflicts, messy history | Structured threads, clear discussions |
+| **Control** | Accept/reject large changes | Accept/reject individual suggestions |
+| **Focus** | Scattered across document | Organized by type ([Q], [S], [B], etc.) |
 
 The comments CLI solves this by bringing Google Docs-style commenting to terminal-based markdown editing.
 
 ## Core Workflow
+
+```
+┌─────────────┐      ┌─────────────┐      ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+│   Phase 1   │      │   Phase 2   │      │   Phase 3   │      │   Phase 4   │      │   Phase 5   │
+│   Initial   │ ───> │   Review &  │ ───> │   Act on    │ ───> │   Iterate   │ ───> │   Publish   │
+│   Draft     │      │   Comment   │      │   Comments  │      │             │      │             │
+└─────────────┘      └─────────────┘      └─────────────┘      └─────────────┘      └─────────────┘
+     │                     │                     │                     │                     │
+     │                     │                     │                     │                     │
+  Write or              Add [Q]              Resolve,              Repeat 2-3            Strip all
+  generate           [S] [B] [T] [E]           Reply,               until done           comments
+  content             comments              or Dismiss                                  for clean
+                                                                                         output
+```
 
 ### Phase 1: Initial Draft
 
@@ -48,7 +75,7 @@ comments view document.md
 ```
 
 **AI Review (Automated)**
-```bash {>>[@reviewer:c1760730896862957000:c1760730896862957000:51:2025-10-17T12:54:56-07:00:false] [S] Consider adding a visual diagram showing the workflow phases <<} {>>[@rcliao:c1760736851100477000:c1760730896862957000:51:2025-10-17T14:34:11-07:00:false] Yes, a visual diagram works so that reader can know what to expect from the program <<}
+```bash {>>[@reviewer:c1760730896862957000:c1760730896862957000:78:2025-10-17T12:54:56-07:00:true] [S] Consider adding a visual diagram showing the workflow phases <<} {>>[@rcliao:c1760736851100477000:c1760730896862957000:78:2025-10-17T14:34:11-07:00:true] Yes, a visual diagram works so that reader can know what to expect from the program <<} {>>[@claude-code:c1760750630424304000:c1760730896862957000:78:2025-10-17T18:23:50-07:00:true] Added visual ASCII diagram showing all 5 workflow phases with descriptions. Shows the flow from Draft -> Review -> Act -> Iterate -> Publish. <<}
 # Use structured comment types for clarity
 comments add document.md --line 10 --type Q --text "Is this explanation clear enough?"
 comments add document.md --line 15 --type B --text "This section contradicts the intro"
@@ -69,7 +96,7 @@ comments export document.md --output comments.json
 
 ### Phase 3: Act on Comments
 
-Review comments and decide: {>>[@rcliao:c1760742980787894000:c1760742980787894000:72:2025-10-17T16:16:20-07:00:true] [Q] is there a way that we can make the comments useful to LLM to make edit to the doc as well? <<} {>>[@claude-code:c1760743187763632000:c1760742980787894000:72:2025-10-17T16:19:47-07:00:true] Yes\! Comments could be machine-readable. The CriticMarkup format is already structured. An LLM could parse: 'Show me all [B] blockers' or 'Apply suggested edits from @reviewer'. We'd need a 'comments export --format json' command to make this easy for LLM integrations. <<} {>>[@rcliao:c1760748375557869000:c1760742980787894000:72:2025-10-17T17:46:15-07:00:true] Agreed and liked about the export json option <<} {>>[@rcliao:c1760748552716738000:c1760742980787894000:72:2025-10-17T17:49:12-07:00:true] Let's implement 'comments export --format json' command. Output structure: {"comments": [...], "threads": {...}, "metadata": {...}}. This enables LLM tools (like Claude Code) to parse comments programmatically and apply edits based on suggestions. <<}
+Review comments and decide: {>>[@rcliao:c1760742980787894000:c1760742980787894000:99:2025-10-17T16:16:20-07:00:true] [Q] is there a way that we can make the comments useful to LLM to make edit to the doc as well? <<} {>>[@claude-code:c1760743187763632000:c1760742980787894000:99:2025-10-17T16:19:47-07:00:true] Yes\! Comments could be machine-readable. The CriticMarkup format is already structured. An LLM could parse: 'Show me all [B] blockers' or 'Apply suggested edits from @reviewer'. We'd need a 'comments export --format json' command to make this easy for LLM integrations. <<} {>>[@rcliao:c1760748375557869000:c1760742980787894000:99:2025-10-17T17:46:15-07:00:true] Agreed and liked about the export json option <<} {>>[@rcliao:c1760748552716738000:c1760742980787894000:99:2025-10-17T17:49:12-07:00:true] Let's implement 'comments export --format json' command. Output structure: {"comments": [...], "threads": {...}, "metadata": {...}}. This enables LLM tools (like Claude Code) to parse comments programmatically and apply edits based on suggestions. <<}
 
 **Resolve** - Comment addressed, changes made
 ```bash
@@ -92,7 +119,7 @@ comments resolve document.md --thread c123
 Repeat phases 2-3 until document quality meets requirements.
 
 **Convergence Indicators**:
-- No unresolved blocking comments {>>[@reviewer:c1760730918148284000:c1760730918148284000:95:2025-10-17T12:55:18-07:00:true] [B] The 'strip comments' command doesn't exist yet - this is a critical gap <<} {>>[@rcliao:c1760735792798777000:c1760730918148284000:95:2025-10-17T14:16:32-07:00:true] Instead of the strip command, we should do publish command as the workflow is write -> review -> edit -> publish <<}
+- No unresolved blocking comments {>>[@reviewer:c1760730918148284000:c1760730918148284000:122:2025-10-17T12:55:18-07:00:true] [B] The 'strip comments' command doesn't exist yet - this is a critical gap <<} {>>[@rcliao:c1760735792798777000:c1760730918148284000:122:2025-10-17T14:16:32-07:00:true] Instead of the strip command, we should do publish command as the workflow is write -> review -> edit -> publish <<}
 - All questions answered
 - Suggestions either implemented or dismissed with reasoning
 - Document reads smoothly end-to-end
@@ -113,7 +140,7 @@ comments publish document.md | pandoc -o document.pdf
 
 ### Comment Conventions
 
-Use structured prefixes for clarity: {>>[@rcliao:c1760742942408246000:c1760742942408246000:116:2025-10-17T16:15:42-07:00:true] [Q] shall we consider bringing these as convention to our comment utilities? <<} {>>[@claude-code:c1760743232414863000:c1760742942408246000:116:2025-10-17T16:20:32-07:00:true] Absolutely\! This would be powerful. Ideas: 1) 'comments list --type B' to filter blockers, 2) 'comments add --type Q' to auto-prefix with [Q], 3) TUI could color-code by type, 4) 'comments stats' showing breakdown by type. Makes prioritization trivial\! <<} {>>[@rcliao:c1760748419579568000:c1760742942408246000:116:2025-10-17T17:46:59-07:00:true] I like 1, 2, and 3. 4 may be over killed for the terminal tool for now <<} {>>[@rcliao:c1760748562603412000:c1760742942408246000:116:2025-10-17T17:49:22-07:00:true] Agreed on 1-3\! Implementation plan: 1) 'comments list --type Q' filters by [Q]/[S]/[B]/[T]/[E] prefix, 2) 'comments add --type Q' auto-adds prefix, 3) TUI color-coding: red=[B], yellow=[Q], blue=[S], etc. Skip stats for now - keep it lean and focused. <<}
+Use structured prefixes for clarity: {>>[@rcliao:c1760742942408246000:c1760742942408246000:143:2025-10-17T16:15:42-07:00:true] [Q] shall we consider bringing these as convention to our comment utilities? <<} {>>[@claude-code:c1760743232414863000:c1760742942408246000:143:2025-10-17T16:20:32-07:00:true] Absolutely\! This would be powerful. Ideas: 1) 'comments list --type B' to filter blockers, 2) 'comments add --type Q' to auto-prefix with [Q], 3) TUI could color-code by type, 4) 'comments stats' showing breakdown by type. Makes prioritization trivial\! <<} {>>[@rcliao:c1760748419579568000:c1760742942408246000:143:2025-10-17T17:46:59-07:00:true] I like 1, 2, and 3. 4 may be over killed for the terminal tool for now <<} {>>[@rcliao:c1760748562603412000:c1760742942408246000:143:2025-10-17T17:49:22-07:00:true] Agreed on 1-3\! Implementation plan: 1) 'comments list --type Q' filters by [Q]/[S]/[B]/[T]/[E] prefix, 2) 'comments add --type Q' auto-adds prefix, 3) TUI color-coding: red=[B], yellow=[Q], blue=[S], etc. Skip stats for now - keep it lean and focused. <<}
 
 - `[Q]` - Question: Needs answer before proceeding
 - `[S]` - Suggestion: Optional improvement
@@ -142,6 +169,34 @@ comments add doc.md --line 60 --text "[Q] What's the expected audience level?"
 **Incremental Review**:
 - Review and resolve section-by-section
 - Don't wait for entire document to be "done"
+
+**Incremental Exploration**:
+Instead of asking AI to rewrite entire sections, use comments to explore improvements incrementally:
+
+1. **Start with a Specific Question**: Use `[Q]` comments to ask about specific aspects
+   ```bash
+   comments add doc.md --line 42 --type Q --text "Could this example be clearer?"
+   ```
+
+2. **Get Targeted Suggestions**: AI responds with focused suggestions in comments, not rewrites
+   ```bash
+   comments reply doc.md --thread c123 --text "Try breaking it into 2 examples: basic + advanced" --author "claude"
+   ```
+
+3. **Experiment Section-by-Section**: Make small changes, review, iterate
+   - Edit one section based on suggestion
+   - Review the change in context
+   - If it works, apply similar pattern elsewhere
+   - If it doesn't, try different approach
+
+4. **Use Comment Types to Guide Exploration**:
+   - `[S]` for optional improvements to try
+   - `[Q]` for clarifying questions before changing
+   - `[B]` for critical issues that need addressing
+   - `[T]` for technical accuracy checks
+   - `[E]` for style/tone experiments
+
+This approach preserves your voice while benefiting from AI suggestions, and lets you learn what works through iteration rather than wholesale replacement.
 
 ### When to Use Each Command
 

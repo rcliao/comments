@@ -119,6 +119,7 @@ func listCommand(filename string, args []string) {
 	// Parse flags
 	fs := flag.NewFlagSet("list", flag.ExitOnError)
 	typeFilter := fs.String("type", "", "Filter by comment type: Q, S, B, T, E")
+	showResolved := fs.Bool("resolved", false, "Show resolved comments (default: false, only show unresolved)")
 
 	fs.Parse(args)
 
@@ -137,20 +138,27 @@ func listCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
+	// Filter by resolved status (only show root comments based on resolved flag)
+	filteredComments := comment.GetVisibleComments(doc.Comments, *showResolved)
+
 	// Filter comments by type if specified
-	filteredComments := doc.Comments
 	if *typeFilter != "" {
-		filteredComments = filterCommentsByType(doc.Comments, *typeFilter)
+		filteredComments = filterCommentsByType(filteredComments, *typeFilter)
 	}
 
 	// Build threads to identify root vs reply
 	threads := comment.BuildThreads(doc.Comments)
 
 	// List comments
+	statusText := "unresolved"
+	if *showResolved {
+		statusText = "total"
+	}
+
 	if *typeFilter != "" {
-		fmt.Printf("Found %d comment(s) with type [%s] in %s\n\n", len(filteredComments), *typeFilter, filename)
+		fmt.Printf("Found %d %s comment(s) with type [%s] in %s\n\n", len(filteredComments), statusText, *typeFilter, filename)
 	} else {
-		fmt.Printf("Found %d comment(s) in %s\n\n", len(filteredComments), filename)
+		fmt.Printf("Found %d %s comment(s) in %s\n\n", len(filteredComments), statusText, filename)
 	}
 
 	for i, c := range filteredComments {
@@ -526,6 +534,7 @@ Commands:
 
 List Command Flags:
   --type <type>               Filter by comment type: Q, S, B, T, E
+  --resolved                  Show resolved comments (default: false, only shows unresolved)
 
 Add Command Flags:
   --line <number>             Line number (required)
@@ -551,8 +560,10 @@ Publish Command Flags:
 Examples:
   # Interactive mode
   comments view document.md
-  comments list document.md
-  comments list document.md --type Q          # Show only questions
+  comments list document.md                      # Show only unresolved comments
+  comments list document.md --resolved           # Show all comments (including resolved)
+  comments list document.md --type Q             # Show only unresolved questions
+  comments list document.md --type B --resolved  # Show all blockers (resolved + unresolved)
 
   # Non-interactive comment management
   comments add document.md --line 10 --text "This needs review"
