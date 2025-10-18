@@ -106,16 +106,22 @@ func (p *Parser) parseComment(metadata, text string, lineNum int) (*Comment, err
 	}
 
 	// Parse metadata with backward compatibility:
-	// New format: author:id:threadid:line:timestamp (6+ colons total)
-	// Old format: author:id:line:timestamp (5 colons total)
-	//
-	// Since timestamps contain 2 colons (HH:MM:SSZ), we count total colons:
-	// - Old format: 3 field separators + 2 in timestamp = 5 total colons
-	// - New format: 4 field separators + 2 in timestamp = 6 total colons
+	// Check for resolved flag at the end (":true" or ":false")
+	resolved := false
+	if strings.HasSuffix(metadata, ":true") {
+		resolved = true
+		metadata = strings.TrimSuffix(metadata, ":true")
+	} else if strings.HasSuffix(metadata, ":false") {
+		metadata = strings.TrimSuffix(metadata, ":false")
+	}
 
 	colonCount := strings.Count(metadata, ":")
 
-	// New format with threading (6+ colons)
+	// New format: author:id:threadid:line:timestamp (6+ colons)
+	// Old format: author:id:line:timestamp (5 colons)
+	//
+	// Since timestamps contain 2-3 colons (depending on timezone format), we count total colons
+
 	if colonCount >= 6 {
 		// New format: author:id:threadid:line:timestamp
 		// Split into at most 6 parts to preserve timestamp colons
@@ -147,6 +153,7 @@ func (p *Parser) parseComment(metadata, text string, lineNum int) (*Comment, err
 			return nil, fmt.Errorf("invalid timestamp: %w", err)
 		}
 		comment.Timestamp = timestamp
+		comment.Resolved = resolved
 
 	} else if colonCount == 5 {
 		// Old format (backward compatibility): Split into 4 parts
@@ -163,6 +170,7 @@ func (p *Parser) parseComment(metadata, text string, lineNum int) (*Comment, err
 			return nil, fmt.Errorf("invalid timestamp: %w", err)
 		}
 		comment.Timestamp = timestamp
+		comment.Resolved = resolved
 
 	} else {
 		return nil, fmt.Errorf("invalid metadata format: expected author:id:threadid:line:timestamp or author:id:line:timestamp, got %s (found %d colons)", metadata, colonCount)

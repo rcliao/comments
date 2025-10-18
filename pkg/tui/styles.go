@@ -25,9 +25,10 @@ var (
 
 	// Comment panel
 	commentPanelStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
+				BorderLeft(true).
+				BorderStyle(lipgloss.NormalBorder()).
 				BorderForeground(lipgloss.Color("63")).
-				Padding(1)
+				Padding(0, 1)
 
 	// Selected comment
 	selectedCommentStyle = lipgloss.NewStyle().

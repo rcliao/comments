@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/reflow/wordwrap"
 	"github.com/rcliao/comments/pkg/comment"
 )
 
@@ -19,7 +20,8 @@ type Model struct {
 	mode ViewMode
 
 	// File picker
-	filePicker filepicker.Model
+	filePicker       filepicker.Model
+	startedWithFile  bool // Track if file was provided directly vs picked
 
 	// Document state
 	doc      *comment.DocumentWithComments
@@ -67,11 +69,12 @@ func NewModel() Model {
 	}
 
 	return Model{
-		mode:         ModeFilePicker,
-		filePicker:   fp,
-		commentInput: ta,
-		author:       author,
-		showResolved: false,
+		mode:            ModeFilePicker,
+		filePicker:      fp,
+		commentInput:    ta,
+		author:          author,
+		showResolved:    false,
+		startedWithFile: false,
 	}
 }
 
@@ -88,13 +91,14 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 	}
 
 	m := Model{
-		mode:         ModeBrowse,
-		doc:          doc,
-		filename:     filename,
-		threads:      comment.BuildThreads(doc.Comments),
-		commentInput: ta,
-		author:       author,
-		showResolved: false,
+		mode:            ModeBrowse,
+		doc:             doc,
+		filename:        filename,
+		threads:         comment.BuildThreads(doc.Comments),
+		commentInput:    ta,
+		author:          author,
+		showResolved:    false,
+		startedWithFile: true,
 	}
 	return m
 }
@@ -134,22 +138,24 @@ func (m *Model) handleResize() {
 	panelWidth := m.width - docWidth - 4
 
 	if !m.ready {
-		m.documentViewport = viewport.New(docWidth, m.height-3)
-		m.commentViewport = viewport.New(panelWidth, m.height-3)
-		m.threadViewport = viewport.New(m.width-4, m.height-3)
+		m.documentViewport = viewport.New(docWidth, m.height-2)
+		m.commentViewport = viewport.New(panelWidth, m.height-2)
+		m.threadViewport = viewport.New(m.width-4, m.height-2)
 
 		if m.doc != nil {
 			m.documentViewport.SetContent(m.renderDocument())
+			m.documentViewport.YOffset = 0 // Explicitly start at top
 			m.commentViewport.SetContent(m.renderComments())
+			m.commentViewport.YOffset = 0 // Explicitly start at top
 		}
 		m.ready = true
 	} else {
 		m.documentViewport.Width = docWidth
-		m.documentViewport.Height = m.height - 3
+		m.documentViewport.Height = m.height - 2
 		m.commentViewport.Width = panelWidth
-		m.commentViewport.Height = m.height - 3
+		m.commentViewport.Height = m.height - 2
 		m.threadViewport.Width = m.width - 4
-		m.threadViewport.Height = m.height - 3
+		m.threadViewport.Height = m.height - 2
 	}
 }
 
@@ -197,7 +203,11 @@ func (m Model) handleFilePickerKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q":
-		// Go back to file picker
+		// If file was provided directly, quit the app
+		// Otherwise, go back to file picker
+		if m.startedWithFile {
+			return m, tea.Quit
+		}
 		m.mode = ModeFilePicker
 		m.doc = nil
 		m.filename = ""
@@ -211,7 +221,13 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Enter line selection mode to add comment
 		m.mode = ModeLineSelect
 		m.selectedLine = 1
+
+		// Completely reset the viewport to fix scroll offset issues
+		docWidth := int(float64(m.width) * 0.6)
+		m.documentViewport = viewport.New(docWidth, m.height-2)
+		m.documentViewport.YOffset = 0
 		m.documentViewport.SetContent(m.renderDocumentWithCursor())
+		m.documentViewport.YOffset = 0 // Set again after content
 		return m, nil
 
 	case "j", "down":
@@ -256,19 +272,28 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleLineSelectKeys handles keys in line select mode
 func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	lines := strings.Split(m.doc.Content, "\n")
+	totalLines := len(lines)
+
 	switch msg.String() {
 	case "esc":
-		// Cancel line selection
+		// Cancel line selection and reset viewport
 		m.mode = ModeBrowse
+
+		// Reset the viewport to fix any scroll offset issues
+		docWidth := int(float64(m.width) * 0.6)
+		m.documentViewport = viewport.New(docWidth, m.height-2)
+		m.documentViewport.YOffset = 0
 		m.documentViewport.SetContent(m.renderDocument())
+		m.documentViewport.YOffset = 0
 		return m, nil
 
 	case "j", "down":
 		// Move cursor down
-		lines := strings.Split(m.doc.Content, "\n")
-		if m.selectedLine < len(lines) {
+		if m.selectedLine < totalLines {
 			m.selectedLine++
 			m.documentViewport.SetContent(m.renderDocumentWithCursor())
+			m.scrollToLine(m.selectedLine)
 		}
 		return m, nil
 
@@ -277,7 +302,44 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selectedLine > 1 {
 			m.selectedLine--
 			m.documentViewport.SetContent(m.renderDocumentWithCursor())
+			m.scrollToLine(m.selectedLine)
 		}
+		return m, nil
+
+	case "ctrl+d":
+		// Page down (half page)
+		pageSize := m.documentViewport.Height / 2
+		m.selectedLine += pageSize
+		if m.selectedLine > totalLines {
+			m.selectedLine = totalLines
+		}
+		m.documentViewport.SetContent(m.renderDocumentWithCursor())
+		m.scrollToLine(m.selectedLine)
+		return m, nil
+
+	case "ctrl+u":
+		// Page up (half page)
+		pageSize := m.documentViewport.Height / 2
+		m.selectedLine -= pageSize
+		if m.selectedLine < 1 {
+			m.selectedLine = 1
+		}
+		m.documentViewport.SetContent(m.renderDocumentWithCursor())
+		m.scrollToLine(m.selectedLine)
+		return m, nil
+
+	case "g":
+		// Go to first line
+		m.selectedLine = 1
+		m.documentViewport.SetContent(m.renderDocumentWithCursor())
+		m.documentViewport.GotoTop()
+		return m, nil
+
+	case "G":
+		// Go to last line
+		m.selectedLine = totalLines
+		m.documentViewport.SetContent(m.renderDocumentWithCursor())
+		m.scrollToLine(m.selectedLine)
 		return m, nil
 
 	case "c", "enter":
@@ -289,6 +351,62 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// calculateDisplayRow calculates the actual display row for a line number, accounting for wrapped lines
+func (m *Model) calculateDisplayRow(targetLineNum int) int {
+	if m.doc == nil {
+		return 0
+	}
+
+	lines := strings.Split(m.doc.Content, "\n")
+
+	// Calculate available width for text
+	availableWidth := m.documentViewport.Width - 12
+	if availableWidth < 40 {
+		availableWidth = 40
+	}
+
+	displayRow := 0
+	for i := 0; i < len(lines) && i < targetLineNum; i++ {
+		line := lines[i]
+		// Count how many rows this line takes when wrapped
+		wrappedLines := strings.Split(wordwrap.String(line, availableWidth), "\n")
+		displayRow += len(wrappedLines)
+	}
+
+	return displayRow
+}
+
+// scrollToLine adjusts viewport to keep the specified line visible
+func (m *Model) scrollToLine(lineNum int) {
+	// Special case: if going to line 1, use GotoTop
+	if lineNum == 1 {
+		m.documentViewport.GotoTop()
+		return
+	}
+
+	// Calculate the actual display row for this line (accounting for wrapped lines)
+	displayRow := m.calculateDisplayRow(lineNum - 1) // -1 because we want the start of this line
+
+	// Calculate visible range
+	topRow := m.documentViewport.YOffset
+	bottomRow := topRow + m.documentViewport.Height - 1
+
+	// Scroll if line is out of view
+	if displayRow < topRow {
+		// Line is above visible area - scroll up
+		m.documentViewport.YOffset = displayRow
+	} else if displayRow > bottomRow {
+		// Line is below visible area - scroll down
+		// Position it near the bottom of the viewport
+		m.documentViewport.YOffset = displayRow - m.documentViewport.Height + 5
+	}
+
+	// Ensure we don't scroll past the end
+	if m.documentViewport.YOffset < 0 {
+		m.documentViewport.YOffset = 0
+	}
 }
 
 // handleAddCommentKeys handles keys in add comment mode
@@ -350,7 +468,11 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "q":
-		// Go back to file picker
+		// If file was provided directly, quit the app
+		// Otherwise, go back to file picker
+		if m.startedWithFile {
+			return m, tea.Quit
+		}
 		m.mode = ModeFilePicker
 		m.selectedThread = nil
 		m.doc = nil
@@ -467,8 +589,12 @@ func (m Model) updateByMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.mode {
 	case ModeFilePicker:
 		m.filePicker, cmd = m.filePicker.Update(msg)
-	case ModeBrowse, ModeLineSelect:
+	case ModeBrowse:
+		// Only allow viewport updates in browse mode, not line select
 		m.documentViewport, cmd = m.documentViewport.Update(msg)
+	case ModeLineSelect:
+		// Don't update viewport in line select mode - we control scrolling manually
+		cmd = nil
 	case ModeAddComment, ModeReply:
 		m.commentInput, cmd = m.commentInput.Update(msg)
 	case ModeThreadView:
@@ -572,13 +698,17 @@ func (m Model) viewBrowse() string {
 	}
 
 	modeStr := m.mode.String()
-	title := titleStyle.Render(fmt.Sprintf("📄 %s - Mode: %s", m.filename, modeStr))
+	title := titleStyle.Render(fmt.Sprintf("📄 %s - %s", m.filename, modeStr))
 
 	var helpText string
 	if m.mode == ModeLineSelect {
-		helpText = "j/k: move cursor • c/Enter: add comment • Esc: cancel"
+		helpText = "j/k: move • Ctrl+D/U: page down/up • g/G: first/last • c/Enter: add comment • Esc: cancel"
 	} else {
-		helpText = "j/k: navigate • c: comment • Enter: expand • R: toggle resolved • q: back"
+		quitText := "back"
+		if m.startedWithFile {
+			quitText = "quit"
+		}
+		helpText = fmt.Sprintf("j/k: navigate • c: comment • Enter: expand • R: toggle resolved • q: %s", quitText)
 	}
 	help := helpStyle.Render(helpText)
 
@@ -614,6 +744,45 @@ func (m Model) viewAddComment() string {
 		commentPanelStyle.Render(m.commentViewport.View()),
 	)
 
+	// Get context lines around the selected line
+	contextLines := m.getContextLines(m.selectedLine, 2)
+	var contextText strings.Builder
+
+	contextStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("242")).
+		Italic(true)
+
+	lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	highlightStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("235")).
+		Foreground(lipgloss.Color("255")).
+		Bold(true)
+
+	contextText.WriteString(contextStyle.Render("Document Context:"))
+	contextText.WriteString("\n")
+
+	for _, cl := range contextLines {
+		linePrefix := fmt.Sprintf("%4d │ ", cl.LineNum)
+		if cl.LineNum == m.selectedLine {
+			// Highlight the target line
+			contextText.WriteString(lineNumStyle.Bold(true).Render(linePrefix))
+			contextText.WriteString(highlightStyle.Render(cl.Text))
+		} else {
+			contextText.WriteString(lineNumStyle.Render(linePrefix))
+			contextText.WriteString(cl.Text)
+		}
+		contextText.WriteString("\n")
+	}
+
+	// Comment type reminder
+	typeReminderStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("242")).
+		Italic(true)
+
+	typeReminder := typeReminderStyle.Render(
+		"Tip: Use type prefixes: [Q] Question • [S] Suggestion • [B] Blocker • [T] Technical • [E] Editorial",
+	)
+
 	// Modal overlay for comment input
 	modalTitle := lipgloss.NewStyle().
 		Bold(true).
@@ -627,7 +796,11 @@ func (m Model) viewAddComment() string {
 			lipgloss.Left,
 			modalTitle,
 			"",
+			contextText.String(),
+			"",
 			m.commentInput.View(),
+			"",
+			typeReminder,
 			"",
 			modalHelp,
 		),
@@ -636,7 +809,7 @@ func (m Model) viewAddComment() string {
 	// Position modal over content (centered)
 	positioned := lipgloss.Place(
 		m.width,
-		m.height-3,
+		m.height-2,
 		lipgloss.Center,
 		lipgloss.Center,
 		modal,
@@ -648,7 +821,7 @@ func (m Model) viewAddComment() string {
 		title,
 		lipgloss.Place(
 			m.width,
-			m.height-3,
+			m.height-2,
 			lipgloss.Left,
 			lipgloss.Top,
 			content,
@@ -664,7 +837,12 @@ func (m Model) viewThread() string {
 	}
 
 	title := titleStyle.Render(fmt.Sprintf("Thread at Line %d", m.selectedThread.Line))
-	help := helpStyle.Render("r: reply • x: resolve • Esc: back • q: file picker")
+
+	quitText := "file picker"
+	if m.startedWithFile {
+		quitText = "quit"
+	}
+	help := helpStyle.Render(fmt.Sprintf("r: reply • x: resolve • Esc: back • q: %s", quitText))
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
@@ -687,6 +865,52 @@ func (m Model) viewReply() string {
 	// Thread content as background
 	threadContent := m.threadViewport.View()
 
+	// Build thread context to show in modal
+	var threadContext strings.Builder
+	contextStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("242")).
+		Italic(true)
+
+	threadContext.WriteString(contextStyle.Render("Thread Context:"))
+	threadContext.WriteString("\n\n")
+
+	// Root comment
+	threadContext.WriteString(fmt.Sprintf("┌ @%s · %s\n",
+		m.selectedThread.RootComment.Author,
+		m.selectedThread.RootComment.Timestamp.Format("2006-01-02 15:04")))
+
+	// Truncate root comment if too long
+	rootText := m.selectedThread.RootComment.Text
+	if len(rootText) > 60 {
+		rootText = rootText[:57] + "..."
+	}
+	threadContext.WriteString(fmt.Sprintf("│ %s\n", rootText))
+
+	// Show recent replies (last 2)
+	replyCount := len(m.selectedThread.Replies)
+	if replyCount > 0 {
+		startIdx := 0
+		if replyCount > 2 {
+			threadContext.WriteString(fmt.Sprintf("│ ... (%d earlier replies)\n", replyCount-2))
+			startIdx = replyCount - 2
+		}
+
+		for i := startIdx; i < replyCount; i++ {
+			reply := m.selectedThread.Replies[i]
+			threadContext.WriteString(fmt.Sprintf("├ @%s · %s\n",
+				reply.Author,
+				reply.Timestamp.Format("2006-01-02 15:04")))
+
+			// Truncate reply if too long
+			replyText := reply.Text
+			if len(replyText) > 60 {
+				replyText = replyText[:57] + "..."
+			}
+			threadContext.WriteString(fmt.Sprintf("│ %s\n", replyText))
+		}
+	}
+	threadContext.WriteString("└──────────────────────\n")
+
 	// Modal overlay for reply input
 	modalTitle := lipgloss.NewStyle().
 		Bold(true).
@@ -700,6 +924,8 @@ func (m Model) viewReply() string {
 			lipgloss.Left,
 			modalTitle,
 			"",
+			threadContext.String(),
+			"",
 			m.commentInput.View(),
 			"",
 			modalHelp,
@@ -709,7 +935,7 @@ func (m Model) viewReply() string {
 	// Position modal over content (centered)
 	positioned := lipgloss.Place(
 		m.width,
-		m.height-3,
+		m.height-2,
 		lipgloss.Center,
 		lipgloss.Center,
 		modal,
@@ -721,7 +947,7 @@ func (m Model) viewReply() string {
 		title,
 		lipgloss.Place(
 			m.width,
-			m.height-3,
+			m.height-2,
 			lipgloss.Left,
 			lipgloss.Top,
 			threadContent,
@@ -766,7 +992,7 @@ func (m Model) viewResolve() string {
 	// Position dialog over content (centered)
 	positioned := lipgloss.Place(
 		m.width,
-		m.height-3,
+		m.height-2,
 		lipgloss.Center,
 		lipgloss.Center,
 		dialog,
@@ -778,7 +1004,7 @@ func (m Model) viewResolve() string {
 		title,
 		lipgloss.Place(
 			m.width,
-			m.height-3,
+			m.height-2,
 			lipgloss.Left,
 			lipgloss.Top,
 			threadContent,
