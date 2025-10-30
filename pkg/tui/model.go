@@ -236,13 +236,18 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selectedComment < len(visibleComments)-1 {
 			m.selectedComment++
 			m.commentViewport.SetContent(m.renderComments())
+			// Scroll document to center the selected comment
+			m.scrollToComment(visibleComments[m.selectedComment])
 		}
 		return m, nil
 
 	case "k", "up":
+		visibleComments := comment.GetVisibleComments(m.doc.Comments, m.showResolved)
 		if m.selectedComment > 0 {
 			m.selectedComment--
 			m.commentViewport.SetContent(m.renderComments())
+			// Scroll document to center the selected comment
+			m.scrollToComment(visibleComments[m.selectedComment])
 		}
 		return m, nil
 
@@ -255,6 +260,8 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.selectedThread = thread
 				m.mode = ModeThreadView
 				m.threadViewport.SetContent(m.renderThread())
+				// Scroll document to center the thread's comment
+				m.scrollToComment(selectedComment)
 				return m, nil
 			}
 		}
@@ -1011,4 +1018,52 @@ func (m Model) viewResolve() string {
 		),
 		positioned,
 	)
+}
+
+// scrollToComment scrolls the document viewport to center the given comment
+func (m *Model) scrollToComment(c *comment.Comment) {
+	if m.doc == nil || c == nil {
+		return
+	}
+
+	// Get the comment's line position
+	pos, ok := m.doc.Positions[c.ID]
+	if !ok {
+		// Fallback to the comment's Line field if position not found
+		pos = comment.Position{Line: c.Line}
+	}
+
+	targetLine := pos.Line
+	if targetLine < 1 {
+		return
+	}
+
+	// Calculate the rendered line position accounting for line wrapping
+	// We need to count how many rendered lines come before our target line
+	lines := strings.Split(m.doc.Content, "\n")
+	renderedLinesBefore := 0
+
+	// Calculate available width for text (same as in renderDocument)
+	availableWidth := m.documentViewport.Width - 10
+	if availableWidth < 40 {
+		availableWidth = 40
+	}
+
+	// Count wrapped lines for all lines before the target
+	for i := 0; i < len(lines) && i < targetLine-1; i++ {
+		wrappedCount := len(strings.Split(wordwrap.String(lines[i], availableWidth), "\n"))
+		renderedLinesBefore += wrappedCount
+	}
+
+	// Calculate target Y offset to center the line in the viewport
+	viewportHeight := m.documentViewport.Height
+	targetOffset := renderedLinesBefore - (viewportHeight / 2)
+
+	// Ensure we don't scroll before the start
+	if targetOffset < 0 {
+		targetOffset = 0
+	}
+
+	// Set the viewport offset
+	m.documentViewport.YOffset = targetOffset
 }
