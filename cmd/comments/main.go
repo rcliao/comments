@@ -42,6 +42,13 @@ func main() {
 		}
 		addCommand(os.Args[2], os.Args[3:])
 
+	case "batch-add":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: comments batch-add <file> [flags]")
+			os.Exit(1)
+		}
+		batchAddCommand(os.Args[2], os.Args[3:])
+
 	case "reply":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: comments reply <file> [flags]")
@@ -120,6 +127,11 @@ func listCommand(filename string, args []string) {
 	fs := flag.NewFlagSet("list", flag.ExitOnError)
 	typeFilter := fs.String("type", "", "Filter by comment type: Q, S, B, T, E")
 	showResolved := fs.Bool("resolved", false, "Show resolved comments (default: false, only show unresolved)")
+	authorFilter := fs.String("author", "", "Filter by author name")
+	searchText := fs.String("search", "", "Search comment text (case-insensitive)")
+	lineRange := fs.String("line-range", "", "Filter by line range (e.g., 10-30)")
+	sortBy := fs.String("sort", "line", "Sort by: line, timestamp, author")
+	format := fs.String("format", "text", "Output format: text, json, table")
 
 	fs.Parse(args)
 
@@ -146,20 +158,75 @@ func listCommand(filename string, args []string) {
 		filteredComments = filterCommentsByType(filteredComments, *typeFilter)
 	}
 
+	// Apply author filter
+	if *authorFilter != "" {
+		filteredComments = filterByAuthor(filteredComments, *authorFilter)
+	}
+
+	// Apply text search filter
+	if *searchText != "" {
+		filteredComments = filterBySearch(filteredComments, *searchText)
+	}
+
+	// Apply line range filter
+	if *lineRange != "" {
+		filtered, err := filterByLineRange(filteredComments, *lineRange)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		filteredComments = filtered
+	}
+
+	// Sort comments
+	sortComments(filteredComments, *sortBy)
+
+	// Output based on format
+	switch *format {
+	case "json":
+		if err := outputJSON(filteredComments, doc.Positions, doc.Comments); err != nil {
+			fmt.Printf("Error outputting JSON: %v\n", err)
+			os.Exit(1)
+		}
+		return
+
+	case "table":
+		outputTable(filteredComments, doc.Positions, doc.Comments)
+		return
+
+	case "text":
+		// Original text format (below)
+
+	default:
+		fmt.Printf("Error: Unknown format '%s'. Valid formats: text, json, table\n", *format)
+		os.Exit(1)
+	}
+
 	// Build threads to identify root vs reply
 	threads := comment.BuildThreads(doc.Comments)
 
-	// List comments
+	// List comments (original text format)
 	statusText := "unresolved"
 	if *showResolved {
 		statusText = "total"
 	}
 
+	// Build filter description
+	filterDesc := ""
 	if *typeFilter != "" {
-		fmt.Printf("Found %d %s comment(s) with type [%s] in %s\n\n", len(filteredComments), statusText, *typeFilter, filename)
-	} else {
-		fmt.Printf("Found %d %s comment(s) in %s\n\n", len(filteredComments), statusText, filename)
+		filterDesc += fmt.Sprintf(" with type [%s]", *typeFilter)
 	}
+	if *authorFilter != "" {
+		filterDesc += fmt.Sprintf(" by @%s", *authorFilter)
+	}
+	if *searchText != "" {
+		filterDesc += fmt.Sprintf(" matching '%s'", *searchText)
+	}
+	if *lineRange != "" {
+		filterDesc += fmt.Sprintf(" in lines %s", *lineRange)
+	}
+
+	fmt.Printf("Found %d %s comment(s)%s in %s\n\n", len(filteredComments), statusText, filterDesc, filename)
 
 	for i, c := range filteredComments {
 		pos := doc.Positions[c.ID]
@@ -209,29 +276,27 @@ func addCommand(filename string, args []string) {
 	fs := flag.NewFlagSet("add", flag.ExitOnError)
 	text := fs.String("text", "", "Comment text (required)")
 	line := fs.Int("line", 0, "Line number (required)")
-	author := fs.String("author", "", "Author name (defaults to $USER)")
+	author := fs.String("author", "", "Author name (required)")
 	commentType := fs.String("type", "", "Comment type: Q, S, B, T, E (auto-prefixes text)")
 
 	fs.Parse(args)
 
 	if *text == "" {
 		fmt.Println("Error: --text flag is required")
-		fmt.Println("Usage: comments add <file> --line N --text \"your comment\"")
+		fmt.Println("Usage: comments add <file> --line N --author \"name\" --text \"your comment\"")
 		os.Exit(1)
 	}
 
 	if *line == 0 {
 		fmt.Println("Error: --line flag is required")
-		fmt.Println("Usage: comments add <file> --line N --text \"your comment\"")
+		fmt.Println("Usage: comments add <file> --line N --author \"name\" --text \"your comment\"")
 		os.Exit(1)
 	}
 
-	// Default author
 	if *author == "" {
-		*author = os.Getenv("USER")
-		if *author == "" {
-			*author = "user"
-		}
+		fmt.Println("Error: --author flag is required")
+		fmt.Println("Usage: comments add <file> --line N --author \"name\" --text \"your comment\"")
+		os.Exit(1)
 	}
 
 	// Auto-prefix text with type if specified
@@ -281,28 +346,26 @@ func replyCommand(filename string, args []string) {
 	fs := flag.NewFlagSet("reply", flag.ExitOnError)
 	text := fs.String("text", "", "Reply text (required)")
 	thread := fs.String("thread", "", "Thread ID (required)")
-	author := fs.String("author", "", "Author name (defaults to $USER)")
+	author := fs.String("author", "", "Author name (required)")
 
 	fs.Parse(args)
 
 	if *text == "" {
 		fmt.Println("Error: --text flag is required")
-		fmt.Println("Usage: comments reply <file> --thread ID --text \"your reply\"")
+		fmt.Println("Usage: comments reply <file> --thread ID --author \"name\" --text \"your reply\"")
 		os.Exit(1)
 	}
 
 	if *thread == "" {
 		fmt.Println("Error: --thread flag is required")
-		fmt.Println("Usage: comments reply <file> --thread ID --text \"your reply\"")
+		fmt.Println("Usage: comments reply <file> --thread ID --author \"name\" --text \"your reply\"")
 		os.Exit(1)
 	}
 
-	// Default author
 	if *author == "" {
-		*author = os.Getenv("USER")
-		if *author == "" {
-			*author = "user"
-		}
+		fmt.Println("Error: --author flag is required")
+		fmt.Println("Usage: comments reply <file> --thread ID --author \"name\" --text \"your reply\"")
+		os.Exit(1)
 	}
 
 	// Read and parse file
@@ -526,6 +589,7 @@ Commands:
   view <file>                 Open interactive TUI viewer
   list <file> [flags]         List all comments in a file
   add <file> [flags]          Add a comment to a specific line
+  batch-add <file> [flags]    Add multiple comments from JSON
   reply <file> [flags]        Reply to a comment thread
   resolve <file> [flags]      Mark a thread as resolved
   export <file> [flags]       Export comments to JSON format
@@ -535,17 +599,26 @@ Commands:
 List Command Flags:
   --type <type>               Filter by comment type: Q, S, B, T, E
   --resolved                  Show resolved comments (default: false, only shows unresolved)
+  --author <name>             Filter by author name
+  --search <text>             Search comment text (case-insensitive)
+  --line-range <range>        Filter by line range (e.g., 10-30)
+  --sort <field>              Sort by: line (default), timestamp, author
+  --format <format>           Output format: text (default), json, table
 
 Add Command Flags:
   --line <number>             Line number (required)
   --text <text>               Comment text (required)
-  --author <name>             Author name (defaults to $USER)
+  --author <name>             Author name (required)
   --type <type>               Comment type: Q, S, B, T, E (auto-prefixes text)
+
+Batch-Add Command Flags:
+  --json <file|->             JSON file path or '-' for stdin (required)
+                              Note: Each comment in JSON must include "author" field
 
 Reply Command Flags:
   --thread <id>               Thread ID (required)
   --text <text>               Reply text (required)
-  --author <name>             Author name (defaults to $USER)
+  --author <name>             Author name (required)
 
 Resolve Command Flags:
   --thread <id>               Thread ID (required)
@@ -560,16 +633,30 @@ Publish Command Flags:
 Examples:
   # Interactive mode
   comments view document.md
-  comments list document.md                      # Show only unresolved comments
-  comments list document.md --resolved           # Show all comments (including resolved)
-  comments list document.md --type Q             # Show only unresolved questions
-  comments list document.md --type B --resolved  # Show all blockers (resolved + unresolved)
 
-  # Non-interactive comment management
-  comments add document.md --line 10 --text "This needs review"
-  comments add document.md --line 15 --text "Great point!" --author "bot"
-  comments add document.md --line 20 --type Q --text "Is this correct?"  # Auto-prefixes with [Q]
-  comments reply document.md --thread c123 --text "I agree"
+  # List with filters (can combine multiple filters!)
+  comments list document.md                              # Show only unresolved comments
+  comments list document.md --resolved                   # Show all comments (including resolved)
+  comments list document.md --type Q                     # Show only unresolved questions
+  comments list document.md --author claude              # Show comments by claude
+  comments list document.md --search "API"               # Search for "API" in comment text
+  comments list document.md --line-range 10-50           # Comments between lines 10-50
+  comments list document.md --author alice --type Q      # Alice's questions
+  comments list document.md --format table               # Pretty table output
+  comments list document.md --format json > output.json  # Export filtered results
+
+  # Single comment (author required for CLI)
+  comments add document.md --line 10 --author "claude" --text "This needs review"
+  comments add document.md --line 15 --author "bot" --text "Great point!"
+  comments add document.md --line 20 --author "reviewer" --type Q --text "Is this correct?"
+
+  # Batch add comments from JSON (each comment must have author)
+  comments batch-add document.md --json reviews.json
+  echo '[{"line":10,"author":"claude","text":"Fix this"},{"line":20,"author":"bot","text":"Add example","type":"S"}]' | \
+    comments batch-add document.md --json -
+
+  # Thread operations (author required for CLI)
+  comments reply document.md --thread c123 --author "claude" --text "I agree"
   comments resolve document.md --thread c123
 
   # Export comments for programmatic access
@@ -579,6 +666,21 @@ Examples:
   # Publish clean markdown (strip all comments)
   comments publish document.md                   # Print to stdout
   comments publish document.md --output final.md # Save to file
+
+Batch-Add JSON Format:
+  [
+    {
+      "line": 10,
+      "author": "alice",       // Required
+      "text": "Add examples",
+      "type": "S"              // Optional: Q, S, B, T, E
+    },
+    {
+      "line": 25,
+      "author": "bob",         // Required
+      "text": "Great point!"
+    }
+  ]
 
 Keyboard shortcuts (in view mode):
   j/k or ↓/↑      Navigate comments
