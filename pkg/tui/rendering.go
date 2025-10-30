@@ -2,12 +2,74 @@ package tui
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
 	"github.com/rcliao/comments/pkg/comment"
 )
+
+// styleMarkdownLine applies syntax highlighting to a markdown line
+func styleMarkdownLine(line string) string {
+	// Headers - color them for better scannability
+	if strings.HasPrefix(line, "# ") {
+		return lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("99")). // Purple
+			Render(line)
+	}
+	if strings.HasPrefix(line, "## ") {
+		return lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("33")). // Blue
+			Render(line)
+	}
+	if strings.HasPrefix(line, "### ") {
+		return lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("39")). // Cyan
+			Render(line)
+	}
+	if strings.HasPrefix(line, "#### ") || strings.HasPrefix(line, "##### ") || strings.HasPrefix(line, "###### ") {
+		return lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("45")). // Light cyan
+			Render(line)
+	}
+
+	// For non-header lines, apply inline styling (bold/italic) without changing color
+
+	// Bold text **text**
+	boldStarPattern := regexp.MustCompile(`\*\*([^*]+)\*\*`)
+	line = boldStarPattern.ReplaceAllStringFunc(line, func(match string) string {
+		content := boldStarPattern.FindStringSubmatch(match)[1]
+		return lipgloss.NewStyle().Bold(true).Render("**" + content + "**")
+	})
+
+	// Bold text __text__
+	boldUnderPattern := regexp.MustCompile(`__([^_]+)__`)
+	line = boldUnderPattern.ReplaceAllStringFunc(line, func(match string) string {
+		content := boldUnderPattern.FindStringSubmatch(match)[1]
+		return lipgloss.NewStyle().Bold(true).Render("__" + content + "__")
+	})
+
+	// Italic text *text* (but not **)
+	italicStarPattern := regexp.MustCompile(`\*([^*\s][^*]*?)\*`)
+	line = italicStarPattern.ReplaceAllStringFunc(line, func(match string) string {
+		content := italicStarPattern.FindStringSubmatch(match)[1]
+		return lipgloss.NewStyle().Italic(true).Render("*" + content + "*")
+	})
+
+	// Italic text _text_ (but not __)
+	italicUnderPattern := regexp.MustCompile(`_([^_\s][^_]*?)_`)
+	line = italicUnderPattern.ReplaceAllStringFunc(line, func(match string) string {
+		content := italicUnderPattern.FindStringSubmatch(match)[1]
+		return lipgloss.NewStyle().Italic(true).Render("_" + content + "_")
+	})
+
+	return line
+}
 
 // renderDocument renders the document with line numbers and comment markers
 func (m *Model) renderDocument() string {
@@ -37,8 +99,11 @@ func (m *Model) renderDocument() string {
 			marker = commentMarkerStyle.Render(fmt.Sprintf("💬%d", len(comments)))
 		}
 
+		// Apply markdown syntax highlighting
+		styledLine := styleMarkdownLine(line)
+
 		// Wrap long lines
-		wrappedLines := strings.Split(wordwrap.String(line, availableWidth), "\n")
+		wrappedLines := strings.Split(wordwrap.String(styledLine, availableWidth), "\n")
 		for j, wrappedLine := range wrappedLines {
 			if j == 0 {
 				// First line: show line number and marker
@@ -85,8 +150,14 @@ func (m *Model) renderDocumentWithCursor() string {
 		cursor := "  "
 		isSelected := lineNum == m.selectedLine
 
+		// Apply markdown syntax highlighting (only if not selected, as cursor style will override)
+		styledLine := line
+		if !isSelected {
+			styledLine = styleMarkdownLine(line)
+		}
+
 		// Wrap long lines
-		wrappedLines := strings.Split(wordwrap.String(line, availableWidth), "\n")
+		wrappedLines := strings.Split(wordwrap.String(styledLine, availableWidth), "\n")
 		for j, wrappedLine := range wrappedLines {
 			if j == 0 {
 				// First line: show cursor, line number and marker
@@ -239,8 +310,11 @@ func (m *Model) renderThread() string {
 			lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 			lineStyle := lipgloss.NewStyle()
 
+			// Apply markdown syntax highlighting to context lines
+			styledText := styleMarkdownLine(cl.Text)
+
 			// Wrap the line text
-			wrappedLines := strings.Split(wordwrap.String(cl.Text, contextWidth), "\n")
+			wrappedLines := strings.Split(wordwrap.String(styledText, contextWidth), "\n")
 
 			for i, wrappedLine := range wrappedLines {
 				if cl.LineNum == m.selectedThread.Line {
