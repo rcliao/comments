@@ -59,18 +59,20 @@ func (s *Serializer) Serialize(content string, comments []*Comment, positions ma
 
 // serializeComment converts a single comment to CriticMarkup format
 func (s *Serializer) serializeComment(c *Comment) string {
-	// Format: {>>[@author:id:threadid:line:timestamp:resolved] text <<}
+	// Format: {>>[@author:id:threadid:line:timestamp:type:resolved] text <<}
 	resolvedStr := "false"
 	if c.Resolved {
 		resolvedStr = "true"
 	}
 
-	metadata := fmt.Sprintf("@%s:%s:%s:%d:%s:%s",
+	// Include type in metadata (empty string if not set)
+	metadata := fmt.Sprintf("@%s:%s:%s:%d:%s:%s:%s",
 		c.Author,
 		c.ID,
 		c.ThreadID,
 		c.Line,
 		c.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
+		c.Type, // Add type field
 		resolvedStr,
 	)
 

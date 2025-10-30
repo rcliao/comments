@@ -11,6 +11,7 @@ type Comment struct {
 	Line      int       // Original line number where comment was added
 	Timestamp time.Time // When the comment was created
 	Text      string    // Comment content
+	Type      string    // Comment type: Q, S, B, T, E (optional)
 	Resolved  bool      // Whether the comment/thread has been resolved
 }
 

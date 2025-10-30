@@ -117,6 +117,23 @@ func NewComment(author string, line int, text string) *Comment {
 		Line:      line,
 		Timestamp: time.Now(),
 		Text:      text,
+		Type:      "", // Set via SetType() if needed
+		Resolved:  false,
+	}
+}
+
+// NewCommentWithType creates a new root comment with a type
+func NewCommentWithType(author string, line int, text string, commentType string) *Comment {
+	id := generateCommentID()
+	return &Comment{
+		ID:        id,
+		ThreadID:  id,
+		ParentID:  "",
+		Author:    author,
+		Line:      line,
+		Timestamp: time.Now(),
+		Text:      text,
+		Type:      commentType,
 		Resolved:  false,
 	}
 }
@@ -135,9 +152,15 @@ func NewReply(author string, threadID string, text string) *Comment {
 	}
 }
 
+// Counter for generating unique IDs when timestamps collide
+var idCounter int64 = 0
+
 // generateCommentID generates a unique comment ID
+// Uses nanosecond timestamp + counter to ensure uniqueness even in tight loops
 func generateCommentID() string {
-	return fmt.Sprintf("c%d", time.Now().UnixNano())
+	now := time.Now().UnixNano()
+	idCounter++
+	return fmt.Sprintf("c%d%d", now, idCounter)
 }
 
 // GetThreadByID retrieves a thread by its ID

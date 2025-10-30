@@ -319,8 +319,13 @@ func addCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
-	// Create new comment
-	newComment := comment.NewComment(*author, *line, commentText)
+	// Create new comment with type metadata
+	var newComment *comment.Comment
+	if *commentType != "" {
+		newComment = comment.NewCommentWithType(*author, *line, commentText, *commentType)
+	} else {
+		newComment = comment.NewComment(*author, *line, commentText)
+	}
 	doc.Comments = append(doc.Comments, newComment)
 	doc.Positions[newComment.ID] = comment.Position{Line: *line}
 

@@ -17,7 +17,9 @@ func NewParser() *Parser {
 	// Regex to match: {>>[@author:id:line:timestamp] text <<}
 	// Group 1: metadata (author:id:line:timestamp)
 	// Group 2: comment text
-	pattern := `\{>>(?:\[@([^\]]+)\]\s*)?([^<]*?)<<\}`
+	// Note: Use .*? (any character) instead of [^<]*? to allow < in comment text
+	// The <<} closing marker is unambiguous enough
+	pattern := `\{>>(?:\[@([^\]]+)\]\s*)?(.*?)<<\}`
 
 	return &Parser{
 		commentRegex: regexp.MustCompile(pattern),
@@ -117,17 +119,70 @@ func (p *Parser) parseComment(metadata, text string, lineNum int) (*Comment, err
 
 	colonCount := strings.Count(metadata, ":")
 
-	// New format: author:id:threadid:line:timestamp (6+ colons)
-	// Old format: author:id:line:timestamp (5 colons)
+	// Format evolution:
+	// V3 (current): author:id:threadid:line:timestamp:type:resolved (8+ colons with timestamp)
+	// V2: author:id:threadid:line:timestamp:resolved (7+ colons)
+	// V1: author:id:threadid:line:timestamp (6+ colons)
+	// V0 (legacy): author:id:line:timestamp (5 colons)
 	//
 	// Since timestamps contain 2-3 colons (depending on timezone format), we count total colons
 
-	if colonCount >= 6 {
-		// New format: author:id:threadid:line:timestamp
+	if colonCount >= 8 {
+		// V3 format: author:id:threadid:line:timestamp:type:resolved
+		// We need to extract from the right because timestamp has variable colons
+		//
+		// Strategy: Split from the LEFT for fixed fields, then parse from RIGHT for variable fields
+		// Format: author:id:threadid:line:<timestamp>:type:resolved
+		//         0      1   2        3    <variable> N-1  N
+
+		// First, split off the fixed left fields (author:id:threadid:line)
+		parts := strings.SplitN(metadata, ":", 5) // Split into: author, id, threadid, line, rest
+		if len(parts) < 5 {
+			return nil, fmt.Errorf("invalid V3 format: expected at least 5 parts, got %d", len(parts))
+		}
+
+		comment.Author = parts[0]
+		comment.ID = parts[1]
+		comment.ThreadID = parts[2]
+		// parts[3] is the line number (we use lineNum parameter instead)
+
+		// If ThreadID is empty or equals ID, this is a root comment
+		if comment.ThreadID == "" || comment.ThreadID == comment.ID {
+			comment.ThreadID = comment.ID
+			comment.ParentID = ""
+		} else {
+			// This is a reply
+			comment.ParentID = comment.ThreadID
+		}
+
+		// Now parse from the right: parts[4] = "timestamp:type:resolved"
+		remaining := parts[4]
+
+		// Split from the right to get type and timestamp
+		// Find the last colon (before :resolved)
+		// Note: resolved was already stripped earlier, so we have "timestamp:type"
+		lastColon := strings.LastIndex(remaining, ":")
+		if lastColon == -1 {
+			return nil, fmt.Errorf("invalid V3 format: missing type separator")
+		}
+
+		timestampStr := remaining[:lastColon]
+		comment.Type = remaining[lastColon+1:]
+
+		// Parse the timestamp
+		timestamp, err := time.Parse(time.RFC3339, timestampStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid timestamp '%s': %w", timestampStr, err)
+		}
+		comment.Timestamp = timestamp
+		comment.Resolved = resolved
+
+	} else if colonCount >= 6 {
+		// V2/V1 format: author:id:threadid:line:timestamp (possibly with :resolved)
 		// Split into at most 6 parts to preserve timestamp colons
 		parts := strings.SplitN(metadata, ":", 6)
 		if len(parts) < 6 {
-			return nil, fmt.Errorf("invalid new format metadata: expected 6 parts, got %d", len(parts))
+			return nil, fmt.Errorf("invalid V2 format metadata: expected 6 parts, got %d", len(parts))
 		}
 
 		comment.Author = parts[0]
@@ -154,6 +209,7 @@ func (p *Parser) parseComment(metadata, text string, lineNum int) (*Comment, err
 		}
 		comment.Timestamp = timestamp
 		comment.Resolved = resolved
+		comment.Type = "" // V2 doesn't have type
 
 	} else if colonCount == 5 {
 		// Old format (backward compatibility): Split into 4 parts

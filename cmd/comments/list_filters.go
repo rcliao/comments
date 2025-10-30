@@ -153,6 +153,7 @@ func outputJSON(comments []*comment.Comment, positions map[string]comment.Positi
 		Line      int    `json:"line"`
 		Timestamp string `json:"timestamp"`
 		Text      string `json:"text"`
+		Type      string `json:"type,omitempty"`
 		Resolved  bool   `json:"resolved"`
 		Replies   int    `json:"replies,omitempty"`
 	}
@@ -174,6 +175,7 @@ func outputJSON(comments []*comment.Comment, positions map[string]comment.Positi
 			Line:      pos.Line,
 			Timestamp: c.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
 			Text:      c.Text,
+			Type:      c.Type,
 			Resolved:  c.Resolved,
 		}
 

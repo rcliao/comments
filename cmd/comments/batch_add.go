@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 
 	"github.com/rcliao/comments/pkg/comment"
 )
@@ -108,8 +109,17 @@ func batchAddCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
-	// Add all comments
+	// Sort comments by line number in DESCENDING order
+	// This prevents line number drift when serializing
+	// (inserting from bottom to top keeps earlier line numbers valid)
+	sort.Slice(batchComments, func(i, j int) bool {
+		return batchComments[i].Line > batchComments[j].Line
+	})
+
+	// Add all comments to the document structure
 	addedCount := 0
+	addedComments := []*comment.Comment{}
+
 	for _, bc := range batchComments {
 		// Auto-prefix text with type if specified
 		text := bc.Text
@@ -117,14 +127,21 @@ func batchAddCommand(filename string, args []string) {
 			text = "[" + bc.Type + "] " + text
 		}
 
-		// Create new comment
-		newComment := comment.NewComment(bc.Author, bc.Line, text)
+		// Create new comment with type metadata
+		var newComment *comment.Comment
+		if bc.Type != "" {
+			newComment = comment.NewCommentWithType(bc.Author, bc.Line, text, bc.Type)
+		} else {
+			newComment = comment.NewComment(bc.Author, bc.Line, text)
+		}
+
 		doc.Comments = append(doc.Comments, newComment)
 		doc.Positions[newComment.ID] = comment.Position{Line: bc.Line}
+		addedComments = append(addedComments, newComment)
 		addedCount++
 	}
 
-	// Serialize and save
+	// Serialize once at the end (after all comments are added)
 	serializer := comment.NewSerializer()
 	updatedContent, err := serializer.Serialize(doc.Content, doc.Comments, doc.Positions)
 	if err != nil {
@@ -135,6 +152,31 @@ func batchAddCommand(filename string, args []string) {
 	if err := os.WriteFile(filename, []byte(updatedContent), 0644); err != nil {
 		fmt.Printf("Error writing file: %v\n", err)
 		os.Exit(1)
+	}
+
+	// Verify comments were added correctly by re-parsing
+	verifyContent, err := os.ReadFile(filename)
+	if err == nil {
+		verifyParser := comment.NewParser()
+		verifyDoc, err := verifyParser.Parse(string(verifyContent))
+		if err == nil {
+			// Count how many of our comments are present
+			verifiedCount := 0
+			commentIDs := make(map[string]bool)
+			for _, c := range addedComments {
+				commentIDs[c.ID] = true
+			}
+
+			for _, c := range verifyDoc.Comments {
+				if commentIDs[c.ID] {
+					verifiedCount++
+				}
+			}
+
+			if verifiedCount != addedCount {
+				fmt.Printf("⚠ Warning: Added %d comment(s) but only %d were verified in the file\n", addedCount, verifiedCount)
+			}
+		}
 	}
 
 	fmt.Printf("✓ Added %d comment(s) to %s\n", addedCount, filename)
