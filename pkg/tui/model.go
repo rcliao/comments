@@ -137,6 +137,14 @@ func (m *Model) handleResize() {
 	docWidth := int(float64(m.width) * 0.6)
 	panelWidth := m.width - docWidth - 4
 
+	// Set textarea width to use most of the screen width
+	// Account for modal borders (2), padding (4), and some margin (10)
+	textareaWidth := m.width - 16
+	if textareaWidth < 40 {
+		textareaWidth = 40 // Minimum width
+	}
+	m.commentInput.SetWidth(textareaWidth)
+
 	if !m.ready {
 		m.documentViewport = viewport.New(docWidth, m.height-2)
 		m.commentViewport = viewport.New(panelWidth, m.height-2)
