@@ -56,6 +56,13 @@ func main() {
 		}
 		replyCommand(os.Args[2], os.Args[3:])
 
+	case "batch-reply":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: comments batch-reply <file> [flags]")
+			os.Exit(1)
+		}
+		batchReplyCommand(os.Args[2], os.Args[3:])
+
 	case "resolve":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: comments resolve <file> [flags]")
@@ -596,6 +603,7 @@ Commands:
   add <file> [flags]          Add a comment to a specific line
   batch-add <file> [flags]    Add multiple comments from JSON
   reply <file> [flags]        Reply to a comment thread
+  batch-reply <file> [flags]  Reply to multiple threads from JSON
   resolve <file> [flags]      Mark a thread as resolved
   export <file> [flags]       Export comments to JSON format
   publish <file> [flags]      Output clean markdown without comments
@@ -624,6 +632,10 @@ Reply Command Flags:
   --thread <id>               Thread ID (required)
   --text <text>               Reply text (required)
   --author <name>             Author name (required)
+
+Batch-Reply Command Flags:
+  --json <file|->             JSON file path or '-' for stdin (required)
+                              Note: Each reply in JSON must include "thread" and "author" fields
 
 Resolve Command Flags:
   --thread <id>               Thread ID (required)
@@ -662,6 +674,9 @@ Examples:
 
   # Thread operations (author required for CLI)
   comments reply document.md --thread c123 --author "claude" --text "I agree"
+  comments batch-reply document.md --json replies.json
+  echo '[{"thread":"c123","author":"claude","text":"LGTM"}]' | \
+    comments batch-reply document.md --json -
   comments resolve document.md --thread c123
 
   # Export comments for programmatic access
@@ -684,6 +699,20 @@ Batch-Add JSON Format:
       "line": 25,
       "author": "bob",         // Required
       "text": "Great point!"
+    }
+  ]
+
+Batch-Reply JSON Format:
+  [
+    {
+      "thread": "c123",        // Required: Thread ID
+      "author": "claude",      // Required
+      "text": "This looks good to me"
+    },
+    {
+      "thread": "c456",
+      "author": "alice",
+      "text": "I agree with this approach"
     }
   ]
 

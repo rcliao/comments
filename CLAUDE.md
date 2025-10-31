@@ -48,9 +48,14 @@ go tool cover -html=coverage.out
 
 # Non-interactive commands
 ./comments list examples/sample.md
-./comments add examples/sample.md --line 10 --text "Test comment"
-./comments reply examples/sample.md --thread c123 --text "Reply"
+./comments add examples/sample.md --line 10 --author "user" --text "Test comment"
+./comments reply examples/sample.md --thread c123 --author "user" --text "Reply"
 ./comments resolve examples/sample.md --thread c123
+
+# Batch operations for LLM agents
+./comments batch-add examples/sample.md --json comments.json
+./comments batch-reply examples/sample.md --json replies.json
+echo '[{"thread":"c123","author":"claude","text":"LGTM"}]' | ./comments batch-reply examples/sample.md --json -
 
 # LLM integration (requires ANTHROPIC_API_KEY)
 export ANTHROPIC_API_KEY=your_key
@@ -293,6 +298,49 @@ Or use the TUI directly on sample documents in `examples/`.
 5. Add case to `updateByMode()` for viewport updates
 6. Create `view<Mode>()` rendering function in `pkg/tui/model.go`
 7. Add case to `View()` switch
+
+### Using Batch Operations (for LLM Agents)
+
+Batch operations are optimized for LLM agents like Claude Code to perform multiple operations efficiently:
+
+**Batch-add** (add multiple root comments):
+```bash
+# Create JSON file with comments
+cat > comments.json << 'EOF'
+[
+  {"line": 10, "author": "claude", "text": "Consider edge cases", "type": "Q"},
+  {"line": 25, "author": "claude", "text": "Add unit tests"}
+]
+EOF
+
+./comments batch-add document.md --json comments.json
+```
+
+**Batch-reply** (reply to multiple threads):
+```bash
+# First, list threads to get IDs
+./comments list document.md
+
+# Create JSON with replies
+cat > replies.json << 'EOF'
+[
+  {"thread": "c123", "author": "claude", "text": "Good point about scalability"},
+  {"thread": "c456", "author": "claude", "text": "I agree with this approach"}
+]
+EOF
+
+./comments batch-reply document.md --json replies.json
+
+# Or use stdin for single-command workflow
+echo '[{"thread":"c123","author":"claude","text":"LGTM"}]' | \
+  ./comments batch-reply document.md --json -
+```
+
+**Benefits:**
+- Single file write operation (more efficient than multiple commands)
+- Atomic operation (all succeed or all fail)
+- Better for scripting and automation
+- Reduces I/O overhead
 
 ### Modifying Comment Format
 
