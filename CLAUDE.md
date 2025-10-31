@@ -48,9 +48,14 @@ go tool cover -html=coverage.out
 
 # Non-interactive commands
 ./comments list examples/sample.md
-./comments add examples/sample.md --line 10 --author "user" --text "Test comment"
+./comments add examples/sample.md --line 10 --author "user" --text "Test comment" --type Q
 ./comments reply examples/sample.md --thread c123 --author "user" --text "Reply"
 ./comments resolve examples/sample.md --thread c123
+
+# List with filters
+./comments list examples/sample.md --author alice --format json
+./comments list examples/sample.md --search "TODO" --sort timestamp
+./comments list examples/sample.md --lines 10-30 --resolved false
 
 # Batch operations for LLM agents
 ./comments batch-add examples/sample.md --json comments.json
@@ -92,6 +97,15 @@ Comments use extended CriticMarkup with this structure:
 ```
 {>>[@author:id:threadid:line:timestamp] comment text <<}
 ```
+
+**Comment Types**: Comments can be categorized with type prefixes:
+- `Q` - Question: Requests clarification or poses a question
+- `S` - Suggestion: Proposes a change or improvement
+- `B` - Bug: Identifies an issue or bug
+- `T` - TODO: Marks something to be done
+- `E` - Enhancement: Suggests a feature enhancement
+
+Types are stored in the `Type` field and auto-prefixed to text as `[Q]`, `[S]`, etc. during batch operations.
 
 **Threading Model**:
 - Root comments: `ThreadID == ID`, `ParentID == ""`
@@ -137,6 +151,11 @@ if !m.ready {
 ```
 
 **Common bug**: Forgetting to call `handleResize()` after loading a file from the file picker. Always check if dimensions exist before initializing viewports.
+
+**Recent enhancements**:
+- Markdown syntax highlighting for headers (# H1, ## H2, etc.) using lipgloss styling
+- Auto-scroll to center selected comments when navigating in comment viewport
+- Full-width textarea for comment input (better UX for longer comments)
 
 #### Rendering Pattern
 
@@ -193,6 +212,23 @@ type DocumentWithComments struct {
 ```
 
 **Why separate Positions?** Allows efficient position updates during document edits without scanning all comment text.
+
+**Comment**: The core comment structure
+```go
+type Comment struct {
+    ID        string    // Unique identifier
+    ThreadID  string    // Root comment ID (same as ID for root)
+    ParentID  string    // Parent comment ID (empty for root)
+    Author    string    // Author name
+    Line      int       // Original line number
+    Timestamp time.Time // Creation time
+    Text      string    // Comment content
+    Type      string    // Optional: Q, S, B, T, E
+    Resolved  bool      // Resolution status
+}
+```
+
+**Type field**: Used for categorizing comments. When set, batch operations auto-prefix text with `[Q]`, `[S]`, etc.
 
 **Thread**: Built on-demand from flat Comment array
 ```go
@@ -305,16 +341,27 @@ Batch operations are optimized for LLM agents like Claude Code to perform multip
 
 **Batch-add** (add multiple root comments):
 ```bash
-# Create JSON file with comments
+# Create JSON file with comments (type is optional but recommended)
 cat > comments.json << 'EOF'
 [
   {"line": 10, "author": "claude", "text": "Consider edge cases", "type": "Q"},
-  {"line": 25, "author": "claude", "text": "Add unit tests"}
+  {"line": 25, "author": "claude", "text": "Add unit tests", "type": "S"},
+  {"line": 40, "author": "alice", "text": "Check memory usage"}
 ]
 EOF
 
 ./comments batch-add document.md --json comments.json
+
+# Or use stdin for single-command workflow
+echo '[{"line":10,"author":"claude","text":"Good idea","type":"Q"}]' | \
+  ./comments batch-add document.md --json -
 ```
+
+**Important**: All fields are required in batch-add:
+- `line`: Line number (integer, must be > 0)
+- `author`: Author name (string, required)
+- `text`: Comment text (string, required)
+- `type`: Comment type (string, optional: Q, S, B, T, E)
 
 **Batch-reply** (reply to multiple threads):
 ```bash
@@ -336,11 +383,66 @@ echo '[{"thread":"c123","author":"claude","text":"LGTM"}]' | \
   ./comments batch-reply document.md --json -
 ```
 
+**Important**: All fields are required in batch-reply:
+- `thread`: Thread ID (string, must exist)
+- `author`: Author name (string, required)
+- `text`: Reply text (string, required)
+
+The tool validates all thread IDs exist before adding any replies and will show available threads if validation fails.
+
 **Benefits:**
 - Single file write operation (more efficient than multiple commands)
 - Atomic operation (all succeed or all fail)
+- Verification step re-parses to confirm all comments/replies were added
 - Better for scripting and automation
 - Reduces I/O overhead
+
+### Filtering and Querying Comments
+
+The `list` command supports powerful filtering and output options:
+
+**Filtering Options:**
+```bash
+# Filter by author
+./comments list doc.md --author alice
+
+# Text search (case-insensitive)
+./comments list doc.md --search "TODO"
+
+# Line range
+./comments list doc.md --lines 10-30
+
+# Resolved/unresolved only
+./comments list doc.md --resolved true
+./comments list doc.md --resolved false
+```
+
+**Sorting:**
+```bash
+# Sort by line number (default)
+./comments list doc.md --sort line
+
+# Sort by timestamp
+./comments list doc.md --sort timestamp
+
+# Sort by author
+./comments list doc.md --sort author
+```
+
+**Output Formats:**
+```bash
+# Table format (default) - shows root comments only
+./comments list doc.md --format table
+
+# JSON format - includes all comments with full metadata
+./comments list doc.md --format json
+```
+
+**Combining Filters:**
+All filters can be combined:
+```bash
+./comments list doc.md --author claude --lines 10-50 --search "performance" --format json
+```
 
 ### Modifying Comment Format
 
