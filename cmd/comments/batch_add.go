@@ -17,6 +17,20 @@ type BatchComment struct {
 	Author string `json:"author"`
 	Text   string `json:"text"`
 	Type   string `json:"type,omitempty"` // Q, S, B, T, E
+
+	// Suggestion fields (optional)
+	SuggestionType string              `json:"suggestion_type,omitempty"` // line, char-range, multi-line, diff-hunk
+	Selection      *BatchSelection     `json:"selection,omitempty"`
+	ProposedText   string              `json:"proposed_text,omitempty"`
+}
+
+// BatchSelection represents the selection for a suggestion in batch mode
+type BatchSelection struct {
+	StartLine  int    `json:"start_line,omitempty"`
+	EndLine    int    `json:"end_line,omitempty"`
+	ByteOffset int    `json:"byte_offset,omitempty"`
+	Length     int    `json:"length,omitempty"`
+	Original   string `json:"original,omitempty"`
 }
 
 func batchAddCommand(filename string, args []string) {
@@ -58,10 +72,26 @@ func batchAddCommand(filename string, args []string) {
 	var batchComments []BatchComment
 	if err := json.Unmarshal(input, &batchComments); err != nil {
 		fmt.Printf("Error parsing JSON: %v\n", err)
-		fmt.Println("\nExpected format:")
+		fmt.Println("\nExpected format (regular comment):")
 		fmt.Println(`[
   {"line": 10, "author": "alice", "text": "Add examples", "type": "S"},
-  {"line": 25, "text": "Great point!"}
+  {"line": 25, "author": "bob", "text": "Great point!"}
+]`)
+		fmt.Println("\nExpected format (suggestion):")
+		fmt.Println(`[
+  {
+    "line": 15,
+    "author": "claude",
+    "text": "Improve wording",
+    "type": "S",
+    "suggestion_type": "line",
+    "selection": {
+      "start_line": 15,
+      "end_line": 15,
+      "original": "old text"
+    },
+    "proposed_text": "new text"
+  }
 ]`)
 		os.Exit(1)
 	}
@@ -93,25 +123,41 @@ func batchAddCommand(filename string, args []string) {
 				os.Exit(1)
 			}
 		}
+		// Validate suggestion fields if suggestion_type is specified
+		if bc.SuggestionType != "" {
+			validSuggestionTypes := map[string]bool{
+				"line": true, "char-range": true, "multi-line": true, "diff-hunk": true,
+			}
+			if !validSuggestionTypes[bc.SuggestionType] {
+				fmt.Printf("Error: Comment %d has invalid suggestion_type '%s'. Valid types: line, char-range, multi-line, diff-hunk\n", i+1, bc.SuggestionType)
+				os.Exit(1)
+			}
+			if bc.Selection == nil {
+				fmt.Printf("Error: Comment %d is a suggestion but missing 'selection' field\n", i+1)
+				os.Exit(1)
+			}
+			if bc.ProposedText == "" {
+				fmt.Printf("Error: Comment %d is a suggestion but missing 'proposed_text' field\n", i+1)
+				os.Exit(1)
+			}
+			// Type-specific validation
+			if bc.SuggestionType == "char-range" {
+				if bc.Selection.ByteOffset < 0 {
+					fmt.Printf("Error: Comment %d (char-range) has invalid byte_offset\n", i+1)
+					os.Exit(1)
+				}
+			}
+		}
 	}
 
-	// Read and parse file
-	content, err := os.ReadFile(filename)
+	// Load document
+	doc, err := comment.LoadFromSidecar(filename)
 	if err != nil {
-		fmt.Printf("Error reading file: %v\n", err)
+		fmt.Printf("Error loading document: %v\n", err)
 		os.Exit(1)
 	}
 
-	parser := comment.NewParser()
-	doc, err := parser.Parse(string(content))
-	if err != nil {
-		fmt.Printf("Error parsing document: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Sort comments by line number in DESCENDING order
-	// This prevents line number drift when serializing
-	// (inserting from bottom to top keeps earlier line numbers valid)
+	// Sort comments by line number in DESCENDING order for consistency
 	sort.Slice(batchComments, func(i, j int) bool {
 		return batchComments[i].Line > batchComments[j].Line
 	})
@@ -121,9 +167,9 @@ func batchAddCommand(filename string, args []string) {
 	addedComments := []*comment.Comment{}
 
 	for _, bc := range batchComments {
-		// Auto-prefix text with type if specified
+		// Auto-prefix text with type if specified (only for non-suggestions)
 		text := bc.Text
-		if bc.Type != "" {
+		if bc.Type != "" && bc.SuggestionType == "" {
 			text = "[" + bc.Type + "] " + text
 		}
 
@@ -135,47 +181,62 @@ func batchAddCommand(filename string, args []string) {
 			newComment = comment.NewComment(bc.Author, bc.Line, text)
 		}
 
+		// If this is a suggestion, populate suggestion fields
+		if bc.SuggestionType != "" {
+			newComment.SuggestionType = comment.SuggestionType(bc.SuggestionType)
+			newComment.ProposedText = bc.ProposedText
+			newComment.AcceptanceState = comment.AcceptancePending
+
+			// Convert BatchSelection to Selection
+			newComment.Selection = &comment.Selection{
+				StartLine:  bc.Selection.StartLine,
+				EndLine:    bc.Selection.EndLine,
+				ByteOffset: bc.Selection.ByteOffset,
+				Length:     bc.Selection.Length,
+				Original:   bc.Selection.Original,
+			}
+
+			// Set defaults for line-based suggestions
+			if bc.SuggestionType == "line" || bc.SuggestionType == "multi-line" {
+				if newComment.Selection.StartLine == 0 {
+					newComment.Selection.StartLine = bc.Line
+				}
+				if bc.SuggestionType == "line" && newComment.Selection.EndLine == 0 {
+					newComment.Selection.EndLine = bc.Line
+				}
+			}
+		}
+
 		doc.Comments = append(doc.Comments, newComment)
 		doc.Positions[newComment.ID] = comment.Position{Line: bc.Line}
 		addedComments = append(addedComments, newComment)
 		addedCount++
 	}
 
-	// Serialize once at the end (after all comments are added)
-	serializer := comment.NewSerializer()
-	updatedContent, err := serializer.Serialize(doc.Content, doc.Comments, doc.Positions)
-	if err != nil {
-		fmt.Printf("Error serializing document: %v\n", err)
+	// Save to sidecar
+	if err := comment.SaveToSidecar(filename, doc); err != nil {
+		fmt.Printf("Error saving document: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(filename, []byte(updatedContent), 0644); err != nil {
-		fmt.Printf("Error writing file: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Verify comments were added correctly by re-parsing
-	verifyContent, err := os.ReadFile(filename)
+	// Verify comments were added correctly by re-loading
+	verifyDoc, err := comment.LoadFromSidecar(filename)
 	if err == nil {
-		verifyParser := comment.NewParser()
-		verifyDoc, err := verifyParser.Parse(string(verifyContent))
-		if err == nil {
-			// Count how many of our comments are present
-			verifiedCount := 0
-			commentIDs := make(map[string]bool)
-			for _, c := range addedComments {
-				commentIDs[c.ID] = true
-			}
+		// Count how many of our comments are present
+		verifiedCount := 0
+		commentIDs := make(map[string]bool)
+		for _, c := range addedComments {
+			commentIDs[c.ID] = true
+		}
 
-			for _, c := range verifyDoc.Comments {
-				if commentIDs[c.ID] {
-					verifiedCount++
-				}
+		for _, c := range verifyDoc.Comments {
+			if commentIDs[c.ID] {
+				verifiedCount++
 			}
+		}
 
-			if verifiedCount != addedCount {
-				fmt.Printf("⚠ Warning: Added %d comment(s) but only %d were verified in the file\n", addedCount, verifiedCount)
-			}
+		if verifiedCount != addedCount {
+			fmt.Printf("⚠ Warning: Added %d comment(s) but only %d were verified in the file\n", addedCount, verifiedCount)
 		}
 	}
 

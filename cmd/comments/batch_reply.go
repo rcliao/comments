@@ -85,17 +85,10 @@ func batchReplyCommand(filename string, args []string) {
 		}
 	}
 
-	// Read and parse file
-	content, err := os.ReadFile(filename)
+	// Load document
+	doc, err := comment.LoadFromSidecar(filename)
 	if err != nil {
-		fmt.Printf("Error reading file: %v\n", err)
-		os.Exit(1)
-	}
-
-	parser := comment.NewParser()
-	doc, err := parser.Parse(string(content))
-	if err != nil {
-		fmt.Printf("Error parsing document: %v\n", err)
+		fmt.Printf("Error loading document: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -137,41 +130,30 @@ func batchReplyCommand(filename string, args []string) {
 		addedCount++
 	}
 
-	// Serialize once at the end (after all replies are added)
-	serializer := comment.NewSerializer()
-	updatedContent, err := serializer.Serialize(doc.Content, doc.Comments, doc.Positions)
-	if err != nil {
-		fmt.Printf("Error serializing document: %v\n", err)
+	// Save to sidecar
+	if err := comment.SaveToSidecar(filename, doc); err != nil {
+		fmt.Printf("Error saving document: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(filename, []byte(updatedContent), 0644); err != nil {
-		fmt.Printf("Error writing file: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Verify replies were added correctly by re-parsing
-	verifyContent, err := os.ReadFile(filename)
+	// Verify replies were added correctly by re-loading
+	verifyDoc, err := comment.LoadFromSidecar(filename)
 	if err == nil {
-		verifyParser := comment.NewParser()
-		verifyDoc, err := verifyParser.Parse(string(verifyContent))
-		if err == nil {
-			// Count how many of our replies are present
-			verifiedCount := 0
-			replyIDs := make(map[string]bool)
-			for _, r := range addedReplies {
-				replyIDs[r.ID] = true
-			}
+		// Count how many of our replies are present
+		verifiedCount := 0
+		replyIDs := make(map[string]bool)
+		for _, r := range addedReplies {
+			replyIDs[r.ID] = true
+		}
 
-			for _, c := range verifyDoc.Comments {
-				if replyIDs[c.ID] {
-					verifiedCount++
-				}
+		for _, c := range verifyDoc.Comments {
+			if replyIDs[c.ID] {
+				verifiedCount++
 			}
+		}
 
-			if verifiedCount != addedCount {
-				fmt.Printf("⚠ Warning: Added %d reply/replies but only %d were verified in the file\n", addedCount, verifiedCount)
-			}
+		if verifiedCount != addedCount {
+			fmt.Printf("⚠ Warning: Added %d reply/replies but only %d were verified in the file\n", addedCount, verifiedCount)
 		}
 	}
 

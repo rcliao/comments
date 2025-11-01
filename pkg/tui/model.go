@@ -35,13 +35,19 @@ type Model struct {
 	commentInput     textarea.Model
 
 	// Selection state
-	selectedLine    int  // For line selection mode
-	selectedComment int  // For comment navigation
-	selectedThread  *comment.Thread
-	showResolved    bool
+	selectedLine       int  // For line selection mode
+	selectedComment    int  // For comment navigation
+	selectedThread     *comment.Thread
+	selectedSuggestion *comment.Comment // For suggestion review mode
+	suggestionPreview  string           // Preview of suggested changes
+	showResolved       bool
 
 	// Input state
 	author string // User name for comments
+
+	// Suggestion creation state
+	suggestionOriginalText string         // Original text for suggestion being created
+	proposedTextInput      textarea.Model // For entering proposed text
 
 	// Dimensions
 	width  int
@@ -62,6 +68,9 @@ func NewModel() Model {
 	ta.Placeholder = "Enter your comment..."
 	ta.Focus()
 
+	proposedTA := textarea.New()
+	proposedTA.Placeholder = "Enter proposed text (edit the pre-filled original)..."
+
 	// Get author from environment or use default
 	author := os.Getenv("USER")
 	if author == "" {
@@ -69,12 +78,13 @@ func NewModel() Model {
 	}
 
 	return Model{
-		mode:            ModeFilePicker,
-		filePicker:      fp,
-		commentInput:    ta,
-		author:          author,
-		showResolved:    false,
-		startedWithFile: false,
+		mode:              ModeFilePicker,
+		filePicker:        fp,
+		commentInput:      ta,
+		proposedTextInput: proposedTA,
+		author:            author,
+		showResolved:      false,
+		startedWithFile:   false,
 	}
 }
 
@@ -84,6 +94,9 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 	ta.Placeholder = "Enter your comment..."
 	ta.Focus()
 
+	proposedTA := textarea.New()
+	proposedTA.Placeholder = "Enter proposed text (edit the pre-filled original)..."
+
 	// Get author from environment or use default
 	author := os.Getenv("USER")
 	if author == "" {
@@ -91,14 +104,15 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 	}
 
 	m := Model{
-		mode:            ModeBrowse,
-		doc:             doc,
-		filename:        filename,
-		threads:         comment.BuildThreads(doc.Comments),
-		commentInput:    ta,
-		author:          author,
-		showResolved:    false,
-		startedWithFile: true,
+		mode:              ModeBrowse,
+		doc:               doc,
+		filename:          filename,
+		threads:           comment.BuildThreads(doc.Comments),
+		commentInput:      ta,
+		proposedTextInput: proposedTA,
+		author:            author,
+		showResolved:      false,
+		startedWithFile:   true,
 	}
 	return m
 }
@@ -184,6 +198,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleReplyKeys(msg)
 	case ModeResolve:
 		return m.handleResolveKeys(msg)
+	case ModeReviewSuggestion:
+		return m.handleReviewSuggestionKeys(msg)
+	case ModeAddSuggestion:
+		return m.handleAddSuggestionKeys(msg)
 	default:
 		return m, nil
 	}
@@ -363,6 +381,19 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.commentInput.Reset()
 		m.commentInput.Focus()
 		return m, textarea.Blink
+
+	case "s":
+		// Trigger add suggestion modal
+		// Capture the original text from the selected line
+		if m.selectedLine > 0 && m.selectedLine <= len(lines) {
+			m.suggestionOriginalText = lines[m.selectedLine-1]
+			m.mode = ModeAddSuggestion
+			m.proposedTextInput.Reset()
+			m.proposedTextInput.SetValue(m.suggestionOriginalText) // Pre-fill with original
+			m.proposedTextInput.Focus()
+			return m, textarea.Blink
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -502,8 +533,45 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.commentInput.Focus()
 		return m, textarea.Blink
 
+	case "a":
+		// Accept suggestion (if root comment is a pending suggestion)
+		if m.selectedThread != nil && m.selectedThread.RootComment.IsSuggestion() &&
+			m.selectedThread.RootComment.IsPending() {
+			m.selectedSuggestion = m.selectedThread.RootComment
+			m.mode = ModeReviewSuggestion
+			// Generate preview
+			preview, err := comment.ApplySuggestion(m.doc.Content, m.selectedSuggestion)
+			if err != nil {
+				m.err = fmt.Errorf("failed to generate preview: %w", err)
+			} else {
+				m.suggestionPreview = preview
+			}
+			return m, nil
+		}
+		return m, nil
+
 	case "x":
-		// Enter resolve mode
+		// Reject suggestion (if root comment is a pending suggestion), otherwise resolve thread
+		if m.selectedThread != nil && m.selectedThread.RootComment.IsSuggestion() &&
+			m.selectedThread.RootComment.IsPending() {
+			// Reject the suggestion
+			for _, c := range m.doc.Comments {
+				if c.ID == m.selectedThread.RootComment.ID {
+					c.AcceptanceState = comment.AcceptanceRejected
+					break
+				}
+			}
+			// Save document
+			if err := comment.SaveToSidecar(m.filename, m.doc); err != nil {
+				m.err = fmt.Errorf("failed to save: %w", err)
+			}
+			// Refresh thread view
+			m.threads = comment.BuildThreads(m.doc.Comments)
+			m.selectedThread = m.threads[m.selectedThread.ID]
+			m.threadViewport.SetContent(m.renderThread())
+			return m, nil
+		}
+		// Otherwise, enter resolve mode for regular threads
 		m.mode = ModeResolve
 		return m, nil
 	}
@@ -597,6 +665,133 @@ func (m Model) handleResolveKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleReviewSuggestionKeys handles keys in review suggestion mode
+func (m Model) handleReviewSuggestionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "n":
+		// Cancel review, return to thread view
+		m.mode = ModeThreadView
+		m.selectedSuggestion = nil
+		m.suggestionPreview = ""
+		return m, nil
+
+	case "y", "enter":
+		// Accept and apply suggestion
+		if m.selectedSuggestion == nil {
+			m.mode = ModeThreadView
+			return m, nil
+		}
+
+		// Apply suggestion to document
+		newContent, err := comment.ApplySuggestion(m.doc.Content, m.selectedSuggestion)
+		if err != nil {
+			m.err = fmt.Errorf("failed to apply suggestion: %w", err)
+			m.mode = ModeThreadView
+			m.selectedSuggestion = nil
+			m.suggestionPreview = ""
+			return m, nil
+		}
+
+		// Update document content
+		m.doc.Content = newContent
+
+		// Recalculate positions
+		comment.UpdatePositionsByteOffsets(m.doc.Content, m.doc.Positions)
+
+		// Mark suggestion as accepted
+		for _, c := range m.doc.Comments {
+			if c.ID == m.selectedSuggestion.ID {
+				c.AcceptanceState = comment.AcceptanceAccepted
+				break
+			}
+		}
+
+		// Save document
+		if err := m.saveDocument(); err != nil {
+			m.err = err
+			return m, nil
+		}
+
+		// Refresh all views
+		m.threads = comment.BuildThreads(m.doc.Comments)
+		m.documentViewport.SetContent(m.renderDocument())
+		m.commentViewport.SetContent(m.renderComments())
+
+		// Return to thread view
+		m.mode = ModeThreadView
+		m.selectedThread = m.threads[m.selectedThread.ID]
+		m.threadViewport.SetContent(m.renderThread())
+		m.selectedSuggestion = nil
+		m.suggestionPreview = ""
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// handleAddSuggestionKeys handles keys in add suggestion mode
+func (m Model) handleAddSuggestionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		// Cancel suggestion creation
+		m.mode = ModeLineSelect
+		m.suggestionOriginalText = ""
+		m.proposedTextInput.Reset()
+		m.documentViewport.SetContent(m.renderDocumentWithCursor())
+		return m, nil
+
+	case "ctrl+s", "ctrl+d":
+		// Submit suggestion
+		proposedText := m.proposedTextInput.Value()
+		if proposedText == "" {
+			// Don't create empty suggestion
+			m.mode = ModeLineSelect
+			m.suggestionOriginalText = ""
+			m.documentViewport.SetContent(m.renderDocumentWithCursor())
+			return m, nil
+		}
+
+		// Create suggestion comment
+		suggestion := comment.NewCommentWithType(m.author, m.selectedLine, "Suggestion", "S")
+		suggestion.SuggestionType = comment.SuggestionLine
+		suggestion.AcceptanceState = comment.AcceptancePending
+		suggestion.Selection = &comment.Selection{
+			StartLine: m.selectedLine,
+			EndLine:   m.selectedLine,
+			Original:  m.suggestionOriginalText,
+		}
+		suggestion.ProposedText = proposedText
+
+		// Add to document
+		m.doc.Comments = append(m.doc.Comments, suggestion)
+		m.doc.Positions[suggestion.ID] = comment.Position{Line: m.selectedLine}
+
+		// Save document
+		if err := m.saveDocument(); err != nil {
+			m.err = err
+			return m, nil
+		}
+
+		// Rebuild threads
+		m.threads = comment.BuildThreads(m.doc.Comments)
+
+		// Refresh views
+		m.documentViewport.SetContent(m.renderDocument())
+		m.commentViewport.SetContent(m.renderComments())
+
+		// Return to browse mode
+		m.mode = ModeBrowse
+		m.suggestionOriginalText = ""
+		m.proposedTextInput.Reset()
+		return m, nil
+	}
+
+	// Handle textarea input
+	var cmd tea.Cmd
+	m.proposedTextInput, cmd = m.proposedTextInput.Update(msg)
+	return m, cmd
+}
+
 // updateByMode delegates updates to mode-specific logic
 func (m Model) updateByMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
@@ -621,16 +816,8 @@ func (m Model) updateByMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // loadFile loads a markdown file and transitions to browse mode
 func (m Model) loadFile(path string) (tea.Model, tea.Cmd) {
-	// Read file
-	content, err := os.ReadFile(path)
-	if err != nil {
-		m.err = err
-		return m, nil
-	}
-
-	// Parse document
-	parser := comment.NewParser()
-	doc, err := parser.Parse(string(content))
+	// Load document from sidecar
+	doc, err := comment.LoadFromSidecar(path)
 	if err != nil {
 		m.err = err
 		return m, nil
@@ -654,14 +841,8 @@ func (m Model) loadFile(path string) (tea.Model, tea.Cmd) {
 
 // saveDocument saves the current document back to file
 func (m *Model) saveDocument() error {
-	serializer := comment.NewSerializer()
-	updatedContent, err := serializer.Serialize(m.doc.Content, m.doc.Comments, m.doc.Positions)
-	if err != nil {
-		return fmt.Errorf("serializing document: %w", err)
-	}
-
-	if err := os.WriteFile(m.filename, []byte(updatedContent), 0644); err != nil {
-		return fmt.Errorf("writing file: %w", err)
+	if err := comment.SaveToSidecar(m.filename, m.doc); err != nil {
+		return fmt.Errorf("saving document: %w", err)
 	}
 
 	return nil
@@ -686,6 +867,10 @@ func (m Model) View() string {
 		return m.viewReply()
 	case ModeResolve:
 		return m.viewResolve()
+	case ModeReviewSuggestion:
+		return m.viewReviewSuggestion()
+	case ModeAddSuggestion:
+		return m.viewAddSuggestion()
 	default:
 		return "Unknown mode"
 	}
@@ -717,7 +902,7 @@ func (m Model) viewBrowse() string {
 
 	var helpText string
 	if m.mode == ModeLineSelect {
-		helpText = "j/k: move • Ctrl+D/U: page down/up • g/G: first/last • c/Enter: add comment • Esc: cancel"
+		helpText = "j/k: move • Ctrl+D/U: page down/up • g/G: first/last • c: comment • s: suggestion • Esc: cancel"
 	} else {
 		quitText := "back"
 		if m.startedWithFile {
@@ -1023,6 +1208,152 @@ func (m Model) viewResolve() string {
 			lipgloss.Left,
 			lipgloss.Top,
 			threadContent,
+		),
+		positioned,
+	)
+}
+
+// viewReviewSuggestion renders the suggestion review view with preview
+func (m Model) viewReviewSuggestion() string {
+	if m.selectedSuggestion == nil {
+		return "No suggestion selected"
+	}
+
+	title := titleStyle.Render("Review Suggestion")
+
+	// Preview viewport showing the suggested changes
+	previewStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("3")).
+		Padding(1).
+		Width(m.width - 8)
+
+	var previewText string
+	if m.err != nil {
+		previewText = fmt.Sprintf("Error generating preview:\n%v", m.err)
+	} else if m.suggestionPreview != "" {
+		// Show diff-style preview
+		previewText = "Preview of changes:\n\n"
+		lines := strings.Split(m.suggestionPreview, "\n")
+		maxLines := 20
+		if len(lines) > maxLines {
+			lines = lines[:maxLines]
+			previewText += strings.Join(lines, "\n") + "\n\n... (truncated)"
+		} else {
+			previewText += m.suggestionPreview
+		}
+	} else {
+		previewText = "Generating preview..."
+	}
+
+	preview := previewStyle.Render(previewText)
+
+	// Confirmation dialog
+	confirmTitle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("3")).
+		Render("Accept this suggestion?")
+
+	suggestionInfo := fmt.Sprintf("Type: %s\nAuthor: @%s",
+		m.selectedSuggestion.SuggestionType,
+		m.selectedSuggestion.Author)
+
+	confirmText := lipgloss.NewStyle().Render(suggestionInfo)
+	confirmHelp := helpStyle.Render("y/Enter: accept and apply • n/Esc: cancel")
+
+	dialog := modalOverlayStyle.Render(
+		lipgloss.JoinVertical(
+			lipgloss.Left,
+			confirmTitle,
+			"",
+			confirmText,
+			"",
+			confirmHelp,
+		),
+	)
+
+	// Position dialog over preview
+	positioned := lipgloss.Place(
+		m.width,
+		m.height-2,
+		lipgloss.Center,
+		lipgloss.Center,
+		dialog,
+		lipgloss.WithWhitespaceChars(" "),
+	)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		"",
+		preview,
+		"",
+		positioned,
+	)
+}
+
+// viewAddSuggestion renders the add suggestion modal
+func (m Model) viewAddSuggestion() string {
+	title := titleStyle.Render(fmt.Sprintf("Add Suggestion for Line %d", m.selectedLine))
+
+	// Document context as background
+	docContent := m.documentViewport.View()
+
+	// Suggestion creation form
+	formTitle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("3")).
+		Render("Create Edit Suggestion")
+
+	originalLabel := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		Render("Original text:")
+
+	originalText := lipgloss.NewStyle().
+		Background(lipgloss.Color("235")).
+		Padding(0, 1).
+		Render(m.suggestionOriginalText)
+
+	proposedLabel := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		Render("Proposed text (edit below):")
+
+	help := helpStyle.Render("Ctrl+S or Ctrl+D: submit • Esc: cancel")
+
+	dialog := modalOverlayStyle.Render(
+		lipgloss.JoinVertical(
+			lipgloss.Left,
+			formTitle,
+			"",
+			originalLabel,
+			originalText,
+			"",
+			proposedLabel,
+			m.proposedTextInput.View(),
+			"",
+			help,
+		),
+	)
+
+	// Position dialog over content
+	positioned := lipgloss.Place(
+		m.width,
+		m.height-2,
+		lipgloss.Center,
+		lipgloss.Center,
+		dialog,
+		lipgloss.WithWhitespaceChars(" "),
+	)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		lipgloss.Place(
+			m.width,
+			m.height-2,
+			lipgloss.Left,
+			lipgloss.Top,
+			docContent,
 		),
 		positioned,
 	)

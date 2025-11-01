@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`comments` is a CLI tool for collaborative document writing with inline comments, designed for seamless LLM integration. It brings Google Doc-style commenting to terminal-based markdown editing, enabling better collaboration between humans and AI agents.
+`comments` is a CLI tool for collaborative document writing with inline comments and suggestions, designed for seamless LLM integration. It brings Google Doc-style commenting and track-changes functionality to terminal-based markdown editing, enabling better collaboration between humans and AI agents.
 
-**Key Philosophy**: Instead of having LLMs rewrite entire documents, add contextual comments at specific lines to guide iteration and discussion.
+**Key Philosophy**: Instead of having LLMs rewrite entire documents, add contextual comments at specific lines to guide iteration and discussion. Suggestions allow proposing edits with preview and accept/reject workflow.
+
+**Storage Model**: Comments and suggestions are stored in sidecar JSON files (`.md.comments.json`) separate from the markdown content, ensuring clean content and structured metadata.
 
 ## Build and Development Commands
 
@@ -52,12 +54,20 @@ go tool cover -html=coverage.out
 ./comments reply examples/sample.md --thread c123 --author "user" --text "Reply"
 ./comments resolve examples/sample.md --thread c123
 
+# Suggestion commands (NEW)
+./comments suggest examples/sample.md --line 15 --author "claude" --text "Improve wording" \
+  --type line --original "old text" --proposed "new text"
+./comments accept examples/sample.md --suggestion c123 --preview
+./comments accept examples/sample.md --suggestion c123
+./comments reject examples/sample.md --suggestion c456
+./comments batch-accept examples/sample.md --author "claude"
+
 # List with filters
 ./comments list examples/sample.md --author alice --format json
 ./comments list examples/sample.md --search "TODO" --sort timestamp
 ./comments list examples/sample.md --lines 10-30 --resolved false
 
-# Batch operations for LLM agents
+# Batch operations for LLM agents (supports suggestions)
 ./comments batch-add examples/sample.md --json comments.json
 ./comments batch-reply examples/sample.md --json replies.json
 echo '[{"thread":"c123","author":"claude","text":"LGTM"}]' | ./comments batch-reply examples/sample.md --json -
@@ -74,15 +84,16 @@ export ANTHROPIC_API_KEY=your_key
 The system follows a clear separation of concerns across three main layers:
 
 1. **Comment System Layer** (`pkg/comment/`)
-   - **Parser**: Transforms markdown with CriticMarkup syntax into structured Comment objects
-   - **Serializer**: Converts Comment objects back to CriticMarkup format for file persistence
+   - **Storage**: JSON sidecar file I/O (LoadFromSidecar/SaveToSidecar)
+   - **Applier**: Suggestion application engine supporting 4 granularity types
+   - **Positions**: Position tracking and conflict detection for suggestions
    - **Thread Manager**: Organizes flat comment arrays into hierarchical thread structures
-   - **Types**: Core data structures (Comment, Thread, DocumentWithComments, Position)
+   - **Types**: Core data structures (Comment, Thread, DocumentWithComments, Position, Selection)
 
 2. **TUI Layer** (`pkg/tui/`)
    - **Model**: Bubbletea application state, implements Update/View/Init pattern
-   - **Modes**: State machine for different UI modes (FilePicker, Browse, LineSelect, AddComment, ThreadView, Reply, Resolve)
-   - **Rendering**: Pure functions that transform model state into terminal output
+   - **Modes**: State machine for different UI modes (FilePicker, Browse, LineSelect, AddComment, ThreadView, Reply, Resolve, ReviewSuggestion)
+   - **Rendering**: Pure functions that transform model state into terminal output with suggestion indicators
    - **Styles**: Centralized lipgloss styling definitions
 
 3. **LLM Integration Layer** (`pkg/llm/`)
@@ -91,11 +102,36 @@ The system follows a clear separation of concerns across three main layers:
 
 ### Critical Architecture Patterns
 
-#### Comment Format and Threading
+#### Storage Format and Data Model
 
-Comments use extended CriticMarkup with this structure:
-```
-{>>[@author:id:threadid:line:timestamp] comment text <<}
+Comments and suggestions are stored in JSON sidecar files (`{filename}.comments.json`) with the following structure:
+
+```json
+{
+  "version": "1.0",
+  "comments": [{
+    "ID": "c123",
+    "ThreadID": "c123",
+    "ParentID": "",
+    "Author": "alice",
+    "Line": 10,
+    "Timestamp": "2025-01-15T10:30:00Z",
+    "Text": "Comment text",
+    "Type": "Q",
+    "Resolved": false,
+    "SuggestionType": "line",
+    "Selection": {
+      "StartLine": 10,
+      "EndLine": 10,
+      "Original": "old text"
+    },
+    "ProposedText": "new text",
+    "AcceptanceState": "pending"
+  }],
+  "positions": {
+    "c123": {"Line": 10, "Column": 0, "ByteOffset": 150}
+  }
+}
 ```
 
 **Comment Types**: Comments can be categorized with type prefixes:
@@ -112,11 +148,16 @@ Types are stored in the `Type` field and auto-prefixed to text as `[Q]`, `[S]`, 
 - Replies: `ThreadID` points to root, `ParentID` points to immediate parent
 - Position tracking: Line numbers stored in separate `Positions` map (keyed by comment ID)
 
-**Backward Compatibility**: The parser supports both:
-- Old format (4 fields): `author:id:line:timestamp`
-- New format (5 fields): `author:id:threadid:line:timestamp`
+**Suggestion Types** (NEW): Four granularity levels for edit suggestions:
+1. **`SuggestionLine`**: Replace entire line(s) - Uses StartLine/EndLine in Selection
+2. **`SuggestionCharRange`**: Precise byte-offset based replacements - Uses ByteOffset/Length
+3. **`SuggestionMultiLine`**: Multi-line block replacements - Uses StartLine/EndLine
+4. **`SuggestionDiffHunk`**: Unified diff format patches - ProposedText contains diff
 
-The distinction is made by counting colons in the metadata string (accounting for colons in ISO8601 timestamps).
+**Acceptance States**:
+- `AcceptancePending`: Suggestion awaiting review
+- `AcceptanceAccepted`: Suggestion accepted and applied
+- `AcceptanceRejected`: Suggestion rejected
 
 #### Bubbletea State Machine
 
