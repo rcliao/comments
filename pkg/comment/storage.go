@@ -1,20 +1,23 @@
 package comment
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // StorageVersion is the current version of the JSON storage format
-const StorageVersion = "1.0"
+const StorageVersion = "2.0"
 
-// StorageFormat represents the JSON sidecar file structure
+// StorageFormat represents the JSON sidecar file structure (v2.0)
 type StorageFormat struct {
-	Version   string               `json:"version"`   // Format version for future migrations
-	Comments  []*Comment           `json:"comments"`  // All comments
-	Positions map[string]Position  `json:"positions"` // Comment ID to position mapping
+	Version       string     `json:"version"`        // Format version ("2.0")
+	DocumentHash  string     `json:"documentHash"`   // SHA-256 hash for staleness detection
+	LastValidated time.Time  `json:"lastValidated"`  // Last validation timestamp
+	Threads       []*Comment `json:"threads"`        // Root comment threads with nested replies
 }
 
 // GetSidecarPath returns the sidecar JSON path for a given markdown file
@@ -22,8 +25,14 @@ func GetSidecarPath(mdPath string) string {
 	return mdPath + ".comments.json"
 }
 
-// LoadFromSidecar loads comments from the sidecar JSON file
-// Returns DocumentWithComments with the markdown content and parsed comments
+// ComputeDocumentHash computes SHA-256 hash of markdown content
+func ComputeDocumentHash(content string) string {
+	hash := sha256.Sum256([]byte(content))
+	return fmt.Sprintf("%x", hash)
+}
+
+// LoadFromSidecar loads comments from the sidecar JSON file (v2.0)
+// Returns DocumentWithComments with the markdown content and parsed threads
 func LoadFromSidecar(mdPath string) (*DocumentWithComments, error) {
 	// Read markdown content
 	contentBytes, err := os.ReadFile(mdPath)
@@ -31,13 +40,19 @@ func LoadFromSidecar(mdPath string) (*DocumentWithComments, error) {
 		return nil, fmt.Errorf("failed to read markdown file: %w", err)
 	}
 
+	content := string(contentBytes)
+	contentHash := ComputeDocumentHash(content)
+
+	// Initialize empty document
+	doc := &DocumentWithComments{
+		Content:       content,
+		Threads:       []*Comment{},
+		DocumentHash:  contentHash,
+		LastValidated: time.Now(),
+	}
+
 	// Read sidecar JSON file
 	sidecarPath := GetSidecarPath(mdPath)
-	doc := &DocumentWithComments{
-		Content:   string(contentBytes),
-		Comments:  []*Comment{},
-		Positions: make(map[string]Position),
-	}
 
 	// Check if sidecar exists
 	if _, err := os.Stat(sidecarPath); os.IsNotExist(err) {
@@ -57,21 +72,50 @@ func LoadFromSidecar(mdPath string) (*DocumentWithComments, error) {
 		return nil, fmt.Errorf("failed to parse sidecar JSON: %w", err)
 	}
 
-	// Validate version
-	if storage.Version != StorageVersion {
-		return nil, fmt.Errorf("unsupported storage version: %s (expected %s)", storage.Version, StorageVersion)
+	// Validate version (v2.0 only)
+	if storage.Version != "2.0" {
+		return nil, fmt.Errorf("unsupported storage version: %s (expected 2.0)", storage.Version)
 	}
 
-	// Populate document
-	doc.Comments = storage.Comments
-	if storage.Positions != nil {
-		doc.Positions = storage.Positions
+	// Populate document with loaded data
+	doc.Threads = storage.Threads
+	doc.DocumentHash = storage.DocumentHash
+	doc.LastValidated = storage.LastValidated
+
+	// Validate the sidecar against the current document
+	isValid, issues, err := ValidateSidecar(doc)
+	if err != nil {
+		return nil, fmt.Errorf("validation error: %w", err)
 	}
+
+	// If validation failed, archive stale sidecar and return empty document
+	if !isValid {
+		// Archive the stale sidecar
+		if err := ArchiveStaleSidecar(mdPath); err != nil {
+			// Log warning but continue with empty document
+			fmt.Fprintf(os.Stderr, "Warning: Failed to archive stale sidecar: %v\n", err)
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: Sidecar file is stale and has been archived\n")
+			fmt.Fprintf(os.Stderr, "%s\n", FormatValidationIssues(issues))
+		}
+
+		// Return empty document with current hash
+		return &DocumentWithComments{
+			Content:       content,
+			Threads:       []*Comment{},
+			DocumentHash:  contentHash,
+			LastValidated: time.Now(),
+		}, nil
+	}
+
+	// Update hash and timestamp to current values
+	doc.DocumentHash = contentHash
+	doc.LastValidated = time.Now()
 
 	return doc, nil
 }
 
-// SaveToSidecar saves comments to the sidecar JSON file
+// SaveToSidecar saves comment threads to the sidecar JSON file (v2.0)
 // Also writes the clean markdown content (without comment markup)
 func SaveToSidecar(mdPath string, doc *DocumentWithComments) error {
 	// Write markdown content
@@ -79,11 +123,16 @@ func SaveToSidecar(mdPath string, doc *DocumentWithComments) error {
 		return fmt.Errorf("failed to write markdown file: %w", err)
 	}
 
+	// Recompute document hash
+	doc.DocumentHash = ComputeDocumentHash(doc.Content)
+	doc.LastValidated = time.Now()
+
 	// Prepare storage format
 	storage := StorageFormat{
-		Version:   StorageVersion,
-		Comments:  doc.Comments,
-		Positions: doc.Positions,
+		Version:       StorageVersion,
+		DocumentHash:  doc.DocumentHash,
+		LastValidated: doc.LastValidated,
+		Threads:       doc.Threads,
 	}
 
 	// Marshal to JSON with indentation for readability
@@ -140,4 +189,23 @@ func ListSidecars(dir string) ([]string, error) {
 	}
 
 	return sidecars, nil
+}
+
+// ArchiveStaleSidecar renames a stale sidecar to .backup with timestamp
+func ArchiveStaleSidecar(mdPath string) error {
+	sidecarPath := GetSidecarPath(mdPath)
+	if _, err := os.Stat(sidecarPath); os.IsNotExist(err) {
+		return nil // Nothing to archive
+	}
+
+	// Create backup filename with timestamp
+	timestamp := time.Now().Format("20060102_150405")
+	backupPath := fmt.Sprintf("%s.backup.%s", sidecarPath, timestamp)
+
+	// Rename the file
+	if err := os.Rename(sidecarPath, backupPath); err != nil {
+		return fmt.Errorf("failed to archive sidecar: %w", err)
+	}
+
+	return nil
 }

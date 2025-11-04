@@ -18,33 +18,28 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 
 	doc := &DocumentWithComments{
 		Content: content,
-		Comments: []*Comment{
+		Threads: []*Comment{
 			{
 				ID:        "c1",
-				ThreadID:  "c1",
-				ParentID:  "",
 				Author:    "alice",
 				Line:      3,
 				Timestamp: timestamp,
 				Text:      "This is a question",
 				Type:      "Q",
 				Resolved:  false,
+				Replies: []*Comment{
+					{
+						ID:        "c2",
+						Author:    "bob",
+						Line:      3,
+						Timestamp: timestamp.Add(5 * time.Minute),
+						Text:      "Here's an answer",
+						Type:      "",
+						Resolved:  false,
+						Replies:   []*Comment{},
+					},
+				},
 			},
-			{
-				ID:        "c2",
-				ThreadID:  "c1",
-				ParentID:  "c1",
-				Author:    "bob",
-				Line:      3,
-				Timestamp: timestamp.Add(5 * time.Minute),
-				Text:      "Here's an answer",
-				Type:      "",
-				Resolved:  false,
-			},
-		},
-		Positions: map[string]Position{
-			"c1": {Line: 3, Column: 0, ByteOffset: 25},
-			"c2": {Line: 3, Column: 0, ByteOffset: 25},
 		},
 	}
 
@@ -75,26 +70,29 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		t.Errorf("Content mismatch.\nExpected: %q\nGot: %q", content, loaded.Content)
 	}
 
-	// Verify comments count
-	if len(loaded.Comments) != 2 {
-		t.Fatalf("Expected 2 comments, got %d", len(loaded.Comments))
+	// Verify threads count
+	if len(loaded.Threads) != 1 {
+		t.Fatalf("Expected 1 thread, got %d", len(loaded.Threads))
 	}
 
-	// Verify first comment
-	c1 := loaded.Comments[0]
+	// Verify root comment
+	c1 := loaded.Threads[0]
 	if c1.ID != "c1" || c1.Author != "alice" || c1.Text != "This is a question" {
-		t.Errorf("First comment mismatch: %+v", c1)
+		t.Errorf("Root comment mismatch: %+v", c1)
 	}
 
-	// Verify second comment
-	c2 := loaded.Comments[1]
-	if c2.ID != "c2" || c2.ParentID != "c1" || c2.ThreadID != "c1" {
-		t.Errorf("Second comment mismatch: %+v", c2)
+	// Verify reply
+	if len(c1.Replies) != 1 {
+		t.Fatalf("Expected 1 reply, got %d", len(c1.Replies))
+	}
+	c2 := c1.Replies[0]
+	if c2.ID != "c2" || c2.Author != "bob" {
+		t.Errorf("Reply mismatch: %+v", c2)
 	}
 
-	// Verify positions
-	if len(loaded.Positions) != 2 {
-		t.Errorf("Expected 2 positions, got %d", len(loaded.Positions))
+	// Verify document hash was computed
+	if loaded.DocumentHash == "" {
+		t.Error("DocumentHash should not be empty")
 	}
 }
 
@@ -107,29 +105,23 @@ func TestSaveAndLoadWithSuggestion(t *testing.T) {
 
 	doc := &DocumentWithComments{
 		Content: content,
-		Comments: []*Comment{
+		Threads: []*Comment{
 			{
-				ID:             "s1",
-				ThreadID:       "s1",
-				ParentID:       "",
-				Author:         "claude",
-				Line:           3,
-				Timestamp:      timestamp,
-				Text:           "Suggest changing this line",
-				Type:           "S",
-				Resolved:       false,
-				SuggestionType: SuggestionLine,
-				Selection: &Selection{
-					StartLine: 3,
-					EndLine:   3,
-					Original:  "Original line here",
-				},
-				ProposedText:    "Improved line here",
-				AcceptanceState: AcceptancePending,
+				ID:           "s1",
+				Author:       "claude",
+				Line:         3,
+				Timestamp:    timestamp,
+				Text:         "Suggest changing this line",
+				Type:         "S",
+				Resolved:     false,
+				Replies:      []*Comment{},
+				IsSuggestion: true,
+				StartLine:    3,
+				EndLine:      3,
+				OriginalText: "Original line here",
+				ProposedText: "Improved line here",
+				Accepted:     nil, // Pending
 			},
-		},
-		Positions: map[string]Position{
-			"s1": {Line: 3, Column: 0, ByteOffset: 9},
 		},
 	}
 
@@ -144,25 +136,28 @@ func TestSaveAndLoadWithSuggestion(t *testing.T) {
 	}
 
 	// Verify suggestion fields
-	if len(loaded.Comments) != 1 {
-		t.Fatalf("Expected 1 comment, got %d", len(loaded.Comments))
+	if len(loaded.Threads) != 1 {
+		t.Fatalf("Expected 1 thread, got %d", len(loaded.Threads))
 	}
 
-	s1 := loaded.Comments[0]
-	if s1.SuggestionType != SuggestionLine {
-		t.Errorf("Expected SuggestionType 'line', got %q", s1.SuggestionType)
+	s1 := loaded.Threads[0]
+	if !s1.IsSuggestion {
+		t.Error("Expected IsSuggestion to be true")
 	}
 	if s1.ProposedText != "Improved line here" {
 		t.Errorf("ProposedText mismatch: got %q", s1.ProposedText)
 	}
-	if s1.AcceptanceState != AcceptancePending {
-		t.Errorf("Expected AcceptanceState 'pending', got %q", s1.AcceptanceState)
+	if s1.OriginalText != "Original line here" {
+		t.Errorf("OriginalText mismatch: got %q", s1.OriginalText)
 	}
-	if s1.Selection == nil {
-		t.Fatal("Selection is nil")
+	if !s1.IsPending() {
+		t.Error("Suggestion should be pending")
 	}
-	if s1.Selection.Original != "Original line here" {
-		t.Errorf("Selection.Original mismatch: got %q", s1.Selection.Original)
+	if s1.StartLine != 3 {
+		t.Errorf("StartLine = %d, want 3", s1.StartLine)
+	}
+	if s1.EndLine != 3 {
+		t.Errorf("EndLine = %d, want 3", s1.EndLine)
 	}
 }
 
@@ -176,7 +171,7 @@ func TestLoadNonExistentSidecar(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	// Load should succeed with empty comments
+	// Load should succeed with empty threads
 	doc, err := LoadFromSidecar(mdPath)
 	if err != nil {
 		t.Fatalf("LoadFromSidecar failed: %v", err)
@@ -185,11 +180,8 @@ func TestLoadNonExistentSidecar(t *testing.T) {
 	if doc.Content != content {
 		t.Errorf("Content mismatch")
 	}
-	if len(doc.Comments) != 0 {
-		t.Errorf("Expected 0 comments, got %d", len(doc.Comments))
-	}
-	if len(doc.Positions) != 0 {
-		t.Errorf("Expected 0 positions, got %d", len(doc.Positions))
+	if len(doc.Threads) != 0 {
+		t.Errorf("Expected 0 threads, got %d", len(doc.Threads))
 	}
 }
 
@@ -222,9 +214,8 @@ func TestSidecarExists(t *testing.T) {
 
 	// Create sidecar
 	doc := &DocumentWithComments{
-		Content:   "test",
-		Comments:  []*Comment{},
-		Positions: map[string]Position{},
+		Content: "test",
+		Threads: []*Comment{},
 	}
 	if err := SaveToSidecar(mdPath, doc); err != nil {
 		t.Fatalf("SaveToSidecar failed: %v", err)
@@ -242,9 +233,8 @@ func TestDeleteSidecar(t *testing.T) {
 
 	// Create sidecar
 	doc := &DocumentWithComments{
-		Content:   "test",
-		Comments:  []*Comment{},
-		Positions: map[string]Position{},
+		Content: "test",
+		Threads: []*Comment{},
 	}
 	if err := SaveToSidecar(mdPath, doc); err != nil {
 		t.Fatalf("SaveToSidecar failed: %v", err)
@@ -279,9 +269,8 @@ func TestListSidecars(t *testing.T) {
 	for _, file := range files {
 		mdPath := filepath.Join(tmpDir, file)
 		doc := &DocumentWithComments{
-			Content:   "content",
-			Comments:  []*Comment{},
-			Positions: map[string]Position{},
+			Content: "content",
+			Threads: []*Comment{},
 		}
 		if err := SaveToSidecar(mdPath, doc); err != nil {
 			t.Fatalf("SaveToSidecar failed for %s: %v", file, err)
@@ -314,5 +303,165 @@ func TestListSidecars(t *testing.T) {
 		if len(name) <= len(".comments.json") || name[len(name)-len(".comments.json"):] != ".comments.json" {
 			t.Errorf("Sidecar doesn't end with .comments.json: %s", sidecar)
 		}
+	}
+}
+
+func TestComputeDocumentHash(t *testing.T) {
+	content1 := "# Test\n\nContent"
+	content2 := "# Test\n\nContent" // Same as content1
+	content3 := "# Test\n\nDifferent" // Different
+
+	hash1 := ComputeDocumentHash(content1)
+	hash2 := ComputeDocumentHash(content2)
+	hash3 := ComputeDocumentHash(content3)
+
+	// Same content should produce same hash
+	if hash1 != hash2 {
+		t.Errorf("Same content produced different hashes: %s vs %s", hash1, hash2)
+	}
+
+	// Different content should produce different hash
+	if hash1 == hash3 {
+		t.Error("Different content produced same hash")
+	}
+
+	// Hash should be hex string
+	if len(hash1) != 64 { // SHA-256 produces 64 hex chars
+		t.Errorf("Hash length = %d, want 64", len(hash1))
+	}
+}
+
+func TestSaveUpdatesDocumentHash(t *testing.T) {
+	tmpDir := t.TempDir()
+	mdPath := filepath.Join(tmpDir, "test.md")
+
+	content := "# Test\n\nContent\n"
+	doc := &DocumentWithComments{
+		Content: content,
+		Threads: []*Comment{},
+	}
+
+	// Save
+	if err := SaveToSidecar(mdPath, doc); err != nil {
+		t.Fatalf("SaveToSidecar failed: %v", err)
+	}
+
+	// Verify hash was computed
+	if doc.DocumentHash == "" {
+		t.Error("DocumentHash should be set after save")
+	}
+
+	expectedHash := ComputeDocumentHash(content)
+	if doc.DocumentHash != expectedHash {
+		t.Errorf("DocumentHash = %s, want %s", doc.DocumentHash, expectedHash)
+	}
+}
+
+func TestNestedRepliesSaveLoad(t *testing.T) {
+	tmpDir := t.TempDir()
+	mdPath := filepath.Join(tmpDir, "test.md")
+
+	// Create deeply nested thread structure
+	doc := &DocumentWithComments{
+		Content: "# Test\n\nContent\n",
+		Threads: []*Comment{
+			{
+				ID:     "c1",
+				Author: "alice",
+				Line:   1,
+				Text:   "Root comment",
+				Replies: []*Comment{
+					{
+						ID:     "c2",
+						Author: "bob",
+						Line:   1,
+						Text:   "Reply 1",
+						Replies: []*Comment{
+							{
+								ID:      "c3",
+								Author:  "charlie",
+								Line:    1,
+								Text:    "Nested reply",
+								Replies: []*Comment{},
+							},
+						},
+					},
+					{
+						ID:      "c4",
+						Author:  "dave",
+						Line:    1,
+						Text:    "Reply 2",
+						Replies: []*Comment{},
+					},
+				},
+			},
+		},
+	}
+
+	// Save
+	if err := SaveToSidecar(mdPath, doc); err != nil {
+		t.Fatalf("SaveToSidecar failed: %v", err)
+	}
+
+	// Load
+	loaded, err := LoadFromSidecar(mdPath)
+	if err != nil {
+		t.Fatalf("LoadFromSidecar failed: %v", err)
+	}
+
+	// Verify structure
+	if len(loaded.Threads) != 1 {
+		t.Fatalf("Expected 1 thread, got %d", len(loaded.Threads))
+	}
+
+	root := loaded.Threads[0]
+	if root.ID != "c1" {
+		t.Errorf("Root ID = %s, want c1", root.ID)
+	}
+
+	if len(root.Replies) != 2 {
+		t.Fatalf("Expected 2 replies to root, got %d", len(root.Replies))
+	}
+
+	if root.Replies[0].ID != "c2" {
+		t.Errorf("First reply ID = %s, want c2", root.Replies[0].ID)
+	}
+
+	if len(root.Replies[0].Replies) != 1 {
+		t.Fatalf("Expected 1 nested reply, got %d", len(root.Replies[0].Replies))
+	}
+
+	if root.Replies[0].Replies[0].ID != "c3" {
+		t.Errorf("Nested reply ID = %s, want c3", root.Replies[0].Replies[0].ID)
+	}
+
+	if root.Replies[1].ID != "c4" {
+		t.Errorf("Second reply ID = %s, want c4", root.Replies[1].ID)
+	}
+}
+
+func TestSaveToSidecarWritesMarkdownContent(t *testing.T) {
+	tmpDir := t.TempDir()
+	mdPath := filepath.Join(tmpDir, "test.md")
+
+	content := "# Test Document\n\nThis is the content.\n"
+	doc := &DocumentWithComments{
+		Content: content,
+		Threads: []*Comment{},
+	}
+
+	// Save
+	if err := SaveToSidecar(mdPath, doc); err != nil {
+		t.Fatalf("SaveToSidecar failed: %v", err)
+	}
+
+	// Read markdown file
+	writtenContent, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("Failed to read markdown file: %v", err)
+	}
+
+	if string(writtenContent) != content {
+		t.Errorf("Markdown content mismatch.\nExpected: %q\nGot: %q", content, string(writtenContent))
 	}
 }

@@ -2,116 +2,154 @@ package comment
 
 import "time"
 
-// SuggestionType represents the type of edit suggestion
-type SuggestionType string
-
-const (
-	SuggestionNone      SuggestionType = ""            // Not a suggestion
-	SuggestionLine      SuggestionType = "line"        // Replace entire line(s)
-	SuggestionCharRange SuggestionType = "char-range"  // Replace character range
-	SuggestionMultiLine SuggestionType = "multi-line"  // Replace multiple lines
-	SuggestionDiffHunk  SuggestionType = "diff-hunk"   // Apply unified diff
-)
-
-// AcceptanceState represents the state of a suggestion
-type AcceptanceState string
-
-const (
-	AcceptancePending  AcceptanceState = "pending"   // Awaiting review
-	AcceptanceAccepted AcceptanceState = "accepted"  // Accepted and applied
-	AcceptanceRejected AcceptanceState = "rejected"  // Rejected
-)
-
-// Selection represents the text range being edited by a suggestion
-type Selection struct {
-	StartLine  int    // Starting line number (1-indexed)
-	EndLine    int    // Ending line number (inclusive, for multi-line)
-	ByteOffset int    // Byte offset from start of document (for char-range)
-	Length     int    // Length in bytes (for char-range)
-	Original   string // Original text being replaced
-}
-
-// Comment represents a single comment in a document
+// Comment represents a single comment or suggestion in a document (v2.0)
+// Simplified structure with nested thread support
 type Comment struct {
+	// Identity
 	ID        string    // Unique identifier for the comment
-	ThreadID  string    // Root comment ID (same as ID for root comments)
-	ParentID  string    // ID of parent comment (empty for top-level)
 	Author    string    // Author of the comment (user or LLM name)
-	Line      int       // Original line number where comment was added
 	Timestamp time.Time // When the comment was created
-	Text      string    // Comment content
-	Type      string    // Comment type: Q, S, B, T, E (optional)
-	Resolved  bool      // Whether the comment/thread has been resolved
 
-	// Suggestion-specific fields (optional, only for edit suggestions)
-	SuggestionType  SuggestionType  // Type of suggestion (empty if not a suggestion)
-	Selection       *Selection      // Text selection being edited (nil if not a suggestion)
-	ProposedText    string          // Proposed replacement text (empty if not a suggestion)
-	AcceptanceState AcceptanceState // Acceptance state (empty if not a suggestion)
+	// Content
+	Text string // Comment content
+	Type string // Comment type: Q, S, B, T, E (optional)
+
+	// Position
+	Line int // Line number where comment is attached
+
+	// Section metadata (computed from document structure)
+	SectionID   string // ID of the section this comment belongs to (e.g., "s1", "s2")
+	SectionPath string // Full hierarchical path (e.g., "Intro > Overview > Key Points")
+
+	// State
+	Resolved bool // Whether the comment/thread has been resolved
+
+	// Thread structure (nested replies)
+	Replies []*Comment // Nested replies to this comment (empty for leaf comments)
+
+	// Suggestion fields (for edit suggestions)
+	IsSuggestion bool   // True if this is an edit suggestion
+	StartLine    int    // Start line for suggestion (0 if not a suggestion)
+	EndLine      int    // End line for suggestion (0 if not a suggestion)
+	OriginalText string // Original text being replaced (empty if not a suggestion)
+	ProposedText string // Proposed replacement text (empty if not a suggestion)
+	Accepted     *bool  // nil=pending, true=accepted, false=rejected (nil if not a suggestion)
 }
 
-// IsRoot returns true if this is a root comment (not a reply)
+// IsRoot returns true if this is a root comment (has no parent)
+// In v2.0, all top-level comments in the threads array are roots
 func (c *Comment) IsRoot() bool {
-	return c.ParentID == ""
+	return true // In v2.0, we only store root comments in threads array
 }
 
 // IsReply returns true if this is a reply to another comment
+// In v2.0, replies are found in the Replies array
 func (c *Comment) IsReply() bool {
-	return c.ParentID != ""
-}
-
-// IsSuggestion returns true if this comment is an edit suggestion
-func (c *Comment) IsSuggestion() bool {
-	return c.SuggestionType != SuggestionNone && c.SuggestionType != ""
+	return false // This method is context-dependent; caller knows based on array location
 }
 
 // IsPending returns true if this suggestion is awaiting review
 func (c *Comment) IsPending() bool {
-	return c.IsSuggestion() && (c.AcceptanceState == AcceptancePending || c.AcceptanceState == "")
+	return c.IsSuggestion && c.Accepted == nil
 }
 
 // IsAccepted returns true if this suggestion has been accepted
 func (c *Comment) IsAccepted() bool {
-	return c.IsSuggestion() && c.AcceptanceState == AcceptanceAccepted
+	return c.IsSuggestion && c.Accepted != nil && *c.Accepted
 }
 
 // IsRejected returns true if this suggestion has been rejected
 func (c *Comment) IsRejected() bool {
-	return c.IsSuggestion() && c.AcceptanceState == AcceptanceRejected
+	return c.IsSuggestion && c.Accepted != nil && !*c.Accepted
 }
 
-// Position represents the location of a comment in a document
-type Position struct {
-	Line      int // Current line number (may change as doc is edited)
-	Column    int // Column offset within the line
-	ByteOffset int // Byte offset from start of document
-}
-
-// Thread represents a conversation thread
-type Thread struct {
-	ID          string     // Thread identifier (same as root comment ID)
-	RootComment *Comment   // The root comment that started the thread
-	Replies     []*Comment // All replies in the thread, ordered by timestamp
-	Resolved    bool       // Whether the thread has been resolved
-	Line        int        // Line number where the thread is anchored
-}
-
-// Count returns the total number of comments in the thread (root + replies)
-func (t *Thread) Count() int {
-	return 1 + len(t.Replies)
-}
-
-// LatestTimestamp returns the timestamp of the most recent comment
-func (t *Thread) LatestTimestamp() time.Time {
-	if len(t.Replies) == 0 {
-		return t.RootComment.Timestamp
+// CountReplies returns the total number of replies (direct + nested)
+func (c *Comment) CountReplies() int {
+	count := len(c.Replies)
+	for _, reply := range c.Replies {
+		count += reply.CountReplies()
 	}
-	return t.Replies[len(t.Replies)-1].Timestamp
+	return count
 }
 
-// DocumentWithComments represents a parsed document
+// LatestTimestamp returns the timestamp of the most recent comment in thread
+func (c *Comment) LatestTimestamp() time.Time {
+	latest := c.Timestamp
+	for _, reply := range c.Replies {
+		replyLatest := reply.LatestTimestamp()
+		if replyLatest.After(latest) {
+			latest = replyLatest
+		}
+	}
+	return latest
+}
+
+// Position represents the location of a comment in a document (v2.0 simplified)
+type Position struct {
+	Line int // Current line number (may change as doc is edited)
+}
+
+// DocumentWithComments represents a parsed document with comment threads (v2.0)
 type DocumentWithComments struct {
-	Content  string               // Raw markdown content without comment markup
-	Comments []*Comment           // All comments extracted from the document
-	Positions map[string]Position // Map comment IDs to their positions
+	Content      string     // Raw markdown content without comment markup
+	Threads      []*Comment // Root comment threads (each may contain nested replies)
+	DocumentHash string     // SHA-256 hash of content for staleness detection
+	LastValidated time.Time  // Last time sidecar was validated against document
+}
+
+// GetAllComments returns a flat list of all comments (roots + replies)
+// Useful for filtering and searching operations
+func (d *DocumentWithComments) GetAllComments() []*Comment {
+	all := []*Comment{}
+	for _, thread := range d.Threads {
+		all = append(all, thread)
+		all = append(all, flattenReplies(thread.Replies)...)
+	}
+	return all
+}
+
+// flattenReplies recursively flattens nested replies into a single array
+func flattenReplies(replies []*Comment) []*Comment {
+	flat := []*Comment{}
+	for _, reply := range replies {
+		flat = append(flat, reply)
+		flat = append(flat, flattenReplies(reply.Replies)...)
+	}
+	return flat
+}
+
+// FindThreadByID finds a thread by its ID (root comment ID)
+func (d *DocumentWithComments) FindThreadByID(id string) *Comment {
+	for _, thread := range d.Threads {
+		if thread.ID == id {
+			return thread
+		}
+	}
+	return nil
+}
+
+// FindCommentByID finds any comment by ID (root or reply)
+func (d *DocumentWithComments) FindCommentByID(id string) *Comment {
+	for _, thread := range d.Threads {
+		if thread.ID == id {
+			return thread
+		}
+		if found := findInReplies(thread.Replies, id); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+// findInReplies recursively searches for a comment in replies
+func findInReplies(replies []*Comment, id string) *Comment {
+	for _, reply := range replies {
+		if reply.ID == id {
+			return reply
+		}
+		if found := findInReplies(reply.Replies, id); found != nil {
+			return found
+		}
+	}
+	return nil
 }

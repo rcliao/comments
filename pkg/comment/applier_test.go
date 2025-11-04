@@ -3,10 +3,9 @@ package comment
 import (
 	"strings"
 	"testing"
-	"time"
 )
 
-func TestApplyLineSuggestion(t *testing.T) {
+func TestApplyMultiLineSuggestion(t *testing.T) {
 	content := `Line 1
 Line 2
 Line 3
@@ -14,13 +13,43 @@ Line 4
 Line 5`
 
 	suggestion := &Comment{
-		ID:             "s1",
-		SuggestionType: SuggestionLine,
-		Selection: &Selection{
-			StartLine: 3,
-			EndLine:   3,
-			Original:  "Line 3",
-		},
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    2,
+		EndLine:      3,
+		OriginalText: "Line 2\nLine 3",
+		ProposedText: "Modified Line 2\nModified Line 3",
+	}
+
+	result, err := ApplySuggestion(content, suggestion)
+	if err != nil {
+		t.Fatalf("ApplySuggestion failed: %v", err)
+	}
+
+	expected := `Line 1
+Modified Line 2
+Modified Line 3
+Line 4
+Line 5`
+
+	if result != expected {
+		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, result)
+	}
+}
+
+func TestApplySuggestionSingleLine(t *testing.T) {
+	content := `Line 1
+Line 2
+Line 3
+Line 4
+Line 5`
+
+	suggestion := &Comment{
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    3,
+		EndLine:      3,
+		OriginalText: "Line 3",
 		ProposedText: "New Line 3",
 	}
 
@@ -40,51 +69,17 @@ Line 5`
 	}
 }
 
-func TestApplyLineSuggestionMultipleLines(t *testing.T) {
-	content := `Line 1
-Line 2
-Line 3
-Line 4`
-
-	suggestion := &Comment{
-		ID:             "s1",
-		SuggestionType: SuggestionLine,
-		Selection: &Selection{
-			StartLine: 2,
-			EndLine:   3,
-			Original:  "Line 2\nLine 3",
-		},
-		ProposedText: "Replaced Line 2 and 3\nWith two new lines",
-	}
-
-	result, err := ApplySuggestion(content, suggestion)
-	if err != nil {
-		t.Fatalf("ApplySuggestion failed: %v", err)
-	}
-
-	expected := `Line 1
-Replaced Line 2 and 3
-With two new lines
-Line 4`
-
-	if result != expected {
-		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, result)
-	}
-}
-
-func TestApplyLineSuggestionDelete(t *testing.T) {
+func TestApplySuggestionDelete(t *testing.T) {
 	content := `Line 1
 Line 2
 Line 3`
 
 	suggestion := &Comment{
-		ID:             "s1",
-		SuggestionType: SuggestionLine,
-		Selection: &Selection{
-			StartLine: 2,
-			EndLine:   2,
-			Original:  "Line 2",
-		},
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    2,
+		EndLine:      2,
+		OriginalText: "Line 2",
 		ProposedText: "", // Delete line
 	}
 
@@ -101,57 +96,7 @@ Line 3`
 	}
 }
 
-func TestApplyCharRangeSuggestion(t *testing.T) {
-	content := "The quick brown fox jumps over the lazy dog"
-
-	suggestion := &Comment{
-		ID:             "s1",
-		SuggestionType: SuggestionCharRange,
-		Selection: &Selection{
-			ByteOffset: 4,     // "quick"
-			Length:     5,
-			Original:   "quick",
-		},
-		ProposedText: "fast",
-	}
-
-	result, err := ApplySuggestion(content, suggestion)
-	if err != nil {
-		t.Fatalf("ApplySuggestion failed: %v", err)
-	}
-
-	expected := "The fast brown fox jumps over the lazy dog"
-	if result != expected {
-		t.Errorf("Expected %q, got %q", expected, result)
-	}
-}
-
-func TestApplyCharRangeSuggestionInsert(t *testing.T) {
-	content := "Hello world"
-
-	suggestion := &Comment{
-		ID:             "s1",
-		SuggestionType: SuggestionCharRange,
-		Selection: &Selection{
-			ByteOffset: 5, // After "Hello"
-			Length:     0, // Insert
-			Original:   "",
-		},
-		ProposedText: ",",
-	}
-
-	result, err := ApplySuggestion(content, suggestion)
-	if err != nil {
-		t.Fatalf("ApplySuggestion failed: %v", err)
-	}
-
-	expected := "Hello, world"
-	if result != expected {
-		t.Errorf("Expected %q, got %q", expected, result)
-	}
-}
-
-func TestApplyMultiLineSuggestion(t *testing.T) {
+func TestApplySuggestionMultiLineExpansion(t *testing.T) {
 	content := `# Title
 
 ## Section 1
@@ -161,16 +106,15 @@ Content here
 More content`
 
 	suggestion := &Comment{
-		ID:             "s1",
-		SuggestionType: SuggestionMultiLine,
-		Selection: &Selection{
-			StartLine: 3,
-			EndLine:   4,
-			Original:  "## Section 1\nContent here",
-		},
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    3,
+		EndLine:      4,
+		OriginalText: "## Section 1\nContent here",
 		ProposedText: `## Updated Section 1
 Enhanced content here
-With multiple lines`,
+With multiple lines
+And more detail`,
 	}
 
 	result, err := ApplySuggestion(content, suggestion)
@@ -183,79 +127,10 @@ With multiple lines`,
 ## Updated Section 1
 Enhanced content here
 With multiple lines
+And more detail
 
 ## Section 2
 More content`
-
-	if result != expected {
-		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, result)
-	}
-}
-
-func TestApplyDiffHunkSuggestion(t *testing.T) {
-	content := `Line 1
-Line 2
-Line 3
-Line 4
-Line 5`
-
-	diffHunk := `@@ -2,3 +2,3 @@
- Line 2
--Line 3
-+Line 3 Modified
- Line 4`
-
-	suggestion := &Comment{
-		ID:             "s1",
-		SuggestionType: SuggestionDiffHunk,
-		Selection: &Selection{
-			StartLine: 2,
-		},
-		ProposedText: diffHunk,
-	}
-
-	result, err := ApplySuggestion(content, suggestion)
-	if err != nil {
-		t.Fatalf("ApplySuggestion failed: %v", err)
-	}
-
-	expected := `Line 1
-Line 2
-Line 3 Modified
-Line 4
-Line 5`
-
-	if result != expected {
-		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, result)
-	}
-}
-
-func TestApplyDiffHunkAddLines(t *testing.T) {
-	content := `Line 1
-Line 2
-Line 4`
-
-	diffHunk := `@@ -2,1 +2,2 @@
- Line 2
-+Line 3
- Line 4`
-
-	suggestion := &Comment{
-		ID:             "s1",
-		SuggestionType: SuggestionDiffHunk,
-		Selection:      &Selection{StartLine: 2},
-		ProposedText:   diffHunk,
-	}
-
-	result, err := ApplySuggestion(content, suggestion)
-	if err != nil {
-		t.Fatalf("ApplySuggestion failed: %v", err)
-	}
-
-	expected := `Line 1
-Line 2
-Line 3
-Line 4`
 
 	if result != expected {
 		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, result)
@@ -267,25 +142,13 @@ func TestApplySuggestionValidation(t *testing.T) {
 
 	// Test non-suggestion comment
 	comment := &Comment{
-		ID:             "c1",
-		SuggestionType: SuggestionNone,
+		ID:           "c1",
+		IsSuggestion: false,
 	}
 
 	_, err := ApplySuggestion(content, comment)
 	if err == nil {
 		t.Error("Expected error for non-suggestion comment")
-	}
-
-	// Test missing selection
-	suggestion := &Comment{
-		ID:             "s1",
-		SuggestionType: SuggestionLine,
-		Selection:      nil,
-	}
-
-	_, err = ApplySuggestion(content, suggestion)
-	if err == nil {
-		t.Error("Expected error for missing selection")
 	}
 }
 
@@ -295,13 +158,11 @@ Line 2
 Line 3`
 
 	suggestion := &Comment{
-		ID:             "s1",
-		SuggestionType: SuggestionLine,
-		Selection: &Selection{
-			StartLine: 2,
-			EndLine:   2,
-			Original:  "Wrong content", // Doesn't match actual line
-		},
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    2,
+		EndLine:      2,
+		OriginalText: "Wrong content", // Doesn't match actual line
 		ProposedText: "New line",
 	}
 
@@ -320,12 +181,10 @@ Line 2
 Line 3`
 
 	suggestion := &Comment{
-		ID:             "s1",
-		SuggestionType: SuggestionLine,
-		Selection: &Selection{
-			StartLine: 10, // Out of range
-			EndLine:   10,
-		},
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    10, // Out of range
+		EndLine:      10,
 		ProposedText: "New line",
 	}
 
@@ -335,189 +194,252 @@ Line 3`
 	}
 }
 
-func TestCanApplySuggestion(t *testing.T) {
+func TestApplySuggestionInvalidLineRange(t *testing.T) {
 	content := "Line 1\nLine 2\nLine 3"
 
+	// EndLine before StartLine
 	suggestion := &Comment{
-		ID:             "s1",
-		SuggestionType: SuggestionLine,
-		Selection: &Selection{
-			StartLine: 2,
-			EndLine:   2,
-			Original:  "Line 2",
-		},
-		ProposedText: "Modified",
-	}
-
-	err := CanApplySuggestion(content, suggestion)
-	if err != nil {
-		t.Errorf("CanApplySuggestion failed: %v", err)
-	}
-
-	// Test invalid suggestion
-	badSuggestion := &Comment{
-		ID:             "s2",
-		SuggestionType: SuggestionLine,
-		Selection: &Selection{
-			StartLine: 100,
-			EndLine:   100,
-		},
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    3,
+		EndLine:      1,
 		ProposedText: "X",
 	}
 
-	err = CanApplySuggestion(content, badSuggestion)
+	_, err := ApplySuggestion(content, suggestion)
 	if err == nil {
-		t.Error("Expected error for invalid suggestion")
+		t.Error("Expected error for invalid line range")
+	}
+
+	// StartLine < 1
+	suggestion2 := &Comment{
+		ID:           "s2",
+		IsSuggestion: true,
+		StartLine:    0,
+		EndLine:      1,
+		ProposedText: "X",
+	}
+
+	_, err = ApplySuggestion(content, suggestion2)
+	if err == nil {
+		t.Error("Expected error for StartLine < 1")
 	}
 }
 
-func TestApplyMultipleSuggestions(t *testing.T) {
+func TestApplySuggestionWithoutOriginalText(t *testing.T) {
+	content := `Line 1
+Line 2
+Line 3`
+
+	// OriginalText is optional - suggestion should still work
+	suggestion := &Comment{
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    2,
+		EndLine:      2,
+		OriginalText: "", // Empty - no verification
+		ProposedText: "Modified Line 2",
+	}
+
+	result, err := ApplySuggestion(content, suggestion)
+	if err != nil {
+		t.Fatalf("ApplySuggestion failed: %v", err)
+	}
+
+	expected := `Line 1
+Modified Line 2
+Line 3`
+
+	if result != expected {
+		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, result)
+	}
+}
+
+func TestApplySuggestionMultipleLineDelete(t *testing.T) {
 	content := `Line 1
 Line 2
 Line 3
 Line 4
 Line 5`
 
-	suggestions := []*Comment{
-		{
-			ID:              "s1",
-			SuggestionType:  SuggestionLine,
-			AcceptanceState: AcceptancePending,
-			Selection: &Selection{
-				StartLine: 5,
-				EndLine:   5,
-				Original:  "Line 5",
-			},
-			ProposedText: "Modified Line 5",
-		},
-		{
-			ID:              "s2",
-			SuggestionType:  SuggestionLine,
-			AcceptanceState: AcceptancePending,
-			Selection: &Selection{
-				StartLine: 2,
-				EndLine:   2,
-				Original:  "Line 2",
-			},
-			ProposedText: "Modified Line 2",
-		},
-	}
-
-	// Note: Should apply bottom-to-top to avoid position drift
-	// But our implementation applies in order given
-
-	result, applied, err := ApplyMultipleSuggestions(content, suggestions)
-	if err != nil {
-		t.Fatalf("ApplyMultipleSuggestions failed: %v", err)
-	}
-
-	if len(applied) != 2 {
-		t.Errorf("Expected 2 applied suggestions, got %d", len(applied))
-	}
-
-	// Verify both suggestions were applied
-	if !strings.Contains(result, "Modified Line 5") {
-		t.Error("First suggestion was not applied")
-	}
-	if !strings.Contains(result, "Modified Line 2") {
-		t.Error("Second suggestion was not applied")
-	}
-}
-
-func TestApplyMultipleSuggestionsSkipsNonPending(t *testing.T) {
-	content := "Line 1\nLine 2\nLine 3"
-
-	suggestions := []*Comment{
-		{
-			ID:              "s1",
-			SuggestionType:  SuggestionLine,
-			AcceptanceState: AcceptanceAccepted, // Already accepted, should skip
-			Selection:       &Selection{StartLine: 1, EndLine: 1},
-			ProposedText:    "X",
-		},
-		{
-			ID:              "s2",
-			SuggestionType:  SuggestionLine,
-			AcceptanceState: AcceptancePending, // Should apply
-			Selection: &Selection{
-				StartLine: 2,
-				EndLine:   2,
-				Original:  "Line 2",
-			},
-			ProposedText: "Modified",
-		},
-	}
-
-	result, applied, err := ApplyMultipleSuggestions(content, suggestions)
-	if err != nil {
-		t.Fatalf("ApplyMultipleSuggestions failed: %v", err)
-	}
-
-	if len(applied) != 1 {
-		t.Errorf("Expected 1 applied suggestion, got %d", len(applied))
-	}
-
-	if applied[0] != "s2" {
-		t.Errorf("Expected s2 to be applied, got %s", applied[0])
-	}
-
-	if !strings.Contains(result, "Modified") {
-		t.Error("Pending suggestion was not applied")
-	}
-}
-
-func TestHelperMethods(t *testing.T) {
-	timestamp := time.Now()
-
-	// Test IsSuggestion
 	suggestion := &Comment{
-		ID:             "s1",
-		SuggestionType: SuggestionLine,
-		Timestamp:      timestamp,
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    2,
+		EndLine:      4,
+		OriginalText: "Line 2\nLine 3\nLine 4",
+		ProposedText: "", // Delete all three lines
 	}
-	if !suggestion.IsSuggestion() {
-		t.Error("IsSuggestion should return true for suggestion")
+
+	result, err := ApplySuggestion(content, suggestion)
+	if err != nil {
+		t.Fatalf("ApplySuggestion failed: %v", err)
 	}
+
+	expected := `Line 1
+Line 5`
+
+	if result != expected {
+		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, result)
+	}
+}
+
+func TestApplySuggestionAtEnd(t *testing.T) {
+	content := `Line 1
+Line 2
+Line 3`
+
+	suggestion := &Comment{
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    3,
+		EndLine:      3,
+		OriginalText: "Line 3",
+		ProposedText: "Modified Line 3",
+	}
+
+	result, err := ApplySuggestion(content, suggestion)
+	if err != nil {
+		t.Fatalf("ApplySuggestion failed: %v", err)
+	}
+
+	expected := `Line 1
+Line 2
+Modified Line 3`
+
+	if result != expected {
+		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, result)
+	}
+}
+
+func TestApplySuggestionAtStart(t *testing.T) {
+	content := `Line 1
+Line 2
+Line 3`
+
+	suggestion := &Comment{
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    1,
+		EndLine:      1,
+		OriginalText: "Line 1",
+		ProposedText: "Modified Line 1",
+	}
+
+	result, err := ApplySuggestion(content, suggestion)
+	if err != nil {
+		t.Fatalf("ApplySuggestion failed: %v", err)
+	}
+
+	expected := `Modified Line 1
+Line 2
+Line 3`
+
+	if result != expected {
+		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, result)
+	}
+}
+
+func TestApplySuggestionEntireDocument(t *testing.T) {
+	content := `Line 1
+Line 2
+Line 3`
+
+	suggestion := &Comment{
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    1,
+		EndLine:      3,
+		OriginalText: "Line 1\nLine 2\nLine 3",
+		ProposedText: "Completely new content\nWith different structure",
+	}
+
+	result, err := ApplySuggestion(content, suggestion)
+	if err != nil {
+		t.Fatalf("ApplySuggestion failed: %v", err)
+	}
+
+	expected := `Completely new content
+With different structure`
+
+	if result != expected {
+		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, result)
+	}
+}
+
+func TestPreviewSuggestion(t *testing.T) {
+	content := `Line 1
+Line 2
+Line 3
+Line 4`
+
+	suggestion := &Comment{
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    2,
+		EndLine:      3,
+		OriginalText: "Line 2\nLine 3",
+		ProposedText: "Modified Line 2\nModified Line 3",
+	}
+
+	preview, err := PreviewSuggestion(content, suggestion)
+	if err != nil {
+		t.Fatalf("PreviewSuggestion failed: %v", err)
+	}
+
+	// Check that preview contains key elements
+	if !strings.Contains(preview, "=== Suggestion Preview ===") {
+		t.Error("Preview should contain header")
+	}
+
+	if !strings.Contains(preview, "Lines 2-3") {
+		t.Error("Preview should contain line range")
+	}
+
+	if !strings.Contains(preview, "--- Original") {
+		t.Error("Preview should contain original section")
+	}
+
+	if !strings.Contains(preview, "+++ Proposed") {
+		t.Error("Preview should contain proposed section")
+	}
+
+	if !strings.Contains(preview, "- Line 2") {
+		t.Error("Preview should contain original line 2")
+	}
+
+	if !strings.Contains(preview, "+ Modified Line 2") {
+		t.Error("Preview should contain proposed line 2")
+	}
+}
+
+func TestPreviewSuggestionInvalidRange(t *testing.T) {
+	content := "Line 1\nLine 2"
+
+	suggestion := &Comment{
+		ID:           "s1",
+		IsSuggestion: true,
+		StartLine:    10,
+		EndLine:      10,
+		ProposedText: "X",
+	}
+
+	_, err := PreviewSuggestion(content, suggestion)
+	if err == nil {
+		t.Error("Expected error for invalid range")
+	}
+}
+
+func TestPreviewSuggestionNonSuggestion(t *testing.T) {
+	content := "Line 1\nLine 2"
 
 	comment := &Comment{
-		ID:             "c1",
-		SuggestionType: SuggestionNone,
-		Timestamp:      timestamp,
-	}
-	if comment.IsSuggestion() {
-		t.Error("IsSuggestion should return false for non-suggestion")
+		ID:           "c1",
+		IsSuggestion: false,
 	}
 
-	// Test IsPending
-	pending := &Comment{
-		ID:              "s1",
-		SuggestionType:  SuggestionLine,
-		AcceptanceState: AcceptancePending,
-		Timestamp:       timestamp,
-	}
-	if !pending.IsPending() {
-		t.Error("IsPending should return true for pending suggestion")
-	}
-
-	// Test IsAccepted
-	accepted := &Comment{
-		ID:              "s1",
-		SuggestionType:  SuggestionLine,
-		AcceptanceState: AcceptanceAccepted,
-		Timestamp:       timestamp,
-	}
-	if !accepted.IsAccepted() {
-		t.Error("IsAccepted should return true for accepted suggestion")
-	}
-
-	// Test IsRejected
-	rejected := &Comment{
-		ID:              "s1",
-		SuggestionType:  SuggestionLine,
-		AcceptanceState: AcceptanceRejected,
-		Timestamp:       timestamp,
-	}
-	if !rejected.IsRejected() {
-		t.Error("IsRejected should return true for rejected suggestion")
+	_, err := PreviewSuggestion(content, comment)
+	if err == nil {
+		t.Error("Expected error for non-suggestion")
 	}
 }
