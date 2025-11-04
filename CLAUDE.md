@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Key Philosophy**: Instead of having LLMs rewrite entire documents, add contextual comments at specific lines to guide iteration and discussion. Suggestions allow proposing edits with preview and accept/reject workflow.
 
-**Storage Model**: Comments and suggestions are stored in sidecar JSON files (`.md.comments.json`) separate from the markdown content, ensuring clean content and structured metadata.
+**Storage Model (v2.0)**: Comments and suggestions are stored in sidecar JSON files (`.md.comments.json`) separate from the markdown content, with nested thread structure and automatic staleness detection.
 
 ## Build and Development Commands
 
@@ -16,9 +16,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Build main binary
 go build -o comments ./cmd/comments
-
-# Build test parser utility
-go build -o test-parser ./cmd/test-parser
 ```
 
 ### Testing
@@ -32,10 +29,7 @@ go test -v ./...
 # Run specific package tests
 go test ./pkg/comment/...
 go test ./pkg/tui/...
-
-# Run single test function
-go test -v -run TestParserBasic ./pkg/comment/
-go test -v -run TestThreadBuilding ./pkg/comment/
+go test ./pkg/markdown/...
 
 # Run tests with coverage
 go test -cover ./...
@@ -54,9 +48,9 @@ go tool cover -html=coverage.out
 ./comments reply examples/sample.md --thread c123 --author "user" --text "Reply"
 ./comments resolve examples/sample.md --thread c123
 
-# Suggestion commands (NEW)
-./comments suggest examples/sample.md --line 15 --author "claude" --text "Improve wording" \
-  --type line --original "old text" --proposed "new text"
+# Suggestion commands (multi-line only in v2.0)
+./comments suggest examples/sample.md --start-line 15 --end-line 17 --author "claude" \
+  --text "Improve wording" --original "old text" --proposed "new text"
 ./comments accept examples/sample.md --suggestion c123 --preview
 ./comments accept examples/sample.md --suggestion c123
 ./comments reject examples/sample.md --suggestion c456
@@ -75,6 +69,77 @@ echo '[{"thread":"c123","author":"claude","text":"LGTM"}]' | ./comments batch-re
 # LLM integration (requires ANTHROPIC_API_KEY)
 export ANTHROPIC_API_KEY=your_key
 ./comments ask examples/sample.md --prompt "Explain this" --line 5
+
+# Section-based operations
+# Add comments by section instead of line number
+./comments add examples/sample.md --section "Introduction" --author "alice" --text "Great intro"
+./comments add examples/sample.md --section "Implementation > Architecture" --author "bob" --text "Add diagram"
+
+# Filter comments by section (includes nested sub-sections)
+./comments list examples/sample.md --section "Introduction"
+./comments list examples/sample.md --section "Implementation > Data Model"
+
+# File input support (v2.0 - use @filename for multi-line text)
+./comments add doc.md --line 10 --author "claude" --text @comment.txt
+./comments suggest doc.md --start-line 5 --end-line 8 --author "claude" \
+  --text "Major refactor" --original @original.txt --proposed @proposed.txt
+```
+
+### Section-Based Operations
+
+**Overview:** Comments can be added and filtered by markdown section (heading) instead of just line numbers. This is useful for organizing comments by document structure rather than physical line positions.
+
+**Key Concepts:**
+- **Section Path**: Hierarchical path using " > " separator (e.g., "Introduction > Background > History")
+- **Section vs. Line**: Use `--section` OR `--line` (mutually exclusive)
+- **Nested Sections**: Section filters include all descendant sections (tree behavior)
+- **Storage**: Section metadata (SectionID and SectionPath) stored in comments (v2.0 format)
+
+**Usage Examples:**
+
+```bash
+# Add comment to a section (attaches to heading line)
+./comments add doc.md --section "Introduction" --author "alice" --text "Needs expansion"
+
+# Add comment to nested section (full path required for disambiguation)
+./comments add doc.md --section "Intro > Overview > Key Points" --author "bob" --text "Add examples"
+
+# List all comments in a section (includes nested sub-sections)
+./comments list doc.md --section "Implementation"
+# Shows comments in "Implementation", "Implementation > Architecture", "Implementation > Data Model", etc.
+
+# Combine section filter with other filters
+./comments list doc.md --section "Introduction" --author "alice" --type "Q"
+
+# Batch add with sections
+cat > comments.json << 'EOF'
+[
+  {"section": "Introduction", "author": "alice", "text": "Great start", "type": "Q"},
+  {"section": "Implementation > Architecture", "author": "bob", "text": "Add diagram", "type": "S"},
+  {"line": 50, "author": "charlie", "text": "Typo here"}
+]
+EOF
+./comments batch-add doc.md --json comments.json
+```
+
+**Display Format:**
+All comment listings now show section paths when available:
+```
+[1] Introduction > Background > History (Line 9) • @alice • 2025-01-15 10:30
+    Type: Root | Thread ID: c123 | Comment ID: c123
+    [Q] Consider adding more historical context
+```
+
+**Error Handling:**
+If a section path is invalid, you'll see available sections:
+```
+Error: section 'Overvieww' not found
+Available sections:
+  - Introduction
+  - Introduction > Background
+  - Implementation
+  - Implementation > Architecture
+  - Conclusion
 ```
 
 ## Architecture
@@ -84,16 +149,17 @@ export ANTHROPIC_API_KEY=your_key
 The system follows a clear separation of concerns across three main layers:
 
 1. **Comment System Layer** (`pkg/comment/`)
-   - **Storage**: JSON sidecar file I/O (LoadFromSidecar/SaveToSidecar)
-   - **Applier**: Suggestion application engine supporting 4 granularity types
-   - **Positions**: Position tracking and conflict detection for suggestions
-   - **Thread Manager**: Organizes flat comment arrays into hierarchical thread structures
-   - **Types**: Core data structures (Comment, Thread, DocumentWithComments, Position, Selection)
+   - **Storage**: JSON sidecar file I/O with v2.0 format (nested threads, document hashing)
+   - **Validation**: SHA-256 document hashing and staleness detection
+   - **Applier**: Multi-line suggestion application engine
+   - **Positions**: Line-only position tracking and conflict detection
+   - **Helpers**: Thread manipulation functions (AddReplyToThread, ResolveThread, etc.)
+   - **Types**: Core data structures (Comment with nested Replies, DocumentWithComments)
 
 2. **TUI Layer** (`pkg/tui/`)
    - **Model**: Bubbletea application state, implements Update/View/Init pattern
-   - **Modes**: State machine for different UI modes (FilePicker, Browse, LineSelect, AddComment, ThreadView, Reply, Resolve, ReviewSuggestion)
-   - **Rendering**: Pure functions that transform model state into terminal output with suggestion indicators
+   - **Modes**: State machine for different UI modes
+   - **Rendering**: Pure functions that transform model state into terminal output
    - **Styles**: Centralized lipgloss styling definitions
 
 3. **LLM Integration Layer** (`pkg/llm/`)
@@ -102,62 +168,76 @@ The system follows a clear separation of concerns across three main layers:
 
 ### Critical Architecture Patterns
 
-#### Storage Format and Data Model
+#### Storage Format and Data Model (v2.0)
 
 Comments and suggestions are stored in JSON sidecar files (`{filename}.comments.json`) with the following structure:
 
 ```json
 {
-  "version": "1.0",
-  "comments": [{
+  "version": "2.0",
+  "documentHash": "sha256_hash_of_markdown_content",
+  "lastValidated": "2025-01-15T10:30:00Z",
+  "threads": [{
     "ID": "c123",
-    "ThreadID": "c123",
-    "ParentID": "",
     "Author": "alice",
-    "Line": 10,
     "Timestamp": "2025-01-15T10:30:00Z",
     "Text": "Comment text",
     "Type": "Q",
+    "Line": 10,
+    "SectionID": "s2",
+    "SectionPath": "Introduction > Overview",
     "Resolved": false,
-    "SuggestionType": "line",
-    "Selection": {
-      "StartLine": 10,
-      "EndLine": 10,
-      "Original": "old text"
-    },
-    "ProposedText": "new text",
-    "AcceptanceState": "pending"
-  }],
-  "positions": {
-    "c123": {"Line": 10, "Column": 0, "ByteOffset": 150}
-  }
+    "Replies": [{
+      "ID": "c124",
+      "Author": "bob",
+      "Timestamp": "2025-01-15T11:00:00Z",
+      "Text": "Reply to comment",
+      "Line": 10,
+      "Resolved": false,
+      "Replies": []
+    }],
+    "IsSuggestion": false,
+    "StartLine": 0,
+    "EndLine": 0,
+    "OriginalText": "",
+    "ProposedText": "",
+    "Accepted": null
+  }]
 }
 ```
 
+**Key v2.0 Changes**:
+- **Nested Thread Structure**: `Replies` array directly in Comment (no more flat array with ThreadID/ParentID)
+- **Document Hashing**: SHA-256 hash for staleness detection
+- **Validation Timestamp**: `lastValidated` tracks when sidecar was last checked
+- **Simplified Position Tracking**: Only `Line` field (removed Column, ByteOffset)
+- **Simplified Suggestions**: Only multi-line type (removed line, char-range, diff-hunk types)
+- **Boolean Acceptance**: `Accepted *bool` (nil=pending, true=accepted, false=rejected)
+
 **Comment Types**: Comments can be categorized with type prefixes:
 - `Q` - Question: Requests clarification or poses a question
-- `S` - Suggestion: Proposes a change or improvement
+- `S` - Suggestion: Proposes a change or improvement (note: edit suggestions use IsSuggestion field)
 - `B` - Bug: Identifies an issue or bug
 - `T` - TODO: Marks something to be done
 - `E` - Enhancement: Suggests a feature enhancement
 
-Types are stored in the `Type` field and auto-prefixed to text as `[Q]`, `[S]`, etc. during batch operations.
+**Threading Model (v2.0)**:
+- Root comments: Stored directly in `threads` array
+- Replies: Stored in `Replies` array of parent comment (recursively nested)
+- Position tracking: `Line` field in each Comment (no separate Positions map)
 
-**Threading Model**:
-- Root comments: `ThreadID == ID`, `ParentID == ""`
-- Replies: `ThreadID` points to root, `ParentID` points to immediate parent
-- Position tracking: Line numbers stored in separate `Positions` map (keyed by comment ID)
+**Suggestion Model (v2.0)**: Simplified to multi-line only
+- `IsSuggestion`: true if this is an edit suggestion
+- `StartLine` / `EndLine`: Line range for the edit
+- `OriginalText`: Text being replaced (optional, used for verification)
+- `ProposedText`: Proposed replacement text
+- `Accepted`: nil (pending), true (accepted), false (rejected)
 
-**Suggestion Types** (NEW): Four granularity levels for edit suggestions:
-1. **`SuggestionLine`**: Replace entire line(s) - Uses StartLine/EndLine in Selection
-2. **`SuggestionCharRange`**: Precise byte-offset based replacements - Uses ByteOffset/Length
-3. **`SuggestionMultiLine`**: Multi-line block replacements - Uses StartLine/EndLine
-4. **`SuggestionDiffHunk`**: Unified diff format patches - ProposedText contains diff
-
-**Acceptance States**:
-- `AcceptancePending`: Suggestion awaiting review
-- `AcceptanceAccepted`: Suggestion accepted and applied
-- `AcceptanceRejected`: Suggestion rejected
+**Staleness Detection**:
+- On load, tool computes SHA-256 hash of current markdown content
+- If hash doesn't match stored `documentHash`, sidecar is considered stale
+- Stale sidecars are automatically archived to `.comments.json.backup.TIMESTAMP`
+- User gets warning with option to start fresh or restore from backup
 
 #### Bubbletea State Machine
 
@@ -218,71 +298,107 @@ They:
 ```
 pkg/
 ├── comment/           # Core comment system (pure logic, no UI)
-│   ├── types.go      # Data structures
-│   ├── parser.go     # CriticMarkup → Comment objects
-│   ├── serializer.go # Comment objects → CriticMarkup
-│   ├── threads.go    # Thread building and operations
+│   ├── types.go      # Data structures (Comment with Replies, DocumentWithComments)
+│   ├── storage.go    # JSON sidecar I/O (v2.0 format)
+│   ├── validation.go # Document hashing and staleness detection
+│   ├── helpers.go    # Thread manipulation (AddReplyToThread, ResolveThread, etc.)
+│   ├── applier.go    # Multi-line suggestion application
+│   ├── positions.go  # Line-only position tracking and conflict detection
+│   ├── sections.go   # Section-based addressing
 │   └── *_test.go     # Unit tests
 ├── tui/              # Terminal UI (Bubbletea components)
 │   ├── model.go      # Application state and update logic
 │   ├── modes.go      # View mode state machine
 │   ├── rendering.go  # Pure rendering functions
 │   └── styles.go     # Lipgloss styling
+├── markdown/         # Markdown parsing
+│   └── parser.go     # ATX heading parser for section addressing
 └── llm/              # LLM provider integration
     ├── types.go      # Provider interface
     └── claude.go     # Anthropic implementation
 
 cmd/
 ├── comments/         # Main CLI application
-│   └── main.go       # Command routing and handlers
-└── test-parser/      # Parser testing utility
-    └── main.go
+│   ├── main.go       # Command routing and handlers
+│   ├── batch_add.go  # Batch comment addition
+│   ├── batch_reply.go # Batch reply addition
+│   └── list_filters.go # Filtering and sorting logic
 ```
 
 ## Key Abstractions
 
-### Comment System
+### Comment System (v2.0)
 
 **DocumentWithComments**: The central data structure
 ```go
 type DocumentWithComments struct {
-    Content   string              // Raw markdown without comments
-    Comments  []*Comment          // All comments (flat array)
-    Positions map[string]Position // Comment ID → Position mapping
+    Content       string     // Raw markdown without comments
+    Threads       []*Comment // Root comment threads (each may contain nested replies)
+    DocumentHash  string     // SHA-256 hash for staleness detection
+    LastValidated time.Time  // Last validation timestamp
 }
 ```
 
-**Why separate Positions?** Allows efficient position updates during document edits without scanning all comment text.
-
-**Comment**: The core comment structure
+**Comment**: The core comment structure (v2.0 simplified)
 ```go
 type Comment struct {
+    // Identity
     ID        string    // Unique identifier
-    ThreadID  string    // Root comment ID (same as ID for root)
-    ParentID  string    // Parent comment ID (empty for root)
-    Author    string    // Author name
-    Line      int       // Original line number
-    Timestamp time.Time // Creation time
-    Text      string    // Comment content
-    Type      string    // Optional: Q, S, B, T, E
-    Resolved  bool      // Resolution status
+    Author    string    // Author of the comment
+    Timestamp time.Time // When the comment was created
+
+    // Content
+    Text string // Comment content
+    Type string // Optional: Q, S, B, T, E
+
+    // Position
+    Line int // Line number where comment is attached
+
+    // Section metadata (computed from document structure)
+    SectionID   string // ID of the section this comment belongs to
+    SectionPath string // Full hierarchical path (e.g., "Intro > Overview")
+
+    // State
+    Resolved bool // Whether the comment/thread has been resolved
+
+    // Thread structure (nested replies)
+    Replies []*Comment // Nested replies to this comment
+
+    // Suggestion fields (for edit suggestions)
+    IsSuggestion bool   // True if this is an edit suggestion
+    StartLine    int    // Start line for suggestion (0 if not a suggestion)
+    EndLine      int    // End line for suggestion (0 if not a suggestion)
+    OriginalText string // Original text being replaced
+    ProposedText string // Proposed replacement text
+    Accepted     *bool  // nil=pending, true=accepted, false=rejected
 }
 ```
 
-**Type field**: Used for categorizing comments. When set, batch operations auto-prefix text with `[Q]`, `[S]`, etc.
+**Key v2.0 Simplifications**:
+- Removed `ThreadID`, `ParentID` (use nested `Replies` array instead)
+- Removed `Column`, `ByteOffset` (line-only tracking)
+- Removed `Selection` struct (use `StartLine`/`EndLine` directly)
+- Removed `SuggestionType` enum (multi-line only)
+- Removed `AcceptanceState` enum (use `*bool` pointer)
 
-**Thread**: Built on-demand from flat Comment array
+**Helper Functions** (v2.0 - replace dynamic thread building):
 ```go
-type Thread struct {
-    ID          string
-    RootComment *Comment
-    Replies     []*Comment
-    Resolved    bool
-    Line        int
-}
-```
+// Thread manipulation
+func AddReplyToThread(threads []*Comment, threadID, author, text string) error
+func ResolveThread(threads []*Comment, threadID string) error
+func UnresolveThread(threads []*Comment, threadID string) error
 
-Threads are **ephemeral** - rebuilt via `BuildThreads(comments)` whenever needed.
+// Suggestion operations
+func NewSuggestion(author string, startLine, endLine int, text, originalText, proposedText string) *Comment
+func AcceptSuggestion(threads []*Comment, suggestionID string) error
+func RejectSuggestion(threads []*Comment, suggestionID string) error
+func GetPendingSuggestions(threads []*Comment) []*Comment
+func GetSuggestionsByAuthor(threads []*Comment, author string) []*Comment
+
+// Utility
+func GetVisibleComments(threads []*Comment, showResolved bool) []*Comment
+func GroupCommentsByLine(threads []*Comment) map[int][]*Comment
+```
 
 ### TUI Model
 
@@ -321,38 +437,55 @@ The provider is responsible for building the actual LLM prompt from this context
 ### Unit Tests
 
 Focus on:
-1. **Parser correctness**: All CriticMarkup variants, malformed input, edge cases
-2. **Thread building**: Parent-child relationships, reply ordering
-3. **Serialization round-trips**: Parse → Serialize → Parse should be identity
+1. **Storage round-trips**: v2.0 format save/load with nested threads
+2. **Validation**: Document hashing and staleness detection
+3. **Helper functions**: AddReplyToThread, ResolveThread, AcceptSuggestion, etc.
+4. **Suggestion application**: Multi-line replacements, edge cases
+5. **Position tracking**: Line recalculation after edits
+6. **Conflict detection**: Overlapping suggestions
 
 Example test structure:
 ```go
-func TestParserBasic(t *testing.T) {
-    content := `# Title
-{>>[@user:c1:c1:5:2025-01-15T10:30:00Z] Comment text <<}
-More content`
-
-    parser := NewParser()
-    doc, err := parser.Parse(content)
-
-    if err != nil {
-        t.Fatalf("Parse failed: %v", err)
+func TestSaveAndLoadRoundTrip(t *testing.T) {
+    content := "# Test Document\n\nSome content here.\n"
+    doc := &DocumentWithComments{
+        Content: content,
+        Threads: []*Comment{
+            {
+                ID:     "c1",
+                Author: "alice",
+                Line:   3,
+                Text:   "This is a question",
+                Replies: []*Comment{
+                    {
+                        ID:     "c2",
+                        Author: "bob",
+                        Line:   3,
+                        Text:   "Here's an answer",
+                        Replies: []*Comment{},
+                    },
+                },
+            },
+        },
     }
-    if len(doc.Comments) != 1 {
-        t.Errorf("Expected 1 comment, got %d", len(doc.Comments))
+
+    // Save and load
+    SaveToSidecar(mdPath, doc)
+    loaded, err := LoadFromSidecar(mdPath)
+
+    // Verify nested structure preserved
+    if len(loaded.Threads[0].Replies) != 1 {
+        t.Errorf("Expected 1 reply")
     }
 }
 ```
 
 ### Manual Testing
 
-Use the test utility:
+Run tests:
 ```bash
-# Build test parser
-go build -o test-parser ./cmd/test-parser
-
-# Test parsing
-./test-parser examples/sample.md
+go test ./... -v
+go test ./pkg/comment/... -cover
 ```
 
 Or use the TUI directly on sample documents in `examples/`.
@@ -434,9 +567,28 @@ The tool validates all thread IDs exist before adding any replies and will show 
 **Benefits:**
 - Single file write operation (more efficient than multiple commands)
 - Atomic operation (all succeed or all fail)
-- Verification step re-parses to confirm all comments/replies were added
 - Better for scripting and automation
 - Reduces I/O overhead
+
+### File Input Support (@filename syntax)
+
+v2.0 adds support for reading text content from files using `@filename` syntax:
+
+```bash
+# Read comment text from file
+./comments add doc.md --line 10 --author "claude" --text @comment.txt
+
+# Read multi-line suggestion content from files
+./comments suggest doc.md --start-line 5 --end-line 8 --author "claude" \
+  --text "Refactor section" \
+  --original @original-text.txt \
+  --proposed @new-text.txt
+```
+
+This is especially useful for:
+- Multi-line comments that would be awkward to escape on command line
+- Large suggestion blocks
+- Programmatically generated content
 
 ### Filtering and Querying Comments
 
@@ -485,16 +637,6 @@ All filters can be combined:
 ./comments list doc.md --author claude --lines 10-50 --search "performance" --format json
 ```
 
-### Modifying Comment Format
-
-**WARNING**: Comment format changes require backward compatibility!
-
-1. Update parser to handle both old and new formats
-2. Use colon counting or other heuristics to detect format version
-3. Update serializer to write new format only
-4. Add round-trip test: old format → parse → serialize → should be new format
-5. Test with existing documents
-
 ## Debugging Tips
 
 ### TUI Issues
@@ -504,21 +646,20 @@ If the TUI hangs or doesn't respond:
 - Verify viewport initialization happens in `handleResize()` when `ready = false`
 - Look for blocking operations in Update() - all I/O should be async
 
-### Parser Issues
+### Storage Issues
 
-If comments aren't parsed:
-- Check colon counting logic (timestamps have colons!)
-- Verify regex patterns match actual format
-- Use test-parser utility to see parsed output
-- Add debug logging in parser.go temporarily
+If sidecars aren't loading:
+- Check for validation warnings - sidecar may be stale
+- Look in same directory for `.backup.TIMESTAMP` files (archived stale sidecars)
+- Verify JSON format is v2.0 (has `threads` array, not `comments`)
+- Check `documentHash` matches current content
 
-### Thread Building Issues
+### Thread Structure Issues
 
-If threads show wrong structure:
-- Verify ThreadID is set correctly on all comments
-- Check that root comments have `ParentID == ""`
-- Ensure replies have both ThreadID and ParentID
-- Print thread structure in test to visualize
+If threads show wrong structure in v2.0:
+- Verify `Replies` array is populated correctly
+- Check that helpers like `AddReplyToThread()` are used (don't manipulate Replies directly)
+- Use `doc.GetAllComments()` to flatten threads for searching
 
 ## Environment Variables
 

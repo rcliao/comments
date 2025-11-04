@@ -1,15 +1,18 @@
-# Comments CLI - Usage Guide
+# Comments CLI - Usage Guide (v2.0)
 
-A terminal-based collaborative document commenting tool with LLM integration.
+A terminal-based collaborative document commenting tool designed for seamless LLM integration.
 
 ## Features
 
 ### ✅ Core Functionality
 - **Interactive TUI** - Browse, create, and manage comments in a split-pane interface
-- **Threading** - Reply to comments to form conversation threads
+- **Threading** - Reply to comments to form conversation threads (nested structure)
 - **Resolution** - Mark comment threads as resolved
-- **LLM Integration** - Use Claude to generate comments and suggestions
-- **File Management** - Built-in file picker for markdown documents
+- **Section-Based Addressing** - Add comments by markdown section paths
+- **Suggestions** - Propose multi-line edits with preview and accept/reject workflow
+- **Batch Operations** - Efficient JSON-based bulk operations for LLM agents
+- **@filename Support** - Read text content from external files
+- **Document Staleness Detection** - Automatic hash-based validation
 
 ## Commands
 
@@ -58,74 +61,241 @@ A terminal-based collaborative document commenting tool with LLM integration.
 - `y` or `Enter` - Confirm resolution
 - `n` or `Esc` - Cancel
 
-### 2. List Command
+### 2. Add Command
 
-List all comments in a file:
-
-```bash
-./comments list document.md
-```
-
-Output shows:
-- Line number
-- Author
-- Timestamp
-- Comment text
-
-### 3. Ask Command (LLM Integration)
-
-Get AI-generated comments using Claude:
+Add a comment to a document:
 
 ```bash
-# Ask a question (response shown but not saved)
-./comments ask document.md --prompt "Explain this section"
+# Add by line number
+./comments add document.md --line 10 --author "alice" --text "Review this" --type Q
 
-# Ask a question and save as comment at specific line
-./comments ask document.md --prompt "Suggest improvements" --line 10
+# Add by section path
+./comments add document.md --section "Introduction > Overview" --author "bob" --text "Expand this"
 
-# Provide context for the LLM
-./comments ask document.md --prompt "Review this" --start 5 --end 15 --line 5
+# Read text from file
+./comments add document.md --line 25 --author "claude" --text @comment.txt
 ```
 
 **Flags:**
-- `--prompt` (required) - Question or request for Claude
-- `--line` (optional) - Line number to add comment at
-- `--start` (optional) - Context start line
-- `--end` (optional) - Context end line
+- `--line <N>` - Line number (mutually exclusive with --section)
+- `--section <path>` - Section path like "Title > Subtitle" (mutually exclusive with --line)
+- `--author <name>` - Author name (required)
+- `--text <text|@file>` - Comment text or @filename to read from file (required)
+- `--type <Q|S|B|T|E>` - Comment type: Question, Suggestion, Bug, TODO, Enhancement (optional)
 
-**Requirements:**
-Set `ANTHROPIC_API_KEY` environment variable:
+### 3. Reply Command
+
+Reply to an existing thread:
 
 ```bash
-export ANTHROPIC_API_KEY=your_api_key_here
+./comments reply document.md --thread c123 --author "alice" --text "I agree"
+
+# Use @filename for long replies
+./comments reply document.md --thread c456 --author "bob" --text @reply.txt
 ```
 
-## Comment Format
+### 4. Suggest Command
 
-Comments are stored inline using an extended CriticMarkup format:
+Create a multi-line edit suggestion:
 
-```markdown
-{>>[@author:id:threadid:line:timestamp] comment text <<}
+```bash
+# Inline text
+./comments suggest document.md --start-line 15 --end-line 17 \
+  --author "claude" --text "Improve clarity" \
+  --original "old text" --proposed "new text"
+
+# Use @filename for long text blocks
+./comments suggest document.md --start-line 20 --end-line 25 \
+  --author "claude" --text "Refactor section" \
+  --original @original.txt --proposed @proposed.txt
 ```
 
-### Threading
+**Flags:**
+- `--start-line <N>` - Start line (required)
+- `--end-line <N>` - End line (required)
+- `--author <name>` - Author name (required)
+- `--text <text|@file>` - Description of change (required)
+- `--original <text|@file>` - Original text being replaced (required)
+- `--proposed <text|@file>` - Proposed replacement text (required)
 
-- **Root Comment**: ThreadID equals Comment ID, no ParentID
-- **Reply**: ThreadID references root comment, ParentID references parent comment
+### 5. Accept/Reject Suggestions
 
-Example with thread:
+Review and accept or reject suggestions:
 
-```markdown
-# Document Title
+```bash
+# Preview changes
+./comments accept document.md --suggestion s123 --preview
 
-Some content here.
+# Accept and apply
+./comments accept document.md --suggestion s123
 
-{>>[@user:c1:c1:5:2025-01-15T10:30:00Z] Original comment <<}
-
-{>>[@claude:c2:c1:5:2025-01-15T11:00:00Z] Reply to original <<}
-
-More content.
+# Reject
+./comments reject document.md --suggestion s456
 ```
+
+### 6. List Command
+
+List all comments with optional filters:
+
+```bash
+# List all unresolved comments
+./comments list document.md
+
+# Filter by author
+./comments list document.md --author alice
+
+# Filter by section (includes nested sections)
+./comments list document.md --section "Implementation"
+
+# Filter by type
+./comments list document.md --type Q
+
+# Search text
+./comments list document.md --search "TODO"
+
+# Line range
+./comments list document.md --lines 10-30
+
+# Show resolved comments
+./comments list document.md --resolved true
+
+# JSON output (includes full metadata)
+./comments list document.md --format json
+
+# Combine filters
+./comments list document.md --section "Intro" --author alice --type Q
+```
+
+**Output Format:**
+- Table format (default): Shows root comments only with summary
+- JSON format: Full metadata including all replies
+
+### 7. Batch Operations
+
+Efficient bulk operations for LLM agents using JSON input:
+
+#### Batch Add
+
+```bash
+# Create JSON file
+cat > comments.json << 'EOF'
+[
+  {
+    "line": 10,
+    "author": "claude",
+    "text": "Consider edge cases",
+    "type": "Q"
+  },
+  {
+    "section": "Implementation > Architecture",
+    "author": "claude",
+    "text": "Add diagram",
+    "type": "S"
+  }
+]
+EOF
+
+./comments batch-add document.md --json comments.json
+
+# Or use stdin for single-command workflow
+echo '[{"line":10,"author":"claude","text":"Good point","type":"Q"}]' | \
+  ./comments batch-add document.md --json -
+```
+
+**JSON Fields:**
+- `line` OR `section` (mutually exclusive, required)
+- `author` (required)
+- `text` (required)
+- `type` (optional: Q, S, B, T, E)
+
+#### Batch Reply
+
+```bash
+# Create JSON file
+cat > replies.json << 'EOF'
+[
+  {
+    "thread": "c123",
+    "author": "claude",
+    "text": "Good point about scalability"
+  },
+  {
+    "thread": "c456",
+    "author": "claude",
+    "text": "I agree with this approach"
+  }
+]
+EOF
+
+./comments batch-reply document.md --json replies.json
+
+# Or use stdin
+echo '[{"thread":"c123","author":"claude","text":"LGTM"}]' | \
+  ./comments batch-reply document.md --json -
+```
+
+**JSON Fields:**
+- `thread` (thread ID, required)
+- `author` (required)
+- `text` (required)
+
+## Storage Format (v2.0)
+
+Comments are stored in JSON sidecar files (`.md.comments.json`) alongside your markdown documents.
+
+### Example Sidecar File
+
+```json
+{
+  "version": "2.0",
+  "documentHash": "sha256_hash_of_markdown",
+  "lastValidated": "2025-11-03T17:39:51Z",
+  "threads": [
+    {
+      "ID": "c123",
+      "Author": "alice",
+      "Timestamp": "2025-11-03T10:30:00Z",
+      "Text": "[Q] What about edge cases?",
+      "Type": "Q",
+      "Line": 10,
+      "SectionID": "s2",
+      "SectionPath": "Introduction > Overview",
+      "Resolved": false,
+      "Replies": [
+        {
+          "ID": "c124",
+          "Author": "bob",
+          "Timestamp": "2025-11-03T11:00:00Z",
+          "Text": "Good question, let me add tests",
+          "Line": 10,
+          "Replies": []
+        }
+      ],
+      "IsSuggestion": false
+    },
+    {
+      "ID": "s456",
+      "Author": "claude",
+      "Text": "Improve clarity",
+      "Line": 15,
+      "IsSuggestion": true,
+      "StartLine": 15,
+      "EndLine": 17,
+      "OriginalText": "old text",
+      "ProposedText": "new improved text",
+      "Accepted": null,
+      "Replies": []
+    }
+  ]
+}
+```
+
+### Threading Model (v2.0)
+
+Comments use a **nested structure** with `Replies` arrays:
+- Root comments have `Replies` containing direct child comments
+- Each reply can have its own `Replies` array for nested conversations
+- No separate `ThreadID`/`ParentID` fields needed (simplified from v1.x)
 
 ## Workflow Examples
 
@@ -205,16 +375,18 @@ More content.
 
 ## Environment Variables
 
-- `USER` - Used as default author name for comments
-- `ANTHROPIC_API_KEY` - Required for `ask` command
+- `USER` - Used as default author name for comments in TUI mode
 
 ## Tips
 
 1. **Keyboard-First**: All operations can be done without a mouse
 2. **Quick Navigation**: Use `j/k` for vi-like navigation
-3. **Context Matters**: When using LLM, provide `--start` and `--end` for better results
-4. **Resolved Toggle**: Press `R` in browse mode to see all comments
-5. **File Auto-Save**: Changes are saved immediately when you create/reply/resolve
+3. **Section Paths**: Use full hierarchical paths like "Introduction > Overview > Background"
+4. **@filename Syntax**: Great for long comments or when text is already in a file
+5. **Batch Operations**: More efficient than multiple individual commands for bulk operations
+6. **Resolved Toggle**: Press `R` in browse mode to see all comments
+7. **Preview Suggestions**: Always use `--preview` before accepting to see what will change
+8. **File Auto-Save**: Changes are saved immediately when you create/reply/resolve
 
 ## Troubleshooting
 
@@ -232,19 +404,20 @@ A: Check file permissions and that the file path is correct
 
 ## Technical Details
 
-- **Comment Format**: Extended CriticMarkup with threading metadata
-- **Backward Compatible**: Supports both old (4-field) and new (5-field) formats
-- **File Format**: UTF-8 markdown with inline comment annotations
-- **Threading Model**: Parent-child relationships with ThreadID linking
+- **Storage Format**: JSON sidecar files (`.md.comments.json`)
+- **Threading Model**: Nested structure with `Replies` arrays (v2.0)
+- **Position Tracking**: Line-based (simplified in v2.0)
+- **Suggestions**: Multi-line only (v2.0)
+- **Staleness Detection**: SHA-256 hash validation prevents data corruption
+- **File Format**: UTF-8 markdown (clean) + JSON metadata (sidecar)
 
-## Future Enhancements
+## Document Staleness Detection
 
-Potential features for future versions:
-- Edit existing comments
-- Delete comments
-- Comment search and filtering
-- Export to HTML with comments
-- Multiple LLM providers (OpenAI, local models)
-- Comment mentions (@username)
-- Comment tags (#topic)
-- Diff view showing changes
+When you load a document, the system:
+1. Computes SHA-256 hash of markdown content
+2. Compares with hash stored in sidecar file
+3. If hashes don't match, the sidecar is considered stale
+4. Stale sidecars are archived to `.backup.TIMESTAMP` files
+5. You can choose to start fresh or restore from backup
+
+This prevents data corruption when markdown content changes outside the tool.

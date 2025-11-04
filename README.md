@@ -10,14 +10,16 @@ A CLI tool for collaborative document writing with inline comments and suggestio
 
 ## Features
 
-- **Inline Comments**: Add comments to specific lines in markdown files
-- **Edit Suggestions**: Propose changes with 4 granularity levels (line, character-range, multi-line, diff-hunk)
-- **Preview & Review**: Accept or reject suggestions with visual preview
+- **Inline Comments**: Add comments to specific lines or markdown sections
+- **Edit Suggestions**: Propose multi-line changes with preview and accept/reject workflow
 - **Thread Support**: Reply to comments and suggestions to build conversation threads
+- **Section-Based Addressing**: Reference comments by markdown heading hierarchy
 - **Terminal UI**: Beautiful, keyboard-driven interface built with Bubbletea
 - **LLM Integration**: Collaborate with AI agents using contextual comments and suggestions
-- **JSON Storage**: Clean separation with sidecar `.md.comments.json` files
-- **Conflict Detection**: Automatic detection and resolution of overlapping suggestions
+- **JSON Sidecar Storage**: Clean separation with `.md.comments.json` files
+- **Document Staleness Detection**: Automatic hash-based validation prevents data corruption
+- **@filename Support**: Read comment text from external files (great for LLM agents)
+- **Batch Operations**: Efficient JSON-based bulk comment and reply operations
 
 ## Installation
 
@@ -34,22 +36,29 @@ comments view document.md
 # Add a comment from command line
 comments add document.md --line 10 --author "alice" --text "What about edge cases?" --type Q
 
-# Create a suggestion
-comments suggest document.md --line 15 --author "bob" --text "Improve wording" \
-  --type line --original "old text" --proposed "new text"
+# Add a comment to a section
+comments add document.md --section "Introduction > Overview" --author "bob" --text "Expand this"
+
+# Create a multi-line suggestion
+comments suggest document.md --start-line 15 --end-line 17 --author "claude" \
+  --text "Improve clarity" --original "old text" --proposed "new text"
+
+# Use @filename to read text from file
+comments add document.md --line 25 --author "alice" --text @comment.txt
 
 # Accept suggestion with preview
 comments accept document.md --suggestion c123 --preview
 comments accept document.md --suggestion c123
 
-# Batch accept suggestions
-comments batch-accept document.md --author "bob"
-
 # List all comments and suggestions
 comments list document.md
 
-# Ask LLM for help
-comments ask document.md --context "lines 5-15" --prompt "Expand this section"
+# List with filters
+comments list document.md --section "Implementation" --author "alice"
+
+# Batch operations (great for LLM agents)
+echo '[{"line":10,"author":"claude","text":"Good point","type":"Q"}]' | \
+  comments batch-add document.md --json -
 ```
 
 ## Usage
@@ -80,53 +89,56 @@ comments list <file> [options]            # List all comments
 comments reply <file> [options]           # Reply to thread
 comments resolve <file> --thread <id>     # Mark thread as resolved
 
-# Suggestions (NEW)
-comments suggest <file> [options]         # Create edit suggestion
+# Suggestions
+comments suggest <file> [options]         # Create multi-line suggestion
 comments accept <file> --suggestion <id>  # Accept and apply suggestion
 comments reject <file> --suggestion <id>  # Reject suggestion
-comments batch-accept <file> [options]    # Batch accept suggestions
 
 # Batch Operations
-comments batch-add <file> --json <file>   # Batch add comments/suggestions
-comments batch-reply <file> --json <file> # Batch reply to threads
-
-# LLM Integration
-comments ask <file> [options]             # Ask LLM for help
+comments batch-add <file> --json <file>   # Batch add comments from JSON
+comments batch-reply <file> --json <file> # Batch reply to threads from JSON
 ```
 
-## Storage Format
+## Storage Format (v2.0)
 
 Comments and suggestions are stored in JSON sidecar files (`.md.comments.json`) alongside your markdown files. This approach:
 - Keeps markdown files clean and readable
 - Enables structured metadata and advanced features
 - Separates content from collaboration data
-- Supports version control of comments independently
+- Supports independent version control of comments
+- Provides automatic staleness detection via document hashing
 
-### Suggestion Types
+### Example Storage Format
 
-1. **Line**: Replace entire line(s)
-   ```bash
-   --type line --start-line 10 --end-line 10 --original "old" --proposed "new"
-   ```
+```json
+{
+  "version": "2.0",
+  "documentHash": "sha256_hash",
+  "threads": [
+    {
+      "ID": "c123",
+      "Author": "alice",
+      "Text": "[Q] What about edge cases?",
+      "Line": 10,
+      "SectionPath": "Introduction > Overview",
+      "Replies": [
+        {
+          "ID": "c124",
+          "Author": "bob",
+          "Text": "Good point, let me add tests",
+          "Replies": []
+        }
+      ]
+    }
+  ]
+}
+```
 
-2. **Character Range**: Precise byte-offset replacements
-   ```bash
-   --type char-range --offset 150 --length 10 --original "old" --proposed "new"
-   ```
+## Documentation
 
-3. **Multi-Line**: Replace blocks of lines
-   ```bash
-   --type multi-line --start-line 10 --end-line 15 --original "..." --proposed "..."
-   ```
-
-4. **Diff Hunk**: Unified diff format
-   ```bash
-   --type diff-hunk --proposed "@@ -10,3 +10,3 @@\n-old\n+new"
-   ```
-
-## Project Status
-
-Currently in active development. See [docs/](docs/) for architecture and design documentation.
+- **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System design and data model
+- **Development Guide**: [CLAUDE.md](CLAUDE.md) - Implementation details for contributors
+- **Usage Guide**: [USAGE.md](USAGE.md) - Complete command reference
 
 ## License
 
