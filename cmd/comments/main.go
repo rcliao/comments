@@ -1,10 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
@@ -71,20 +69,6 @@ func main() {
 			os.Exit(1)
 		}
 		resolveCommand(os.Args[2], os.Args[3:])
-
-	case "export":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments export <file> [flags]")
-			os.Exit(1)
-		}
-		exportCommand(os.Args[2], os.Args[3:])
-
-	case "publish":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments publish <file> [flags]")
-			os.Exit(1)
-		}
-		publishCommand(os.Args[2], os.Args[3:])
 
 	case "suggest":
 		if len(os.Args) < 3 {
@@ -159,6 +143,7 @@ func listCommand(filename string, args []string) {
 	authorFilter := fs.String("author", "", "Filter by author name")
 	searchText := fs.String("search", "", "Search comment text (case-insensitive)")
 	lineRange := fs.String("line-range", "", "Filter by line range (e.g., 10-30)")
+	sectionFilter := fs.String("section", "", "Filter by section path (includes nested sections)")
 	sortBy := fs.String("sort", "line", "Sort by: line, timestamp, author")
 	format := fs.String("format", "text", "Output format: text, json, table")
 
@@ -171,8 +156,11 @@ func listCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
+	// Compute section metadata for all comments if not already present
+	comment.ComputeSectionsForComments(doc)
+
 	// Filter by resolved status (only show root comments based on resolved flag)
-	filteredComments := comment.GetVisibleComments(doc.Comments, *showResolved)
+	filteredComments := comment.GetVisibleComments(doc.Threads, *showResolved)
 
 	// Filter comments by type if specified
 	if *typeFilter != "" {
@@ -199,20 +187,46 @@ func listCommand(filename string, args []string) {
 		filteredComments = filtered
 	}
 
+	// Apply section filter
+	if *sectionFilter != "" {
+		// Validate section exists
+		if err := comment.ValidateSectionPath(doc.Content, *sectionFilter); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Get all comments in this section (including nested sections)
+		sectionComments := comment.GetCommentsInSection(doc, *sectionFilter)
+
+		// Intersect with filtered comments (preserve other filters)
+		commentSet := make(map[string]bool)
+		for _, c := range sectionComments {
+			commentSet[c.ID] = true
+		}
+
+		filtered := []*comment.Comment{}
+		for _, c := range filteredComments {
+			if commentSet[c.ID] {
+				filtered = append(filtered, c)
+			}
+		}
+		filteredComments = filtered
+	}
+
 	// Sort comments
 	sortComments(filteredComments, *sortBy)
 
 	// Output based on format
 	switch *format {
 	case "json":
-		if err := outputJSON(filteredComments, doc.Positions, doc.Comments); err != nil {
+		if err := outputJSON(filteredComments, doc.Threads); err != nil {
 			fmt.Printf("Error outputting JSON: %v\n", err)
 			os.Exit(1)
 		}
 		return
 
 	case "table":
-		outputTable(filteredComments, doc.Positions, doc.Comments)
+		outputTable(filteredComments, doc.Threads)
 		return
 
 	case "text":
@@ -222,9 +236,6 @@ func listCommand(filename string, args []string) {
 		fmt.Printf("Error: Unknown format '%s'. Valid formats: text, json, table\n", *format)
 		os.Exit(1)
 	}
-
-	// Build threads to identify root vs reply
-	threads := comment.BuildThreads(doc.Comments)
 
 	// List comments (original text format)
 	statusText := "unresolved"
@@ -246,35 +257,32 @@ func listCommand(filename string, args []string) {
 	if *lineRange != "" {
 		filterDesc += fmt.Sprintf(" in lines %s", *lineRange)
 	}
+	if *sectionFilter != "" {
+		filterDesc += fmt.Sprintf(" in section '%s'", *sectionFilter)
+	}
 
-	fmt.Printf("Found %d %s comment(s)%s in %s\n\n", len(filteredComments), statusText, filterDesc, filename)
+	fmt.Printf("Found %d %s thread(s)%s in %s\n\n", len(filteredComments), statusText, filterDesc, filename)
 
-	for i, c := range filteredComments {
-		pos := doc.Positions[c.ID]
-
-		// Determine if this is a root comment or reply
-		commentType := "Root"
-		if c.ParentID != "" {
-			commentType = "Reply"
+	for i, thread := range filteredComments {
+		// Build location string (show section path if available, otherwise just line)
+		locationStr := fmt.Sprintf("Line %d", thread.Line)
+		if thread.SectionPath != "" {
+			locationStr = fmt.Sprintf("%s (Line %d)", thread.SectionPath, thread.Line)
 		}
 
-		// Show thread ID, comment type, and basic info
-		fmt.Printf("[%d] Line %d • @%s • %s\n", i+1, pos.Line, c.Author, c.Timestamp.Format("2006-01-02 15:04"))
-		fmt.Printf("    Type: %s | Thread ID: %s | Comment ID: %s\n", commentType, c.ThreadID, c.ID)
+		// Show thread info
+		fmt.Printf("[%d] %s • @%s • %s\n", i+1, locationStr, thread.Author, thread.Timestamp.Format("2006-01-02 15:04"))
+		fmt.Printf("    Type: Root | Thread ID: %s\n", thread.ID)
 
-		// Show reply count for root comments
-		if c.ParentID == "" {
-			if thread, ok := threads[c.ThreadID]; ok {
-				replyCount := len(thread.Replies)
-				resolvedStatus := ""
-				if c.Resolved {
-					resolvedStatus = " [RESOLVED]"
-				}
-				fmt.Printf("    Replies: %d%s\n", replyCount, resolvedStatus)
-			}
+		// Show reply count and resolved status
+		replyCount := thread.CountReplies()
+		resolvedStatus := ""
+		if thread.Resolved {
+			resolvedStatus = " [RESOLVED]"
 		}
+		fmt.Printf("    Replies: %d%s\n", replyCount, resolvedStatus)
 
-		fmt.Printf("    %s\n\n", c.Text)
+		fmt.Printf("    %s\n\n", thread.Text)
 	}
 }
 
@@ -296,7 +304,8 @@ func addCommand(filename string, args []string) {
 	// Parse flags
 	fs := flag.NewFlagSet("add", flag.ExitOnError)
 	text := fs.String("text", "", "Comment text (required)")
-	line := fs.Int("line", 0, "Line number (required)")
+	line := fs.Int("line", 0, "Line number (use either --line or --section)")
+	section := fs.String("section", "", "Section path (use either --line or --section)")
 	author := fs.String("author", "", "Author name (required)")
 	commentType := fs.String("type", "", "Comment type: Q, S, B, T, E (auto-prefixes text)")
 
@@ -305,25 +314,42 @@ func addCommand(filename string, args []string) {
 	if *text == "" {
 		fmt.Println("Error: --text flag is required")
 		fmt.Println("Usage: comments add <file> --line N --author \"name\" --text \"your comment\"")
-		os.Exit(1)
-	}
-
-	if *line == 0 {
-		fmt.Println("Error: --line flag is required")
-		fmt.Println("Usage: comments add <file> --line N --author \"name\" --text \"your comment\"")
+		fmt.Println("   or: comments add <file> --section \"Section Path\" --author \"name\" --text \"your comment\"")
 		os.Exit(1)
 	}
 
 	if *author == "" {
 		fmt.Println("Error: --author flag is required")
 		fmt.Println("Usage: comments add <file> --line N --author \"name\" --text \"your comment\"")
+		fmt.Println("   or: comments add <file> --section \"Section Path\" --author \"name\" --text \"your comment\"")
+		os.Exit(1)
+	}
+
+	// Validate that either line or section is provided (but not both)
+	if *line == 0 && *section == "" {
+		fmt.Println("Error: either --line or --section flag is required")
+		fmt.Println("Usage: comments add <file> --line N --author \"name\" --text \"your comment\"")
+		fmt.Println("   or: comments add <file> --section \"Section Path\" --author \"name\" --text \"your comment\"")
+		os.Exit(1)
+	}
+
+	if *line != 0 && *section != "" {
+		fmt.Println("Error: cannot specify both --line and --section")
+		fmt.Println("Use either --line N or --section \"Section Path\", not both")
+		os.Exit(1)
+	}
+
+	// Resolve text input (supports @filename)
+	resolvedText, err := resolveTextInput(*text)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Auto-prefix text with type if specified
-	commentText := *text
+	commentText := resolvedText
 	if *commentType != "" {
-		commentText = "[" + *commentType + "] " + *text
+		commentText = "[" + *commentType + "] " + resolvedText
 	}
 
 	// Load document
@@ -333,15 +359,36 @@ func addCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
+	// Determine the line number to use
+	targetLine := *line
+	if *section != "" {
+		// Validate section exists
+		if err := comment.ValidateSectionPath(doc.Content, *section); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Resolve section to line number (use section start line)
+		startLine, _, err := comment.ResolveSectionToLines(doc.Content, *section, false)
+		if err != nil {
+			fmt.Printf("Error resolving section: %v\n", err)
+			os.Exit(1)
+		}
+		targetLine = startLine
+	}
+
 	// Create new comment with type metadata
 	var newComment *comment.Comment
 	if *commentType != "" {
-		newComment = comment.NewCommentWithType(*author, *line, commentText, *commentType)
+		newComment = comment.NewCommentWithType(*author, targetLine, commentText, *commentType)
 	} else {
-		newComment = comment.NewComment(*author, *line, commentText)
+		newComment = comment.NewComment(*author, targetLine, commentText)
 	}
-	doc.Comments = append(doc.Comments, newComment)
-	doc.Positions[newComment.ID] = comment.Position{Line: *line}
+
+	// Compute section metadata for the new comment
+	comment.UpdateCommentSection(newComment, doc.Content)
+
+	doc.Threads = append(doc.Threads, newComment)
 
 	// Save to sidecar
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
@@ -349,7 +396,12 @@ func addCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("✓ Comment added to line %d by @%s\n", *line, *author)
+	// Display success message
+	if newComment.SectionPath != "" {
+		fmt.Printf("✓ Comment added to %s (Line %d) by @%s\n", newComment.SectionPath, targetLine, *author)
+	} else {
+		fmt.Printf("✓ Comment added to line %d by @%s\n", targetLine, *author)
+	}
 	fmt.Printf("  Comment ID: %s\n", newComment.ID)
 }
 
@@ -380,6 +432,13 @@ func replyCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
+	// Resolve text input (supports @filename)
+	resolvedText, err := resolveTextInput(*text)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Load document
 	doc, err := comment.LoadFromSidecar(filename)
 	if err != nil {
@@ -387,22 +446,15 @@ func replyCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
-	// Find the thread
-	threads := comment.BuildThreads(doc.Comments)
-	targetThread, exists := threads[*thread]
-	if !exists {
-		fmt.Printf("Error: Thread ID '%s' not found\n", *thread)
+	// Add reply to thread using helper
+	if err := comment.AddReplyToThread(doc.Threads, *thread, *author, resolvedText); err != nil {
+		fmt.Printf("Error: %v\n", err)
 		fmt.Println("\nAvailable threads:")
-		for id, t := range threads {
-			fmt.Printf("  %s (Line %d, %d replies)\n", id, t.Line, len(t.Replies))
+		for _, t := range doc.Threads {
+			fmt.Printf("  %s (Line %d, %d replies)\n", t.ID, t.Line, t.CountReplies())
 		}
 		os.Exit(1)
 	}
-
-	// Create reply
-	reply := comment.NewReply(*author, *thread, *text)
-	doc.Comments = append(doc.Comments, reply)
-	doc.Positions[reply.ID] = comment.Position{Line: targetThread.Line}
 
 	// Save to sidecar
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
@@ -411,7 +463,6 @@ func replyCommand(filename string, args []string) {
 	}
 
 	fmt.Printf("✓ Reply added to thread %s by @%s\n", *thread, *author)
-	fmt.Printf("  Reply ID: %s\n", reply.ID)
 }
 
 func resolveCommand(filename string, args []string) {
@@ -434,20 +485,15 @@ func resolveCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
-	// Find the thread
-	threads := comment.BuildThreads(doc.Comments)
-	_, exists := threads[*thread]
-	if !exists {
-		fmt.Printf("Error: Thread ID '%s' not found\n", *thread)
+	// Resolve the thread
+	if err := comment.ResolveThread(doc.Threads, *thread); err != nil {
+		fmt.Printf("Error: %v\n", err)
 		fmt.Println("\nAvailable threads:")
-		for id, t := range threads {
-			fmt.Printf("  %s (Line %d, %d replies)\n", id, t.Line, len(t.Replies))
+		for _, t := range doc.Threads {
+			fmt.Printf("  %s (Line %d, %d replies)\n", t.ID, t.Line, t.CountReplies())
 		}
 		os.Exit(1)
 	}
-
-	// Resolve the thread
-	comment.ResolveThread(doc.Comments, *thread)
 
 	// Save to sidecar
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
@@ -458,108 +504,14 @@ func resolveCommand(filename string, args []string) {
 	fmt.Printf("✓ Thread %s marked as resolved\n", *thread)
 }
 
-func exportCommand(filename string, args []string) {
-	// Parse flags
-	fs := flag.NewFlagSet("export", flag.ExitOnError)
-	format := fs.String("format", "json", "Export format (json)")
-	output := fs.String("output", "", "Output file (defaults to stdout)")
-
-	fs.Parse(args)
-
-	if *format != "json" {
-		fmt.Printf("Error: Unsupported format '%s'. Currently only 'json' is supported.\n", *format)
-		os.Exit(1)
-	}
-
-	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
-	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Build threads
-	threads := comment.BuildThreads(doc.Comments)
-
-	// Create export structure
-	type ExportData struct {
-		Comments  []*comment.Comment         `json:"comments"`
-		Threads   map[string]*comment.Thread `json:"threads"`
-		Positions map[string]comment.Position `json:"positions"`
-		Metadata  map[string]interface{}      `json:"metadata"`
-	}
-
-	exportData := ExportData{
-		Comments:  doc.Comments,
-		Threads:   threads,
-		Positions: doc.Positions,
-		Metadata: map[string]interface{}{
-			"filename":      filename,
-			"total_comments": len(doc.Comments),
-			"total_threads":  len(threads),
-		},
-	}
-
-	// Marshal to JSON
-	jsonData, err := json.MarshalIndent(exportData, "", "  ")
-	if err != nil {
-		fmt.Printf("Error marshaling to JSON: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Output
-	if *output != "" {
-		// Write to file
-		if err := os.WriteFile(*output, jsonData, 0644); err != nil {
-			fmt.Printf("Error writing output file: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("✓ Exported to %s\n", *output)
-	} else {
-		// Write to stdout
-		fmt.Println(string(jsonData))
-	}
-}
-
-func publishCommand(filename string, args []string) {
-	// Parse flags
-	fs := flag.NewFlagSet("publish", flag.ExitOnError)
-	output := fs.String("output", "", "Output file (defaults to stdout)")
-
-	fs.Parse(args)
-
-	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
-	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Output clean content (without comment markup)
-	if *output != "" {
-		// Write to file
-		if err := os.WriteFile(*output, []byte(doc.Content), 0644); err != nil {
-			fmt.Printf("Error writing output file: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("✓ Published clean markdown to %s\n", *output)
-	} else {
-		// Write to stdout
-		fmt.Print(doc.Content)
-	}
-}
-
 func suggestCommand(filename string, args []string) {
 	// Parse flags
 	fs := flag.NewFlagSet("suggest", flag.ExitOnError)
-	line := fs.Int("line", 0, "Line number (required)")
+	startLine := fs.Int("start-line", 0, "Start line (use either line range or section)")
+	endLine := fs.Int("end-line", 0, "End line (use either line range or section)")
+	section := fs.String("section", "", "Section path (use either line range or section)")
 	author := fs.String("author", "", "Author name (required)")
 	text := fs.String("text", "", "Suggestion description (required)")
-	suggestionType := fs.String("type", "line", "Suggestion type: line, char-range, multi-line, diff-hunk")
-	startLine := fs.Int("start-line", 0, "Start line (for multi-line)")
-	endLine := fs.Int("end-line", 0, "End line (for multi-line)")
-	byteOffset := fs.Int("offset", 0, "Byte offset (for char-range)")
-	length := fs.Int("length", 0, "Length in bytes (for char-range)")
 	original := fs.String("original", "", "Original text to replace")
 	proposed := fs.String("proposed", "", "Proposed replacement text (required)")
 
@@ -568,14 +520,53 @@ func suggestCommand(filename string, args []string) {
 	// Validate required flags
 	if *author == "" {
 		fmt.Println("Error: --author flag is required")
+		fmt.Println("Usage: comments suggest <file> --start-line N --end-line M --author \"name\" --text \"desc\" --proposed \"new text\"")
+		fmt.Println("   or: comments suggest <file> --section \"Section Path\" --author \"name\" --text \"desc\" --proposed \"new text\"")
 		os.Exit(1)
 	}
 	if *text == "" {
 		fmt.Println("Error: --text flag is required")
+		fmt.Println("Usage: comments suggest <file> --start-line N --end-line M --author \"name\" --text \"desc\" --proposed \"new text\"")
+		fmt.Println("   or: comments suggest <file> --section \"Section Path\" --author \"name\" --text \"desc\" --proposed \"new text\"")
 		os.Exit(1)
 	}
 	if *proposed == "" {
 		fmt.Println("Error: --proposed flag is required")
+		fmt.Println("Usage: comments suggest <file> --start-line N --end-line M --author \"name\" --text \"desc\" --proposed \"new text\"")
+		fmt.Println("   or: comments suggest <file> --section \"Section Path\" --author \"name\" --text \"desc\" --proposed \"new text\"")
+		os.Exit(1)
+	}
+
+	// Validate that either line range or section is provided (but not both)
+	if *startLine == 0 && *section == "" {
+		fmt.Println("Error: either --start-line/--end-line or --section flag is required")
+		fmt.Println("Usage: comments suggest <file> --start-line N --end-line M --author \"name\" --text \"desc\" --proposed \"new text\"")
+		fmt.Println("   or: comments suggest <file> --section \"Section Path\" --author \"name\" --text \"desc\" --proposed \"new text\"")
+		os.Exit(1)
+	}
+
+	if *startLine != 0 && *section != "" {
+		fmt.Println("Error: cannot specify both line range and section")
+		fmt.Println("Use either --start-line/--end-line or --section, not both")
+		os.Exit(1)
+	}
+
+	// Resolve text inputs (supports @filename)
+	resolvedText, err := resolveTextInput(*text)
+	if err != nil {
+		fmt.Printf("Error resolving --text: %v\n", err)
+		os.Exit(1)
+	}
+
+	resolvedOriginal, err := resolveTextInput(*original)
+	if err != nil {
+		fmt.Printf("Error resolving --original: %v\n", err)
+		os.Exit(1)
+	}
+
+	resolvedProposed, err := resolveTextInput(*proposed)
+	if err != nil {
+		fmt.Printf("Error resolving --proposed: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -586,82 +577,43 @@ func suggestCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
-	// Create suggestion based on type
-	var selection *comment.Selection
-	var sugType comment.SuggestionType
-
-	switch *suggestionType {
-	case "line":
-		if *line == 0 {
-			fmt.Println("Error: --line flag is required for line suggestions")
+	// Determine the line range to use
+	targetStartLine := *startLine
+	targetEndLine := *endLine
+	if *section != "" {
+		// Validate section exists
+		if err := comment.ValidateSectionPath(doc.Content, *section); err != nil {
+			fmt.Printf("Error: %v\n", err)
 			os.Exit(1)
 		}
-		sugType = comment.SuggestionLine
-		end := *endLine
-		if end == 0 {
-			end = *line
-		}
-		selection = &comment.Selection{
-			StartLine: *line,
-			EndLine:   end,
-			Original:  *original,
-		}
 
-	case "char-range":
-		if *byteOffset == 0 && *line == 0 {
-			fmt.Println("Error: --offset or --line flag is required for char-range suggestions")
+		// Resolve section to line range
+		start, end, err := comment.ResolveSectionToLines(doc.Content, *section, false)
+		if err != nil {
+			fmt.Printf("Error resolving section: %v\n", err)
 			os.Exit(1)
 		}
-		sugType = comment.SuggestionCharRange
-		offset := *byteOffset
-		if offset == 0 && *line > 0 {
-			// Calculate offset from line number
-			offset = comment.CalculateByteOffset(doc.Content, *line, 0)
-		}
-		selection = &comment.Selection{
-			ByteOffset: offset,
-			Length:     *length,
-			Original:   *original,
-		}
+		targetStartLine = start
+		targetEndLine = end
+	}
 
-	case "multi-line":
-		if *startLine == 0 || *endLine == 0 {
-			fmt.Println("Error: --start-line and --end-line flags are required for multi-line suggestions")
-			os.Exit(1)
-		}
-		sugType = comment.SuggestionMultiLine
-		selection = &comment.Selection{
-			StartLine: *startLine,
-			EndLine:   *endLine,
-			Original:  *original,
-		}
-
-	case "diff-hunk":
-		if *line == 0 {
-			fmt.Println("Error: --line flag is required for diff-hunk suggestions")
-			os.Exit(1)
-		}
-		sugType = comment.SuggestionDiffHunk
-		selection = &comment.Selection{
-			StartLine: *line,
-		}
-
-	default:
-		fmt.Printf("Error: Unknown suggestion type '%s'. Valid types: line, char-range, multi-line, diff-hunk\n", *suggestionType)
+	// Validate line range
+	if targetEndLine == 0 {
+		targetEndLine = targetStartLine
+	}
+	if targetStartLine > targetEndLine {
+		fmt.Printf("Error: start line (%d) must be <= end line (%d)\n", targetStartLine, targetEndLine)
 		os.Exit(1)
 	}
 
-	// Create suggestion comment
-	suggestion := comment.NewComment(*author, selection.StartLine, *text)
-	suggestion.SuggestionType = sugType
-	suggestion.Selection = selection
-	suggestion.ProposedText = *proposed
-	suggestion.AcceptanceState = comment.AcceptancePending
-	suggestion.Type = "S" // Mark as suggestion type
+	// Create suggestion using helper
+	suggestion := comment.NewSuggestion(*author, targetStartLine, targetEndLine, resolvedText, resolvedOriginal, resolvedProposed)
+
+	// Compute section metadata
+	comment.UpdateCommentSection(suggestion, doc.Content)
 
 	// Add to document
-	doc.Comments = append(doc.Comments, suggestion)
-	doc.Positions[suggestion.ID] = comment.Position{Line: selection.StartLine}
+	doc.Threads = append(doc.Threads, suggestion)
 
 	// Save
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
@@ -669,9 +621,12 @@ func suggestCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("✓ Suggestion added to line %d by @%s\n", selection.StartLine, *author)
+	if suggestion.SectionPath != "" {
+		fmt.Printf("✓ Suggestion added to %s (Lines %d-%d) by @%s\n", suggestion.SectionPath, targetStartLine, targetEndLine, *author)
+	} else {
+		fmt.Printf("✓ Suggestion added to lines %d-%d by @%s\n", targetStartLine, targetEndLine, *author)
+	}
 	fmt.Printf("  Suggestion ID: %s\n", suggestion.ID)
-	fmt.Printf("  Type: %s\n", sugType)
 }
 
 func acceptCommand(filename string, args []string) {
@@ -694,9 +649,10 @@ func acceptCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
-	// Find suggestion
+	// Find suggestion in all comments (threads + replies)
+	allComments := doc.GetAllComments()
 	var suggestion *comment.Comment
-	for _, c := range doc.Comments {
+	for _, c := range allComments {
 		if c.ID == *suggestionID {
 			suggestion = c
 			break
@@ -708,7 +664,7 @@ func acceptCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
-	if !suggestion.IsSuggestion() {
+	if !suggestion.IsSuggestion {
 		fmt.Printf("Error: Comment '%s' is not a suggestion\n", *suggestionID)
 		os.Exit(1)
 	}
@@ -736,17 +692,15 @@ func acceptCommand(filename string, args []string) {
 	// Update document content
 	doc.Content = newContent
 
-	// Mark suggestion as accepted
-	suggestion.AcceptanceState = comment.AcceptanceAccepted
+	// Mark suggestion as accepted using helper
+	if err := comment.AcceptSuggestion(doc.Threads, *suggestionID); err != nil {
+		fmt.Printf("Error marking suggestion as accepted: %v\n", err)
+		os.Exit(1)
+	}
 
-	// Recalculate positions
-	comment.RecalculatePositionsAfterEdit(
-		suggestion.Selection.StartLine,
-		suggestion.Selection.EndLine,
-		len(strings.Split(suggestion.ProposedText, "\n")),
-		doc.Positions,
-	)
-	comment.UpdatePositionsByteOffsets(doc.Content, doc.Positions)
+	// Recalculate comment line numbers (line-only tracking)
+	linesAdded := len(strings.Split(suggestion.ProposedText, "\n"))
+	comment.RecalculateCommentLines(doc.Threads, suggestion.StartLine, suggestion.EndLine, linesAdded)
 
 	// Save
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
@@ -776,27 +730,11 @@ func rejectCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
-	// Find suggestion
-	var suggestion *comment.Comment
-	for _, c := range doc.Comments {
-		if c.ID == *suggestionID {
-			suggestion = c
-			break
-		}
-	}
-
-	if suggestion == nil {
-		fmt.Printf("Error: Suggestion '%s' not found\n", *suggestionID)
+	// Mark suggestion as rejected using helper
+	if err := comment.RejectSuggestion(doc.Threads, *suggestionID); err != nil {
+		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
-
-	if !suggestion.IsSuggestion() {
-		fmt.Printf("Error: Comment '%s' is not a suggestion\n", *suggestionID)
-		os.Exit(1)
-	}
-
-	// Mark suggestion as rejected
-	suggestion.AcceptanceState = comment.AcceptanceRejected
 
 	// Save
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
@@ -810,10 +748,7 @@ func rejectCommand(filename string, args []string) {
 func batchAcceptCommand(filename string, args []string) {
 	// Parse flags
 	fs := flag.NewFlagSet("batch-accept", flag.ExitOnError)
-	jsonInput := fs.String("json", "", "JSON file path (use '-' for stdin)")
 	filterAuthor := fs.String("author", "", "Accept all suggestions by author")
-	filterType := fs.String("type", "", "Accept all suggestions of type (S)")
-	checkConflicts := fs.Bool("check-conflicts", true, "Check for conflicts before applying")
 
 	fs.Parse(args)
 
@@ -826,52 +761,12 @@ func batchAcceptCommand(filename string, args []string) {
 
 	var suggestionsToAccept []*comment.Comment
 
-	// Get suggestions from JSON or filters
-	if *jsonInput != "" {
-		// Read JSON list of suggestion IDs
-		var input []byte
-		if *jsonInput == "-" {
-			input, err = io.ReadAll(os.Stdin)
-		} else {
-			input, err = os.ReadFile(*jsonInput)
-		}
-		if err != nil {
-			fmt.Printf("Error reading JSON: %v\n", err)
-			os.Exit(1)
-		}
-
-		var suggestionIDs []string
-		if err := json.Unmarshal(input, &suggestionIDs); err != nil {
-			fmt.Printf("Error parsing JSON: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Find suggestions by ID
-		for _, id := range suggestionIDs {
-			for _, c := range doc.Comments {
-				if c.ID == id && c.IsSuggestion() && c.IsPending() {
-					suggestionsToAccept = append(suggestionsToAccept, c)
-					break
-				}
-			}
-		}
-	} else if *filterAuthor != "" || *filterType != "" {
-		// Filter by author or type
-		for _, c := range doc.Comments {
-			if !c.IsSuggestion() || !c.IsPending() {
-				continue
-			}
-			if *filterAuthor != "" && c.Author != *filterAuthor {
-				continue
-			}
-			if *filterType != "" && c.Type != *filterType {
-				continue
-			}
-			suggestionsToAccept = append(suggestionsToAccept, c)
-		}
+	// Get suggestions by author filter
+	if *filterAuthor != "" {
+		suggestionsToAccept = comment.GetSuggestionsByAuthor(doc.Threads, *filterAuthor)
 	} else {
-		fmt.Println("Error: --json, --author, or --type flag is required")
-		os.Exit(1)
+		// Get all pending suggestions
+		suggestionsToAccept = comment.GetPendingSuggestions(doc.Threads)
 	}
 
 	if len(suggestionsToAccept) == 0 {
@@ -879,50 +774,34 @@ func batchAcceptCommand(filename string, args []string) {
 		os.Exit(0)
 	}
 
-	// Check for conflicts
-	if *checkConflicts {
-		conflicts := comment.DetectConflicts(suggestionsToAccept)
-		if comment.HasConflicts(conflicts) {
-			fmt.Printf("⚠ Warning: Found %d conflicts between suggestions\n", len(conflicts))
-			for i, conflict := range conflicts {
-				if conflict.Type == comment.ConflictNone || conflict.Type == comment.ConflictAdjacent {
-					continue
-				}
-				fmt.Printf("  %d. %s: %s vs %s - %s\n", i+1, conflict.Type,
-					conflict.Suggestion1.ID, conflict.Suggestion2.ID, conflict.Description)
-			}
-			fmt.Println("\nFiltering to non-conflicting suggestions...")
-			suggestionsToAccept = comment.FilterNonConflicting(suggestionsToAccept)
-			fmt.Printf("Proceeding with %d non-conflicting suggestions\n", len(suggestionsToAccept))
+	fmt.Printf("Found %d pending suggestion(s) to accept\n", len(suggestionsToAccept))
+
+	// Apply each suggestion sequentially
+	acceptedCount := 0
+	for _, suggestion := range suggestionsToAccept {
+		// Apply suggestion
+		newContent, err := comment.ApplySuggestion(doc.Content, suggestion)
+		if err != nil {
+			fmt.Printf("⚠ Warning: Failed to apply suggestion %s: %v\n", suggestion.ID, err)
+			continue
 		}
-	}
 
-	// Sort bottom-to-top for safe application
-	comment.SortSuggestionsByPosition(suggestionsToAccept)
+		// Update document content
+		doc.Content = newContent
 
-	// Apply all suggestions
-	newContent, applied, err := comment.ApplyMultipleSuggestions(doc.Content, suggestionsToAccept)
-	if err != nil {
-		fmt.Printf("Error applying suggestions: %v\n", err)
-		fmt.Printf("Successfully applied %d of %d suggestions before error\n", len(applied), len(suggestionsToAccept))
-		os.Exit(1)
-	}
-
-	// Update document
-	doc.Content = newContent
-
-	// Mark all applied suggestions as accepted
-	for _, id := range applied {
-		for _, c := range doc.Comments {
-			if c.ID == id {
-				c.AcceptanceState = comment.AcceptanceAccepted
-				break
-			}
+		// Mark as accepted
+		if err := comment.AcceptSuggestion(doc.Threads, suggestion.ID); err != nil {
+			fmt.Printf("⚠ Warning: Failed to mark suggestion %s as accepted: %v\n", suggestion.ID, err)
+			continue
 		}
-	}
 
-	// Recalculate all positions
-	comment.UpdatePositionsByteOffsets(doc.Content, doc.Positions)
+		// Recalculate comment lines after this edit
+		linesAdded := len(strings.Split(suggestion.ProposedText, "\n"))
+		comment.RecalculateCommentLines(doc.Threads, suggestion.StartLine, suggestion.EndLine, linesAdded)
+
+		acceptedCount++
+		fmt.Printf("  ✓ Accepted and applied %s\n", suggestion.ID)
+	}
 
 	// Save
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
@@ -930,10 +809,7 @@ func batchAcceptCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("✓ Accepted and applied %d suggestions\n", len(applied))
-	for i, id := range applied {
-		fmt.Printf("  %d. %s\n", i+1, id)
-	}
+	fmt.Printf("\n✓ Successfully accepted and applied %d of %d suggestions\n", acceptedCount, len(suggestionsToAccept))
 }
 
 func printUsage() {
@@ -1120,4 +996,32 @@ Keyboard shortcuts (in view mode):
 For more information, visit: https://github.com/rcliao/comments
 `
 	fmt.Print(usage)
+}
+
+// resolveTextInput resolves text input that may be a file reference (@filename)
+// If the input starts with '@', reads the file at the specified path
+// Otherwise, returns the input as-is
+func resolveTextInput(input string) (string, error) {
+	if len(input) == 0 {
+		return input, nil
+	}
+
+	// Check if input is a file reference
+	if input[0] != '@' {
+		return input, nil
+	}
+
+	// Extract filename (skip the @ prefix)
+	filename := input[1:]
+	if filename == "" {
+		return "", fmt.Errorf("invalid file reference: '@' must be followed by a filename")
+	}
+
+	// Read file contents
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file '%s': %w", filename, err)
+	}
+
+	return string(content), nil
 }

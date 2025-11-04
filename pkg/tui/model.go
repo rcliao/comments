@@ -26,7 +26,6 @@ type Model struct {
 	// Document state
 	doc      *comment.DocumentWithComments
 	filename string
-	threads  map[string]*comment.Thread
 
 	// UI components
 	documentViewport viewport.Model
@@ -35,9 +34,9 @@ type Model struct {
 	commentInput     textarea.Model
 
 	// Selection state
-	selectedLine       int  // For line selection mode
-	selectedComment    int  // For comment navigation
-	selectedThread     *comment.Thread
+	selectedLine       int              // For line selection mode
+	selectedComment    int              // For comment navigation
+	selectedThread     *comment.Comment // Thread root (v2.0)
 	selectedSuggestion *comment.Comment // For suggestion review mode
 	suggestionPreview  string           // Preview of suggested changes
 	showResolved       bool
@@ -107,7 +106,6 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 		mode:              ModeBrowse,
 		doc:               doc,
 		filename:          filename,
-		threads:           comment.BuildThreads(doc.Comments),
 		commentInput:      ta,
 		proposedTextInput: proposedTA,
 		author:            author,
@@ -258,7 +256,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "j", "down":
 		// Navigate comments
-		visibleComments := comment.GetVisibleComments(m.doc.Comments, m.showResolved)
+		visibleComments := comment.GetVisibleComments(m.doc.Threads, m.showResolved)
 		if m.selectedComment < len(visibleComments)-1 {
 			m.selectedComment++
 			m.commentViewport.SetContent(m.renderComments())
@@ -268,7 +266,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "k", "up":
-		visibleComments := comment.GetVisibleComments(m.doc.Comments, m.showResolved)
+		visibleComments := comment.GetVisibleComments(m.doc.Threads, m.showResolved)
 		if m.selectedComment > 0 {
 			m.selectedComment--
 			m.commentViewport.SetContent(m.renderComments())
@@ -279,17 +277,15 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "enter":
 		// Expand selected comment thread
-		visibleComments := comment.GetVisibleComments(m.doc.Comments, m.showResolved)
+		visibleComments := comment.GetVisibleComments(m.doc.Threads, m.showResolved)
 		if len(visibleComments) > 0 && m.selectedComment < len(visibleComments) {
-			selectedComment := visibleComments[m.selectedComment]
-			if thread, ok := m.threads[selectedComment.ThreadID]; ok {
-				m.selectedThread = thread
-				m.mode = ModeThreadView
-				m.threadViewport.SetContent(m.renderThread())
-				// Scroll document to center the thread's comment
-				m.scrollToComment(selectedComment)
-				return m, nil
-			}
+			selectedThread := visibleComments[m.selectedComment]
+			m.selectedThread = selectedThread
+			m.mode = ModeThreadView
+			m.threadViewport.SetContent(m.renderThread())
+			// Scroll document to center the thread's comment
+			m.scrollToComment(selectedThread)
+			return m, nil
 		}
 		return m, nil
 
@@ -476,11 +472,7 @@ func (m Model) handleAddCommentKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// Create new comment
 		newComment := comment.NewComment(m.author, m.selectedLine, text)
-		m.doc.Comments = append(m.doc.Comments, newComment)
-		m.doc.Positions[newComment.ID] = comment.Position{Line: m.selectedLine}
-
-		// Rebuild threads
-		m.threads = comment.BuildThreads(m.doc.Comments)
+		m.doc.Threads = append(m.doc.Threads, newComment)
 
 		// Save to file
 		if err := m.saveDocument(); err != nil {
@@ -534,10 +526,9 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, textarea.Blink
 
 	case "a":
-		// Accept suggestion (if root comment is a pending suggestion)
-		if m.selectedThread != nil && m.selectedThread.RootComment.IsSuggestion() &&
-			m.selectedThread.RootComment.IsPending() {
-			m.selectedSuggestion = m.selectedThread.RootComment
+		// Accept suggestion (if thread root is a pending suggestion)
+		if m.selectedThread != nil && m.selectedThread.IsSuggestion && m.selectedThread.IsPending() {
+			m.selectedSuggestion = m.selectedThread
 			m.mode = ModeReviewSuggestion
 			// Generate preview
 			preview, err := comment.ApplySuggestion(m.doc.Content, m.selectedSuggestion)
@@ -552,22 +543,17 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "x":
 		// Reject suggestion (if root comment is a pending suggestion), otherwise resolve thread
-		if m.selectedThread != nil && m.selectedThread.RootComment.IsSuggestion() &&
-			m.selectedThread.RootComment.IsPending() {
-			// Reject the suggestion
-			for _, c := range m.doc.Comments {
-				if c.ID == m.selectedThread.RootComment.ID {
-					c.AcceptanceState = comment.AcceptanceRejected
-					break
-				}
+		if m.selectedThread != nil && m.selectedThread.IsSuggestion && m.selectedThread.IsPending() {
+			// Reject the suggestion using helper
+			if err := comment.RejectSuggestion(m.doc.Threads, m.selectedThread.ID); err != nil {
+				m.err = fmt.Errorf("failed to reject suggestion: %w", err)
+				return m, nil
 			}
 			// Save document
 			if err := comment.SaveToSidecar(m.filename, m.doc); err != nil {
 				m.err = fmt.Errorf("failed to save: %w", err)
 			}
 			// Refresh thread view
-			m.threads = comment.BuildThreads(m.doc.Comments)
-			m.selectedThread = m.threads[m.selectedThread.ID]
 			m.threadViewport.SetContent(m.renderThread())
 			return m, nil
 		}
@@ -601,14 +587,11 @@ func (m Model) handleReplyKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Create reply comment
-		reply := comment.NewReply(m.author, m.selectedThread.ID, text)
-		m.doc.Comments = append(m.doc.Comments, reply)
-		m.doc.Positions[reply.ID] = comment.Position{Line: m.selectedThread.Line}
-
-		// Rebuild threads
-		m.threads = comment.BuildThreads(m.doc.Comments)
-		m.selectedThread = m.threads[m.selectedThread.ID]
+		// Add reply to thread using helper
+		if err := comment.AddReplyToThread(m.doc.Threads, m.selectedThread.ID, m.author, text); err != nil {
+			m.err = err
+			return m, nil
+		}
 
 		// Save to file
 		if err := m.saveDocument(); err != nil {
@@ -642,10 +625,10 @@ func (m Model) handleResolveKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "y", "enter":
 		// Confirm resolution
-		comment.ResolveThread(m.doc.Comments, m.selectedThread.ID)
-
-		// Rebuild threads
-		m.threads = comment.BuildThreads(m.doc.Comments)
+		if err := comment.ResolveThread(m.doc.Threads, m.selectedThread.ID); err != nil {
+			m.err = err
+			return m, nil
+		}
 
 		// Save to file
 		if err := m.saveDocument(); err != nil {
@@ -695,16 +678,15 @@ func (m Model) handleReviewSuggestionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Update document content
 		m.doc.Content = newContent
 
-		// Recalculate positions
-		comment.UpdatePositionsByteOffsets(m.doc.Content, m.doc.Positions)
-
-		// Mark suggestion as accepted
-		for _, c := range m.doc.Comments {
-			if c.ID == m.selectedSuggestion.ID {
-				c.AcceptanceState = comment.AcceptanceAccepted
-				break
-			}
+		// Mark suggestion as accepted using helper
+		if err := comment.AcceptSuggestion(m.doc.Threads, m.selectedSuggestion.ID); err != nil {
+			m.err = err
+			return m, nil
 		}
+
+		// Recalculate comment line numbers
+		linesAdded := len(strings.Split(m.selectedSuggestion.ProposedText, "\n"))
+		comment.RecalculateCommentLines(m.doc.Threads, m.selectedSuggestion.StartLine, m.selectedSuggestion.EndLine, linesAdded)
 
 		// Save document
 		if err := m.saveDocument(); err != nil {
@@ -713,13 +695,11 @@ func (m Model) handleReviewSuggestionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		// Refresh all views
-		m.threads = comment.BuildThreads(m.doc.Comments)
 		m.documentViewport.SetContent(m.renderDocument())
 		m.commentViewport.SetContent(m.renderComments())
 
 		// Return to thread view
 		m.mode = ModeThreadView
-		m.selectedThread = m.threads[m.selectedThread.ID]
 		m.threadViewport.SetContent(m.renderThread())
 		m.selectedSuggestion = nil
 		m.suggestionPreview = ""
@@ -751,29 +731,24 @@ func (m Model) handleAddSuggestionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Create suggestion comment
-		suggestion := comment.NewCommentWithType(m.author, m.selectedLine, "Suggestion", "S")
-		suggestion.SuggestionType = comment.SuggestionLine
-		suggestion.AcceptanceState = comment.AcceptancePending
-		suggestion.Selection = &comment.Selection{
-			StartLine: m.selectedLine,
-			EndLine:   m.selectedLine,
-			Original:  m.suggestionOriginalText,
-		}
-		suggestion.ProposedText = proposedText
+		// Create suggestion using helper (simplified to multi-line only)
+		suggestion := comment.NewSuggestion(
+			m.author,
+			m.selectedLine,
+			m.selectedLine,
+			"Suggestion",
+			m.suggestionOriginalText,
+			proposedText,
+		)
 
 		// Add to document
-		m.doc.Comments = append(m.doc.Comments, suggestion)
-		m.doc.Positions[suggestion.ID] = comment.Position{Line: m.selectedLine}
+		m.doc.Threads = append(m.doc.Threads, suggestion)
 
 		// Save document
 		if err := m.saveDocument(); err != nil {
 			m.err = err
 			return m, nil
 		}
-
-		// Rebuild threads
-		m.threads = comment.BuildThreads(m.doc.Comments)
 
 		// Refresh views
 		m.documentViewport.SetContent(m.renderDocument())
@@ -826,7 +801,6 @@ func (m Model) loadFile(path string) (tea.Model, tea.Cmd) {
 	// Update model
 	m.doc = doc
 	m.filename = path
-	m.threads = comment.BuildThreads(doc.Comments)
 	m.mode = ModeBrowse
 	m.selectedComment = 0
 	m.ready = false
@@ -1074,13 +1048,13 @@ func (m Model) viewReply() string {
 	threadContext.WriteString(contextStyle.Render("Thread Context:"))
 	threadContext.WriteString("\n\n")
 
-	// Root comment
+	// Root comment (selectedThread IS the root comment in v2.0)
 	threadContext.WriteString(fmt.Sprintf("┌ @%s · %s\n",
-		m.selectedThread.RootComment.Author,
-		m.selectedThread.RootComment.Timestamp.Format("2006-01-02 15:04")))
+		m.selectedThread.Author,
+		m.selectedThread.Timestamp.Format("2006-01-02 15:04")))
 
 	// Truncate root comment if too long
-	rootText := m.selectedThread.RootComment.Text
+	rootText := m.selectedThread.Text
 	if len(rootText) > 60 {
 		rootText = rootText[:57] + "..."
 	}
@@ -1254,9 +1228,10 @@ func (m Model) viewReviewSuggestion() string {
 		Foreground(lipgloss.Color("3")).
 		Render("Accept this suggestion?")
 
-	suggestionInfo := fmt.Sprintf("Type: %s\nAuthor: @%s",
-		m.selectedSuggestion.SuggestionType,
-		m.selectedSuggestion.Author)
+	suggestionInfo := fmt.Sprintf("Type: multi-line\nAuthor: @%s\nLines: %d-%d",
+		m.selectedSuggestion.Author,
+		m.selectedSuggestion.StartLine,
+		m.selectedSuggestion.EndLine)
 
 	confirmText := lipgloss.NewStyle().Render(suggestionInfo)
 	confirmHelp := helpStyle.Render("y/Enter: accept and apply • n/Esc: cancel")
@@ -1365,14 +1340,8 @@ func (m *Model) scrollToComment(c *comment.Comment) {
 		return
 	}
 
-	// Get the comment's line position
-	pos, ok := m.doc.Positions[c.ID]
-	if !ok {
-		// Fallback to the comment's Line field if position not found
-		pos = comment.Position{Line: c.Line}
-	}
-
-	targetLine := pos.Line
+	// Get the comment's line position (line-only tracking in v2.0)
+	targetLine := c.Line
 	if targetLine < 1 {
 		return
 	}

@@ -87,7 +87,7 @@ func (m *Model) renderDocument() string {
 	}
 
 	// Group comments by line (only root comments)
-	commentsByLine := comment.GroupCommentsByLine(m.doc.Comments)
+	commentsByLine := comment.GroupCommentsByLine(m.doc.Threads)
 
 	for i, line := range lines {
 		lineNum := i + 1
@@ -134,7 +134,7 @@ func (m *Model) renderDocumentWithCursor() string {
 	}
 
 	// Group comments by line
-	commentsByLine := comment.GroupCommentsByLine(m.doc.Comments)
+	commentsByLine := comment.GroupCommentsByLine(m.doc.Threads)
 
 	for i, line := range lines {
 		lineNum := i + 1
@@ -210,7 +210,7 @@ func (m *Model) renderComments() string {
 		return "No comments"
 	}
 
-	visibleComments := comment.GetVisibleComments(m.doc.Comments, m.showResolved)
+	visibleComments := comment.GetVisibleComments(m.doc.Threads, m.showResolved)
 	if len(visibleComments) == 0 {
 		if m.showResolved {
 			return "No comments"
@@ -226,12 +226,8 @@ func (m *Model) renderComments() string {
 	rendered.WriteString(fmt.Sprintf("Comments (%d %s)\n\n", len(visibleComments), statusText))
 
 	for i, c := range visibleComments {
-		// Get thread info
-		thread, hasThread := m.threads[c.ThreadID]
-		replyCount := 0
-		if hasThread {
-			replyCount = len(thread.Replies)
-		}
+		// Get reply count directly from thread (v2.0)
+		replyCount := c.CountReplies()
 
 		// Highlight selected comment
 		style := lipgloss.NewStyle()
@@ -249,13 +245,12 @@ func (m *Model) renderComments() string {
 
 		// Add suggestion indicator if this is a suggestion
 		suggestionIndicator := ""
-		if c.IsSuggestion() {
-			switch c.AcceptanceState {
-			case comment.AcceptancePending:
+		if c.IsSuggestion {
+			if c.IsPending() {
 				suggestionIndicator = " [📝 SUGGESTION]"
-			case comment.AcceptanceAccepted:
+			} else if c.Accepted != nil && *c.Accepted {
 				suggestionIndicator = " [✓ ACCEPTED]"
-			case comment.AcceptanceRejected:
+			} else if c.Accepted != nil && !*c.Accepted {
 				suggestionIndicator = " [✗ REJECTED]"
 			}
 		}
@@ -388,11 +383,11 @@ func (m *Model) renderThread() string {
 	if rootTextWidth < 40 {
 		rootTextWidth = 40
 	}
-	wrappedRootText := wordwrap.String(m.selectedThread.RootComment.Text, rootTextWidth)
+	wrappedRootText := wordwrap.String(m.selectedThread.Text, rootTextWidth)
 
 	rootText := fmt.Sprintf("@%s · %s\n\n%s",
-		m.selectedThread.RootComment.Author,
-		m.selectedThread.RootComment.Timestamp.Format("2006-01-02 15:04"),
+		m.selectedThread.Author,
+		m.selectedThread.Timestamp.Format("2006-01-02 15:04"),
 		wrappedRootText,
 	)
 
@@ -401,14 +396,13 @@ func (m *Model) renderThread() string {
 	}
 
 	// Add suggestion indicator if root comment is a suggestion
-	if m.selectedThread.RootComment.IsSuggestion() {
+	if m.selectedThread.IsSuggestion {
 		var stateText string
-		switch m.selectedThread.RootComment.AcceptanceState {
-		case comment.AcceptancePending:
+		if m.selectedThread.IsPending() {
 			stateText = "📝 PENDING SUGGESTION"
-		case comment.AcceptanceAccepted:
+		} else if m.selectedThread.Accepted != nil && *m.selectedThread.Accepted {
 			stateText = "✓ ACCEPTED SUGGESTION"
-		case comment.AcceptanceRejected:
+		} else if m.selectedThread.Accepted != nil && !*m.selectedThread.Accepted {
 			stateText = "✗ REJECTED SUGGESTION"
 		}
 		rootText = stateText + "\n\n" + rootText
@@ -417,29 +411,22 @@ func (m *Model) renderThread() string {
 	rendered.WriteString(rootStyle.Render(rootText))
 	rendered.WriteString("\n\n")
 
-	// Show suggestion details if this is a suggestion
-	if m.selectedThread.RootComment.IsSuggestion() {
+	// Show suggestion details if this is a suggestion (v2.0 simplified)
+	if m.selectedThread.IsSuggestion {
 		suggestionStyle := lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
 			BorderForeground(lipgloss.Color("3")).
 			Padding(0, 1).
 			Width(m.width - 8)
 
-		suggestionText := fmt.Sprintf("Suggestion Type: %s\n", m.selectedThread.RootComment.SuggestionType)
-		if m.selectedThread.RootComment.Selection != nil {
-			sel := m.selectedThread.RootComment.Selection
-			if m.selectedThread.RootComment.SuggestionType == comment.SuggestionLine ||
-				m.selectedThread.RootComment.SuggestionType == comment.SuggestionMultiLine {
-				suggestionText += fmt.Sprintf("Lines: %d-%d\n", sel.StartLine, sel.EndLine)
-			} else if m.selectedThread.RootComment.SuggestionType == comment.SuggestionCharRange {
-				suggestionText += fmt.Sprintf("Range: offset %d, length %d\n", sel.ByteOffset, sel.Length)
-			}
-			if sel.Original != "" {
-				suggestionText += fmt.Sprintf("\nOriginal:\n  %s\n", sel.Original)
-			}
+		suggestionText := fmt.Sprintf("Suggestion Type: multi-line\n")
+		suggestionText += fmt.Sprintf("Lines: %d-%d\n", m.selectedThread.StartLine, m.selectedThread.EndLine)
+
+		if m.selectedThread.OriginalText != "" {
+			suggestionText += fmt.Sprintf("\nOriginal:\n  %s\n", m.selectedThread.OriginalText)
 		}
-		if m.selectedThread.RootComment.ProposedText != "" {
-			suggestionText += fmt.Sprintf("\nProposed:\n  %s\n", m.selectedThread.RootComment.ProposedText)
+		if m.selectedThread.ProposedText != "" {
+			suggestionText += fmt.Sprintf("\nProposed:\n  %s\n", m.selectedThread.ProposedText)
 		}
 
 		suggestionText += "\nPress 'a' to accept or 'x' to reject"

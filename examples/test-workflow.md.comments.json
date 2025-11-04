@@ -1,0 +1,277 @@
+{
+  "version": "1.0",
+  "comments": [
+    {
+      "ID": "c17619618273901490001",
+      "ThreadID": "c17619618273901490001",
+      "ParentID": "",
+      "Author": "designer",
+      "Line": 22,
+      "Timestamp": "2025-10-31T18:50:27.390151-07:00",
+      "Text": "[E] Consider adding a diagram here to visualize the sidecar architecture",
+      "Type": "E",
+      "Resolved": false,
+      "SuggestionType": "",
+      "Selection": null,
+      "ProposedText": "",
+      "AcceptanceState": ""
+    },
+    {
+      "ID": "c17619618273901520002",
+      "ThreadID": "c17619618273901520002",
+      "ParentID": "",
+      "Author": "tech-lead",
+      "Line": 18,
+      "Timestamp": "2025-10-31T18:50:27.390153-07:00",
+      "Text": "[T] Add a note about performance with large documents (10k+ lines)",
+      "Type": "T",
+      "Resolved": false,
+      "SuggestionType": "",
+      "Selection": null,
+      "ProposedText": "",
+      "AcceptanceState": ""
+    },
+    {
+      "ID": "c17619618273901530003",
+      "ThreadID": "c17619618273901530003",
+      "ParentID": "",
+      "Author": "editor",
+      "Line": 10,
+      "Timestamp": "2025-10-31T18:50:27.390153-07:00",
+      "Text": "[S] Great introduction! Very clear explanation of the value proposition.",
+      "Type": "S",
+      "Resolved": false,
+      "SuggestionType": "",
+      "Selection": null,
+      "ProposedText": "",
+      "AcceptanceState": ""
+    },
+    {
+      "ID": "c17619618273901530004",
+      "ThreadID": "c17619618273901530004",
+      "ParentID": "",
+      "Author": "reviewer",
+      "Line": 3,
+      "Timestamp": "2025-10-31T18:50:27.390154-07:00",
+      "Text": "[Q] Should we mention this also works for any plaintext format, not just markdown?",
+      "Type": "Q",
+      "Resolved": false,
+      "SuggestionType": "",
+      "Selection": null,
+      "ProposedText": "",
+      "AcceptanceState": ""
+    },
+    {
+      "ID": "c17619618361430150001",
+      "ThreadID": "c17619618361430150001",
+      "ParentID": "",
+      "Author": "tech-writer",
+      "Line": 34,
+      "Timestamp": "2025-10-31T18:50:36.143017-07:00",
+      "Text": "Add specific example",
+      "Type": "S",
+      "Resolved": true,
+      "SuggestionType": "line",
+      "Selection": {
+        "StartLine": 34,
+        "EndLine": 34,
+        "ByteOffset": 0,
+        "Length": 0,
+        "Original": "Technical writers can receive feedback from engineers without the document becoming cluttered with edit markup."
+      },
+      "ProposedText": "Technical writers can receive feedback from engineers (e.g., \"add error code reference here\") without cluttering the document with inline markup.",
+      "AcceptanceState": "accepted"
+    },
+    {
+      "ID": "c17619618361430170002",
+      "ThreadID": "c17619618361430170002",
+      "ParentID": "",
+      "Author": "copywriter",
+      "Line": 13,
+      "Timestamp": "2025-10-31T18:50:36.143017-07:00",
+      "Text": "Make the list more scannable",
+      "Type": "S",
+      "Resolved": true,
+      "SuggestionType": "multi-line",
+      "Selection": {
+        "StartLine": 13,
+        "EndLine": 16,
+        "ByteOffset": 0,
+        "Length": 0,
+        "Original": "- Asking for clarification\n- Suggesting improvements\n- Marking issues or bugs\n- Creating discussion threads"
+      },
+      "ProposedText": "- Ask questions and request clarification\n- Provide feedback and suggestions\n- Flag bugs and issues\n- Build threaded discussions",
+      "AcceptanceState": "accepted"
+    },
+    {
+      "ID": "c17619618361430180003",
+      "ThreadID": "c17619618361430180003",
+      "ParentID": "",
+      "Author": "copywriter",
+      "Line": 7,
+      "Timestamp": "2025-10-31T18:50:36.143018-07:00",
+      "Text": "Simplify the intro sentence",
+      "Type": "S",
+      "Resolved": true,
+      "SuggestionType": "line",
+      "Selection": {
+        "StartLine": 7,
+        "EndLine": 7,
+        "ByteOffset": 0,
+        "Length": 0,
+        "Original": "The comments system allows teams to collaborate on markdown documents with inline feedback. Think of it as Google Docs commenting for terminal-based editing."
+      },
+      "ProposedText": "The comments system brings Google Docs-style collaboration to terminal-based markdown editing.",
+      "AcceptanceState": "rejected"
+    },
+    {
+      "ID": "c17619618598504890001",
+      "ThreadID": "c17619618273901530003",
+      "ParentID": "c17619618273901530003",
+      "Author": "author",
+      "Line": 0,
+      "Timestamp": "2025-10-31T18:50:59.85049-07:00",
+      "Text": "Thank you! I worked hard on making it accessible.",
+      "Type": "",
+      "Resolved": false,
+      "SuggestionType": "",
+      "Selection": null,
+      "ProposedText": "",
+      "AcceptanceState": ""
+    },
+    {
+      "ID": "c17619618598504900002",
+      "ThreadID": "c17619618273901520002",
+      "ParentID": "c17619618273901520002",
+      "Author": "author",
+      "Line": 0,
+      "Timestamp": "2025-10-31T18:50:59.85049-07:00",
+      "Text": "I'll add a performance section in the next draft.",
+      "Type": "",
+      "Resolved": false,
+      "SuggestionType": "",
+      "Selection": null,
+      "ProposedText": "",
+      "AcceptanceState": ""
+    },
+    {
+      "ID": "c17619618848699420001",
+      "ThreadID": "c17619618848699420001",
+      "ParentID": "",
+      "Author": "qa-engineer",
+      "Line": 45,
+      "Timestamp": "2025-10-31T18:51:24.869943-07:00",
+      "Text": "[T] We should add test coverage metrics to this section",
+      "Type": "T",
+      "Resolved": false,
+      "SuggestionType": "",
+      "Selection": null,
+      "ProposedText": "",
+      "AcceptanceState": ""
+    },
+    {
+      "ID": "c17619620951690660001",
+      "ThreadID": "c17619620951690660001",
+      "ParentID": "",
+      "Author": "tester",
+      "Line": 19,
+      "Timestamp": "2025-10-31T18:54:55.169067-07:00",
+      "Text": "Test suggestion",
+      "Type": "S",
+      "Resolved": true,
+      "SuggestionType": "line",
+      "Selection": {
+        "StartLine": 19,
+        "EndLine": 19,
+        "ByteOffset": 0,
+        "Length": 0,
+        "Original": "Suggestions go beyond comments by proposing actual edits with preview and accept/reject workflow. This is like track changes in Microsoft Word."
+      },
+      "ProposedText": "Suggestions allow proposing edits with a track-changes workflow, similar to Microsoft Word.",
+      "AcceptanceState": "rejected"
+    },
+    {
+      "ID": "c17619625679855830001",
+      "ThreadID": "c17619625679855830001",
+      "ParentID": "",
+      "Author": "rcliao",
+      "Line": 19,
+      "Timestamp": "2025-10-31T19:02:47.985597-07:00",
+      "Text": "Suggestion",
+      "Type": "S",
+      "Resolved": true,
+      "SuggestionType": "line",
+      "Selection": {
+        "StartLine": 19,
+        "EndLine": 19,
+        "ByteOffset": 0,
+        "Length": 0,
+        "Original": "Suggestions go beyond comments by proposing actual edits with preview and accept/reject workflow. This is like track changes in Microsoft Word."
+      },
+      "ProposedText": "\nSuggestions go beyond comments by proposing actual edits with preview and accept/reject workflow. This is like track changes in Microsoft Word.",
+      "AcceptanceState": "accepted"
+    }
+  ],
+  "positions": {
+    "c17619618273901490001": {
+      "Line": 22,
+      "Column": 0,
+      "ByteOffset": 740
+    },
+    "c17619618273901520002": {
+      "Line": 18,
+      "Column": 0,
+      "ByteOffset": 578
+    },
+    "c17619618273901530003": {
+      "Line": 10,
+      "Column": 0,
+      "ByteOffset": 312
+    },
+    "c17619618273901530004": {
+      "Line": 3,
+      "Column": 0,
+      "ByteOffset": 39
+    },
+    "c17619618361430150001": {
+      "Line": 34,
+      "Column": 0,
+      "ByteOffset": 1111
+    },
+    "c17619618361430170002": {
+      "Line": 13,
+      "Column": 0,
+      "ByteOffset": 448
+    },
+    "c17619618361430180003": {
+      "Line": 7,
+      "Column": 0,
+      "ByteOffset": 136
+    },
+    "c17619618598504890001": {
+      "Line": 10,
+      "Column": 0,
+      "ByteOffset": 312
+    },
+    "c17619618598504900002": {
+      "Line": 18,
+      "Column": 0,
+      "ByteOffset": 578
+    },
+    "c17619618848699420001": {
+      "Line": 45,
+      "Column": 0,
+      "ByteOffset": 1563
+    },
+    "c17619620951690660001": {
+      "Line": 19,
+      "Column": 0,
+      "ByteOffset": 594
+    },
+    "c17619625679855830001": {
+      "Line": 19,
+      "Column": 0,
+      "ByteOffset": 594
+    }
+  }
+}

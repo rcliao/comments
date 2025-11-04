@@ -82,46 +82,32 @@ func sortComments(comments []*comment.Comment, sortBy string) {
 	}
 }
 
-// outputTable outputs comments in table format
-func outputTable(comments []*comment.Comment, positions map[string]comment.Position, allComments []*comment.Comment) {
-	threads := comment.BuildThreads(allComments)
-
+// outputTable outputs comment threads in table format (v2.0)
+func outputTable(threads []*comment.Comment, allThreads []*comment.Comment) {
 	// Simple ASCII table
 	fmt.Println("┌──────┬──────────────┬──────────┬─────────┬────────────────────────────────────────┐")
 	fmt.Println("│ Line │ Author       │ Type     │ Replies │ Preview                                │")
 	fmt.Println("├──────┼──────────────┼──────────┼─────────┼────────────────────────────────────────┤")
 
-	rootCount := 0
-	for _, c := range comments {
-		// Only show root comments in table
-		if c.ParentID != "" {
-			continue
-		}
-		rootCount++
-
-		pos := positions[c.ID]
+	for _, thread := range threads {
 		commentType := "Root"
-		replyCount := "0"
-
-		if thread, ok := threads[c.ThreadID]; ok {
-			replyCount = fmt.Sprintf("%d", len(thread.Replies))
-		}
+		replyCount := thread.CountReplies()
 
 		// Create preview (truncate if too long)
-		preview := c.Text
+		preview := thread.Text
 		if len(preview) > 40 {
 			preview = preview[:37] + "..."
 		}
 
 		resolvedMarker := ""
-		if c.Resolved {
+		if thread.Resolved {
 			resolvedMarker = " ✓"
 		}
 
 		// Format row with padding
-		fmt.Printf("│ %-4d │ %-12s │ %-8s │ %-7s │ %-40s │\n",
-			pos.Line,
-			truncateString(c.Author, 12),
+		fmt.Printf("│ %-4d │ %-12s │ %-8s │ %-7d │ %-40s │\n",
+			thread.Line,
+			truncateString(thread.Author, 12),
 			truncateString(commentType+resolvedMarker, 8),
 			replyCount,
 			preview,
@@ -129,7 +115,7 @@ func outputTable(comments []*comment.Comment, positions map[string]comment.Posit
 	}
 
 	fmt.Println("└──────┴──────────────┴──────────┴─────────┴────────────────────────────────────────┘")
-	fmt.Printf("\nTotal: %d comment thread(s)\n", rootCount)
+	fmt.Printf("\nTotal: %d comment thread(s)\n", len(threads))
 }
 
 // truncateString truncates a string to a max length
@@ -140,47 +126,31 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen-1] + "…"
 }
 
-// outputJSON outputs comments in JSON format
-func outputJSON(comments []*comment.Comment, positions map[string]comment.Position, allComments []*comment.Comment) error {
-	threads := comment.BuildThreads(allComments)
-
+// outputJSON outputs comment threads in JSON format (v2.0)
+func outputJSON(threads []*comment.Comment, allThreads []*comment.Comment) error {
 	// Create a simplified output structure
 	type CommentOutput struct {
-		ID        string `json:"id"`
-		ThreadID  string `json:"thread_id"`
-		ParentID  string `json:"parent_id,omitempty"`
-		Author    string `json:"author"`
-		Line      int    `json:"line"`
-		Timestamp string `json:"timestamp"`
-		Text      string `json:"text"`
-		Type      string `json:"type,omitempty"`
-		Resolved  bool   `json:"resolved"`
-		Replies   int    `json:"replies,omitempty"`
+		ID         string `json:"id"`
+		Author     string `json:"author"`
+		Line       int    `json:"line"`
+		Timestamp  string `json:"timestamp"`
+		Text       string `json:"text"`
+		Type       string `json:"type,omitempty"`
+		Resolved   bool   `json:"resolved"`
+		ReplyCount int    `json:"reply_count"`
 	}
 
-	output := make([]CommentOutput, 0, len(comments))
-	for _, c := range comments {
-		pos := positions[c.ID]
-		replyCount := 0
-
-		if thread, ok := threads[c.ThreadID]; ok {
-			replyCount = len(thread.Replies)
-		}
-
+	output := make([]CommentOutput, 0, len(threads))
+	for _, thread := range threads {
 		commentOut := CommentOutput{
-			ID:        c.ID,
-			ThreadID:  c.ThreadID,
-			ParentID:  c.ParentID,
-			Author:    c.Author,
-			Line:      pos.Line,
-			Timestamp: c.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
-			Text:      c.Text,
-			Type:      c.Type,
-			Resolved:  c.Resolved,
-		}
-
-		if c.ParentID == "" {
-			commentOut.Replies = replyCount
+			ID:         thread.ID,
+			Author:     thread.Author,
+			Line:       thread.Line,
+			Timestamp:  thread.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
+			Text:       thread.Text,
+			Type:       thread.Type,
+			Resolved:   thread.Resolved,
+			ReplyCount: thread.CountReplies(),
 		}
 
 		output = append(output, commentOut)

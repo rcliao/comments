@@ -92,13 +92,16 @@ func batchReplyCommand(filename string, args []string) {
 		os.Exit(1)
 	}
 
-	// Build threads to validate thread IDs exist
-	threads := comment.BuildThreads(doc.Comments)
+	// Build thread ID lookup for validation
+	threadIDs := make(map[string]bool)
+	for _, t := range doc.Threads {
+		threadIDs[t.ID] = true
+	}
 
 	// Validate all thread IDs exist before adding any replies
 	invalidThreads := []string{}
 	for _, br := range batchReplies {
-		if _, exists := threads[br.Thread]; !exists {
+		if !threadIDs[br.Thread] {
 			invalidThreads = append(invalidThreads, br.Thread)
 		}
 	}
@@ -109,24 +112,21 @@ func batchReplyCommand(filename string, args []string) {
 			fmt.Printf("  - %s\n", tid)
 		}
 		fmt.Println("\nAvailable threads:")
-		for id, t := range threads {
-			fmt.Printf("  %s (Line %d, %d replies)\n", id, t.Line, len(t.Replies))
+		for _, t := range doc.Threads {
+			fmt.Printf("  %s (Line %d, %d replies)\n", t.ID, t.Line, t.CountReplies())
 		}
 		os.Exit(1)
 	}
 
 	// Add all replies to the document structure
 	addedCount := 0
-	addedReplies := []*comment.Comment{}
 
 	for _, br := range batchReplies {
-		targetThread := threads[br.Thread]
-
-		// Create reply
-		reply := comment.NewReply(br.Author, br.Thread, br.Text)
-		doc.Comments = append(doc.Comments, reply)
-		doc.Positions[reply.ID] = comment.Position{Line: targetThread.Line}
-		addedReplies = append(addedReplies, reply)
+		// Use helper to add reply to thread
+		if err := comment.AddReplyToThread(doc.Threads, br.Thread, br.Author, br.Text); err != nil {
+			fmt.Printf("Error adding reply to thread %s: %v\n", br.Thread, err)
+			os.Exit(1)
+		}
 		addedCount++
 	}
 
@@ -134,27 +134,6 @@ func batchReplyCommand(filename string, args []string) {
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
 		fmt.Printf("Error saving document: %v\n", err)
 		os.Exit(1)
-	}
-
-	// Verify replies were added correctly by re-loading
-	verifyDoc, err := comment.LoadFromSidecar(filename)
-	if err == nil {
-		// Count how many of our replies are present
-		verifiedCount := 0
-		replyIDs := make(map[string]bool)
-		for _, r := range addedReplies {
-			replyIDs[r.ID] = true
-		}
-
-		for _, c := range verifyDoc.Comments {
-			if replyIDs[c.ID] {
-				verifiedCount++
-			}
-		}
-
-		if verifiedCount != addedCount {
-			fmt.Printf("⚠ Warning: Added %d reply/replies but only %d were verified in the file\n", addedCount, verifiedCount)
-		}
 	}
 
 	fmt.Printf("✓ Added %d reply/replies to %s\n", addedCount, filename)

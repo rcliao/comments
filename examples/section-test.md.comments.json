@@ -1,0 +1,73 @@
+{
+  "version": "1.1",
+  "comments": [
+    {
+      "ID": "c17621969888124330001",
+      "ThreadID": "c17621969888124330001",
+      "ParentID": "",
+      "Author": "alice",
+      "Line": 1,
+      "Timestamp": "2025-11-03T11:09:48.812434-08:00",
+      "Text": "[S] This introduction needs more detail",
+      "Type": "S",
+      "Resolved": false,
+      "SectionID": "s1",
+      "SectionPath": "Introduction",
+      "SuggestionType": "",
+      "Selection": null,
+      "ProposedText": "",
+      "AcceptanceState": ""
+    },
+    {
+      "ID": "c17621969962245600001",
+      "ThreadID": "c17621969962245600001",
+      "ParentID": "",
+      "Author": "bob",
+      "Line": 9,
+      "Timestamp": "2025-11-03T11:09:56.22456-08:00",
+      "Text": "[Q] Consider adding more historical context",
+      "Type": "Q",
+      "Resolved": false,
+      "SectionID": "s3",
+      "SectionPath": "Introduction \u003e Background \u003e History",
+      "SuggestionType": "",
+      "Selection": null,
+      "ProposedText": "",
+      "AcceptanceState": ""
+    },
+    {
+      "ID": "c17621972245339310001",
+      "ThreadID": "c17621972245339310001",
+      "ParentID": "",
+      "Author": "claude",
+      "Line": 21,
+      "Timestamp": "2025-11-03T11:13:44.533932-08:00",
+      "Text": "[S] Consider adding a diagram",
+      "Type": "S",
+      "Resolved": false,
+      "SectionID": "s6",
+      "SectionPath": "Implementation \u003e Architecture",
+      "SuggestionType": "",
+      "Selection": null,
+      "ProposedText": "",
+      "AcceptanceState": ""
+    }
+  ],
+  "positions": {
+    "c17621969888124330001": {
+      "Line": 1,
+      "Column": 0,
+      "ByteOffset": 0
+    },
+    "c17621969962245600001": {
+      "Line": 9,
+      "Column": 0,
+      "ByteOffset": 0
+    },
+    "c17621972245339310001": {
+      "Line": 21,
+      "Column": 0,
+      "ByteOffset": 0
+    }
+  }
+}
