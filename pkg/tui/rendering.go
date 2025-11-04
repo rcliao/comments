@@ -149,10 +149,11 @@ func (m *Model) renderDocumentWithCursor() string {
 		// Highlight cursor line
 		cursor := "  "
 		isSelected := lineNum == m.selectedLine
+		inRange := m.rangeActive && lineNum >= m.rangeStartLine && lineNum <= m.rangeEndLine
 
-		// Apply markdown syntax highlighting (only if not selected, as cursor style will override)
+		// Apply markdown syntax highlighting (only if not selected/in range, as cursor/range style will override)
 		styledLine := line
-		if !isSelected {
+		if !isSelected && !inRange {
 			styledLine = styleMarkdownLine(line)
 		}
 
@@ -164,6 +165,9 @@ func (m *Model) renderDocumentWithCursor() string {
 				if isSelected {
 					cursor = cursorStyle.Render("▶")
 					wrappedLine = cursorStyle.Render(wrappedLine)
+				} else if inRange {
+					cursor = rangeMarkerStyle.Render("│")
+					wrappedLine = selectedLineStyle.Render(wrappedLine)
 				}
 				rendered.WriteString(fmt.Sprintf("%s %s %s %s\n", cursor, lineNumStr, marker, wrappedLine))
 			} else {
@@ -172,6 +176,9 @@ func (m *Model) renderDocumentWithCursor() string {
 				if isSelected {
 					displayCursor = cursorStyle.Render("  ")
 					wrappedLine = cursorStyle.Render(wrappedLine)
+				} else if inRange {
+					displayCursor = rangeMarkerStyle.Render("│ ")
+					wrappedLine = selectedLineStyle.Render(wrappedLine)
 				}
 				rendered.WriteString(fmt.Sprintf("%s %s %s %s\n", displayCursor, strings.Repeat(" ", 4), "  ", wrappedLine))
 			}
@@ -255,9 +262,18 @@ func (m *Model) renderComments() string {
 			}
 		}
 
+		// Build location string with section context
+		locationStr := fmt.Sprintf("Line %d", c.Line)
+		icon := "💬"
+		if c.SectionPath != "" {
+			locationStr = fmt.Sprintf("%s (Line %d)", c.SectionPath, c.Line)
+			icon = "📍"
+		}
+
 		if c.Resolved {
-			commentText = fmt.Sprintf("✓ Line %d • @%s%s\n%s\n%s\n└─ %d replies",
-				c.Line,
+			commentText = fmt.Sprintf("✓ %s %s • @%s%s\n%s\n%s\n└─ %d replies",
+				icon,
+				locationStr,
 				c.Author,
 				suggestionIndicator,
 				c.Timestamp.Format("2006-01-02 15:04"),
@@ -265,8 +281,9 @@ func (m *Model) renderComments() string {
 				replyCount,
 			)
 		} else {
-			commentText = fmt.Sprintf("Line %d • @%s%s\n%s\n%s\n└─ %d replies",
-				c.Line,
+			commentText = fmt.Sprintf("%s %s • @%s%s\n%s\n%s\n└─ %d replies",
+				icon,
+				locationStr,
 				c.Author,
 				suggestionIndicator,
 				c.Timestamp.Format("2006-01-02 15:04"),
@@ -290,9 +307,16 @@ func (m *Model) renderThread() string {
 
 	var rendered strings.Builder
 
-	// Thread header
+	// Thread header with section context
+	locationStr := fmt.Sprintf("Line %d", m.selectedThread.Line)
+	icon := "💬"
+	if m.selectedThread.SectionPath != "" {
+		locationStr = fmt.Sprintf("%s (Line %d)", m.selectedThread.SectionPath, m.selectedThread.Line)
+		icon = "📍"
+	}
+
 	rendered.WriteString(lipgloss.NewStyle().Bold(true).Render(
-		fmt.Sprintf("Thread at Line %d\n", m.selectedThread.Line)))
+		fmt.Sprintf("%s Thread at %s\n", icon, locationStr)))
 	rendered.WriteString("\n")
 
 	// Document context - show lines around the comment

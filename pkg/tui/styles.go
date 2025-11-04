@@ -39,6 +39,14 @@ var (
 			Background(lipgloss.Color("62")).
 			Foreground(lipgloss.Color("230"))
 
+	// Range selection
+	rangeMarkerStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("39")).
+				Bold(true)
+
+	selectedLineStyle = lipgloss.NewStyle().
+				Background(lipgloss.Color("235"))
+
 	// Modal overlay
 	modalOverlayStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
