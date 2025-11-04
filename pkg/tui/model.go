@@ -1111,34 +1111,41 @@ func (m Model) viewAddComment() string {
 		commentPanelStyle.Render(m.commentViewport.View()),
 	)
 
-	// Get context lines around the selected line
-	contextLines := m.getContextLines(m.selectedLine, 2)
-	var contextText strings.Builder
+	// Get section-aware context
+	var contextText string
+	sectionContext := m.getSectionContext(m.selectedLine)
+	if sectionContext != "" {
+		// Use section-aware context
+		contextText = sectionContext
+	} else {
+		// Fall back to line-based context if no section found
+		contextLines := m.getContextLines(m.selectedLine, 2)
+		var builder strings.Builder
 
-	contextStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("242")).
-		Italic(true)
+		contextStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("242")).
+			Italic(true)
+		lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+		highlightStyle := lipgloss.NewStyle().
+			Background(lipgloss.Color("235")).
+			Foreground(lipgloss.Color("255")).
+			Bold(true)
 
-	lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	highlightStyle := lipgloss.NewStyle().
-		Background(lipgloss.Color("235")).
-		Foreground(lipgloss.Color("255")).
-		Bold(true)
+		builder.WriteString(contextStyle.Render("Document Context:"))
+		builder.WriteString("\n")
 
-	contextText.WriteString(contextStyle.Render("Document Context:"))
-	contextText.WriteString("\n")
-
-	for _, cl := range contextLines {
-		linePrefix := fmt.Sprintf("%4d │ ", cl.LineNum)
-		if cl.LineNum == m.selectedLine {
-			// Highlight the target line
-			contextText.WriteString(lineNumStyle.Bold(true).Render(linePrefix))
-			contextText.WriteString(highlightStyle.Render(cl.Text))
-		} else {
-			contextText.WriteString(lineNumStyle.Render(linePrefix))
-			contextText.WriteString(cl.Text)
+		for _, cl := range contextLines {
+			linePrefix := fmt.Sprintf("%4d │ ", cl.LineNum)
+			if cl.LineNum == m.selectedLine {
+				builder.WriteString(lineNumStyle.Bold(true).Render(linePrefix))
+				builder.WriteString(highlightStyle.Render(cl.Text))
+			} else {
+				builder.WriteString(lineNumStyle.Render(linePrefix))
+				builder.WriteString(cl.Text)
+			}
+			builder.WriteString("\n")
 		}
-		contextText.WriteString("\n")
+		contextText = builder.String()
 	}
 
 	// Comment type reminder
@@ -1151,10 +1158,22 @@ func (m Model) viewAddComment() string {
 	)
 
 	// Modal overlay for comment input
+	var titleText string
+	if m.targetIsSection {
+		section := m.getSectionAtLine(m.selectedLine)
+		if section != nil {
+			titleText = fmt.Sprintf("📍 Add Section Comment: %s", section.Title)
+		} else {
+			titleText = fmt.Sprintf("Add Comment at Line %d", m.selectedLine)
+		}
+	} else {
+		titleText = fmt.Sprintf("💬 Add Comment at Line %d", m.selectedLine)
+	}
+
 	modalTitle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("170")).
-		Render(fmt.Sprintf("Add Comment at Line %d", m.selectedLine))
+		Render(titleText)
 
 	modalHelp := helpStyle.Render("Ctrl+S: save • Esc: cancel")
 
@@ -1163,7 +1182,7 @@ func (m Model) viewAddComment() string {
 			lipgloss.Left,
 			modalTitle,
 			"",
-			contextText.String(),
+			contextText,
 			"",
 			m.commentInput.View(),
 			"",

@@ -538,3 +538,102 @@ func (m *Model) getContextLines(lineNum int, contextSize int) []ContextLine {
 
 	return result
 }
+
+// getSectionContext returns section-aware context for a line
+func (m *Model) getSectionContext(lineNum int) string {
+	if m.doc == nil || m.documentSections == nil {
+		return ""
+	}
+
+	var contextText strings.Builder
+	lines := strings.Split(m.doc.Content, "\n")
+
+	// Get section for this line
+	section := m.getSectionAtLine(lineNum)
+	if section == nil {
+		// No section found, fall back to simple line context
+		return ""
+	}
+
+	// Styles
+	sectionStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("39")).
+		Bold(true)
+	
+	headingStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("170")).
+		Bold(true)
+	
+	lineNumStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240"))
+	
+	highlightStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("235")).
+		Foreground(lipgloss.Color("255")).
+		Bold(true)
+	
+	dimStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("242"))
+
+	// Show section path
+	sectionPath := m.getSectionPath(section)
+	contextText.WriteString(sectionStyle.Render("📍 Section: "))
+	contextText.WriteString(sectionPath)
+	contextText.WriteString("\n\n")
+
+	// Show the heading line
+	if section.StartLine > 0 && section.StartLine <= len(lines) {
+		headingLine := lines[section.StartLine-1]
+		contextText.WriteString(headingStyle.Render(headingLine))
+		contextText.WriteString("\n")
+		contextText.WriteString(dimStyle.Render(fmt.Sprintf("(lines %d-%d)", section.StartLine, section.EndLine)))
+		contextText.WriteString("\n\n")
+	}
+
+	// Show context around target line within section
+	// Show a few lines before and after the target, but stay within section bounds
+	contextSize := 2
+	start := lineNum - contextSize
+	if start < section.StartLine {
+		start = section.StartLine
+	}
+	end := lineNum + contextSize
+	if end > section.EndLine {
+		end = section.EndLine
+	}
+
+	// Skip heading line if we're showing section content
+	if start == section.StartLine && lineNum != section.StartLine {
+		start++
+	}
+
+	// Show ellipsis if we're skipping lines after heading
+	if start > section.StartLine+1 {
+		contextText.WriteString(dimStyle.Render("    ...\n"))
+	}
+
+	for i := start; i <= end && i <= len(lines); i++ {
+		lineText := ""
+		if i > 0 && i <= len(lines) {
+			lineText = lines[i-1]
+		}
+		
+		linePrefix := fmt.Sprintf("%4d │ ", i)
+		if i == lineNum {
+			// Highlight the target line
+			contextText.WriteString(lineNumStyle.Bold(true).Render(linePrefix))
+			contextText.WriteString(highlightStyle.Render(lineText))
+		} else {
+			contextText.WriteString(lineNumStyle.Render(linePrefix))
+			contextText.WriteString(lineText)
+		}
+		contextText.WriteString("\n")
+	}
+
+	// Show ellipsis if there's more content in the section
+	if end < section.EndLine {
+		contextText.WriteString(dimStyle.Render("    ...\n"))
+	}
+
+	return contextText.String()
+}
