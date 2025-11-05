@@ -30,6 +30,15 @@ const (
 
 	// ModeAddSuggestion shows a modal to add a new suggestion
 	ModeAddSuggestion
+
+	// ModeChooseTarget shows a modal for choosing section vs line
+	ModeChooseTarget
+
+	// ModeSelectSuggestionType shows a modal for choosing range vs section suggestion
+	ModeSelectSuggestionType
+
+	// ModeSelectRange shows visual range selection for multi-line suggestions
+	ModeSelectRange
 )
 
 // String returns the string representation of the view mode
@@ -53,6 +62,12 @@ func (m ViewMode) String() string {
 		return "REVIEW_SUGGESTION"
 	case ModeAddSuggestion:
 		return "ADD_SUGGESTION"
+	case ModeChooseTarget:
+		return "CHOOSE_TARGET"
+	case ModeSelectSuggestionType:
+		return "SELECT_SUGGESTION_TYPE"
+	case ModeSelectRange:
+		return "SELECT_RANGE"
 	default:
 		return "UNKNOWN"
 	}
@@ -60,7 +75,7 @@ func (m ViewMode) String() string {
 
 // IsModal returns true if the mode represents a modal dialog
 func (m ViewMode) IsModal() bool {
-	return m == ModeAddComment || m == ModeReply || m == ModeResolve || m == ModeReviewSuggestion || m == ModeAddSuggestion
+	return m == ModeAddComment || m == ModeReply || m == ModeResolve || m == ModeReviewSuggestion || m == ModeAddSuggestion || m == ModeChooseTarget || m == ModeSelectSuggestionType
 }
 
 // IsInteractive returns true if the mode requires user input

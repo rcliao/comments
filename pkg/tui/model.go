@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
 	"github.com/rcliao/comments/pkg/comment"
+	"github.com/rcliao/comments/pkg/markdown"
 )
 
 // Model represents the enhanced TUI application state
@@ -24,8 +25,9 @@ type Model struct {
 	startedWithFile  bool // Track if file was provided directly vs picked
 
 	// Document state
-	doc      *comment.DocumentWithComments
-	filename string
+	doc              *comment.DocumentWithComments
+	filename         string
+	documentSections *markdown.DocumentStructure // Parsed section hierarchy
 
 	// UI components
 	documentViewport viewport.Model
@@ -44,9 +46,18 @@ type Model struct {
 	// Input state
 	author string // User name for comments
 
+	// Section input support
+	targetIsSection bool // True if user wants to comment on section, false for line only
+
 	// Suggestion creation state
 	suggestionOriginalText string         // Original text for suggestion being created
 	proposedTextInput      textarea.Model // For entering proposed text
+
+	// Multi-line suggestion support
+	rangeStartLine      int  // Start line for range selection
+	rangeEndLine        int  // End line for range selection
+	rangeActive         bool // True if range selection is active
+	suggestionIsSection bool // True if suggestion is section-based
 
 	// Dimensions
 	width  int
@@ -112,6 +123,12 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 		showResolved:      false,
 		startedWithFile:   true,
 	}
+
+	// Parse sections
+	if doc != nil {
+		m.documentSections = markdown.ParseDocument(doc.Content)
+	}
+
 	return m
 }
 
@@ -200,6 +217,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleReviewSuggestionKeys(msg)
 	case ModeAddSuggestion:
 		return m.handleAddSuggestionKeys(msg)
+	case ModeChooseTarget:
+		return m.handleChooseTargetKeys(msg)
+	case ModeSelectSuggestionType:
+		return m.handleSelectSuggestionTypeKeys(msg)
+	case ModeSelectRange:
+		return m.handleSelectRangeKeys(msg)
 	default:
 		return m, nil
 	}
@@ -372,23 +395,157 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "c", "enter":
-		// Trigger add comment modal
+		// Check if on a heading line
+		if m.isHeadingLine(m.selectedLine) {
+			// On a heading - let user choose section vs line
+			m.mode = ModeChooseTarget
+			return m, nil
+		}
+		// Regular line - go directly to add comment
+		m.targetIsSection = false
 		m.mode = ModeAddComment
 		m.commentInput.Reset()
 		m.commentInput.Focus()
 		return m, textarea.Blink
 
 	case "s":
-		// Trigger add suggestion modal
-		// Capture the original text from the selected line
-		if m.selectedLine > 0 && m.selectedLine <= len(lines) {
-			m.suggestionOriginalText = lines[m.selectedLine-1]
+		// Check if on a heading line
+		if m.isHeadingLine(m.selectedLine) {
+			// On heading - choose range vs section
+			m.mode = ModeSelectSuggestionType
+			return m, nil
+		}
+		// Regular line - start range selection
+		m.rangeStartLine = m.selectedLine
+		m.rangeEndLine = m.selectedLine
+		m.rangeActive = true
+		m.suggestionIsSection = false
+		m.mode = ModeSelectRange
+		m.documentViewport.SetContent(m.renderDocumentWithCursor())
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// handleChooseTargetKeys handles keys in choose target mode
+func (m Model) handleChooseTargetKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "s":
+		// Section mode
+		m.targetIsSection = true
+		m.mode = ModeAddComment
+		m.commentInput.Reset()
+		m.commentInput.Focus()
+		return m, textarea.Blink
+
+	case "l":
+		// Line only mode
+		m.targetIsSection = false
+		m.mode = ModeAddComment
+		m.commentInput.Reset()
+		m.commentInput.Focus()
+		return m, textarea.Blink
+
+	case "esc", "q":
+		m.mode = ModeLineSelect
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// handleSelectSuggestionTypeKeys handles keys in select suggestion type mode
+func (m Model) handleSelectSuggestionTypeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "r":
+		// Range selection
+		section := m.getSectionAtLine(m.selectedLine)
+		if section != nil {
+			m.rangeStartLine = section.StartLine
+			m.rangeEndLine = section.EndLine
+		} else {
+			m.rangeStartLine = m.selectedLine
+			m.rangeEndLine = m.selectedLine
+		}
+		m.rangeActive = true
+		m.suggestionIsSection = false
+		m.mode = ModeSelectRange
+		m.documentViewport.SetContent(m.renderDocumentWithCursor())
+		return m, nil
+
+	case "s":
+		// Section-based suggestion
+		section := m.getSectionAtLine(m.selectedLine)
+		if section != nil {
+			m.rangeStartLine = section.StartLine
+			m.rangeEndLine = section.EndLine
+			m.suggestionIsSection = true
+
+			// Capture original text from range
+			lines := strings.Split(m.doc.Content, "\n")
+			if m.rangeStartLine > 0 && m.rangeEndLine <= len(lines) {
+				originalLines := lines[m.rangeStartLine-1 : m.rangeEndLine]
+				m.suggestionOriginalText = strings.Join(originalLines, "\n")
+			}
+
 			m.mode = ModeAddSuggestion
 			m.proposedTextInput.Reset()
-			m.proposedTextInput.SetValue(m.suggestionOriginalText) // Pre-fill with original
+			m.proposedTextInput.SetValue(m.suggestionOriginalText)
 			m.proposedTextInput.Focus()
 			return m, textarea.Blink
 		}
+		return m, nil
+
+	case "esc", "q":
+		m.mode = ModeLineSelect
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// handleSelectRangeKeys handles keys in select range mode
+func (m Model) handleSelectRangeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	lines := strings.Split(m.doc.Content, "\n")
+	totalLines := len(lines)
+
+	switch msg.String() {
+	case "j", "down":
+		// Extend range down
+		if m.rangeEndLine < totalLines {
+			m.rangeEndLine++
+			m.documentViewport.SetContent(m.renderDocumentWithCursor())
+			m.scrollToLine(m.rangeEndLine)
+		}
+		return m, nil
+
+	case "k", "up":
+		// Shrink range up
+		if m.rangeEndLine > m.rangeStartLine {
+			m.rangeEndLine--
+			m.documentViewport.SetContent(m.renderDocumentWithCursor())
+			m.scrollToLine(m.rangeEndLine)
+		}
+		return m, nil
+
+	case "enter":
+		// Confirm range - capture original text
+		if m.rangeStartLine > 0 && m.rangeEndLine <= totalLines {
+			originalLines := lines[m.rangeStartLine-1 : m.rangeEndLine]
+			m.suggestionOriginalText = strings.Join(originalLines, "\n")
+		}
+		m.mode = ModeAddSuggestion
+		m.proposedTextInput.Reset()
+		m.proposedTextInput.SetValue(m.suggestionOriginalText)
+		m.proposedTextInput.Focus()
+		return m, textarea.Blink
+
+	case "esc", "q":
+		// Cancel range selection
+		m.rangeActive = false
+		m.mode = ModeLineSelect
+		m.documentViewport.SetContent(m.renderDocumentWithCursor())
 		return m, nil
 	}
 
@@ -472,6 +629,12 @@ func (m Model) handleAddCommentKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// Create new comment
 		newComment := comment.NewComment(m.author, m.selectedLine, text)
+
+		// Add section metadata if targeting section
+		if m.targetIsSection {
+			comment.UpdateCommentSection(newComment, m.doc.Content)
+		}
+
 		m.doc.Threads = append(m.doc.Threads, newComment)
 
 		// Save to file
@@ -716,6 +879,8 @@ func (m Model) handleAddSuggestionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Cancel suggestion creation
 		m.mode = ModeLineSelect
 		m.suggestionOriginalText = ""
+		m.rangeActive = false
+		m.suggestionIsSection = false
 		m.proposedTextInput.Reset()
 		m.documentViewport.SetContent(m.renderDocumentWithCursor())
 		return m, nil
@@ -727,22 +892,41 @@ func (m Model) handleAddSuggestionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Don't create empty suggestion
 			m.mode = ModeLineSelect
 			m.suggestionOriginalText = ""
+			m.rangeActive = false
+			m.suggestionIsSection = false
 			m.documentViewport.SetContent(m.renderDocumentWithCursor())
 			return m, nil
 		}
 
-		// Create suggestion using helper (simplified to multi-line only)
+		// Use range if set, otherwise fall back to selectedLine
+		startLine := m.selectedLine
+		endLine := m.selectedLine
+		if m.rangeStartLine > 0 && m.rangeEndLine > 0 {
+			startLine = m.rangeStartLine
+			endLine = m.rangeEndLine
+		}
+
+		// Create suggestion using helper (multi-line)
 		suggestion := comment.NewSuggestion(
 			m.author,
-			m.selectedLine,
-			m.selectedLine,
+			startLine,
+			endLine,
 			"Suggestion",
 			m.suggestionOriginalText,
 			proposedText,
 		)
 
+		// Add section metadata if section-based
+		if m.suggestionIsSection {
+			comment.UpdateCommentSection(suggestion, m.doc.Content)
+		}
+
 		// Add to document
 		m.doc.Threads = append(m.doc.Threads, suggestion)
+
+		// Reset state
+		m.rangeActive = false
+		m.suggestionIsSection = false
 
 		// Save document
 		if err := m.saveDocument(); err != nil {
@@ -805,6 +989,9 @@ func (m Model) loadFile(path string) (tea.Model, tea.Cmd) {
 	m.selectedComment = 0
 	m.ready = false
 
+	// Parse sections
+	m.documentSections = markdown.ParseDocument(m.doc.Content)
+
 	// If we have dimensions, initialize viewports now
 	if m.width > 0 && m.height > 0 {
 		m.handleResize()
@@ -845,6 +1032,12 @@ func (m Model) View() string {
 		return m.viewReviewSuggestion()
 	case ModeAddSuggestion:
 		return m.viewAddSuggestion()
+	case ModeChooseTarget:
+		return m.viewChooseTarget()
+	case ModeSelectSuggestionType:
+		return m.viewSelectSuggestionType()
+	case ModeSelectRange:
+		return m.viewSelectRange()
 	default:
 		return "Unknown mode"
 	}
@@ -876,7 +1069,7 @@ func (m Model) viewBrowse() string {
 
 	var helpText string
 	if m.mode == ModeLineSelect {
-		helpText = "j/k: move • Ctrl+D/U: page down/up • g/G: first/last • c: comment • s: suggestion • Esc: cancel"
+		helpText = "j/k: move • Ctrl+D/U: page • g/G: top/bottom • c: comment (section if heading) • s: suggest (range/section) • Esc: cancel"
 	} else {
 		quitText := "back"
 		if m.startedWithFile {
@@ -918,34 +1111,41 @@ func (m Model) viewAddComment() string {
 		commentPanelStyle.Render(m.commentViewport.View()),
 	)
 
-	// Get context lines around the selected line
-	contextLines := m.getContextLines(m.selectedLine, 2)
-	var contextText strings.Builder
+	// Get section-aware context
+	var contextText string
+	sectionContext := m.getSectionContext(m.selectedLine)
+	if sectionContext != "" {
+		// Use section-aware context
+		contextText = sectionContext
+	} else {
+		// Fall back to line-based context if no section found
+		contextLines := m.getContextLines(m.selectedLine, 2)
+		var builder strings.Builder
 
-	contextStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("242")).
-		Italic(true)
+		contextStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("242")).
+			Italic(true)
+		lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+		highlightStyle := lipgloss.NewStyle().
+			Background(lipgloss.Color("235")).
+			Foreground(lipgloss.Color("255")).
+			Bold(true)
 
-	lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	highlightStyle := lipgloss.NewStyle().
-		Background(lipgloss.Color("235")).
-		Foreground(lipgloss.Color("255")).
-		Bold(true)
+		builder.WriteString(contextStyle.Render("Document Context:"))
+		builder.WriteString("\n")
 
-	contextText.WriteString(contextStyle.Render("Document Context:"))
-	contextText.WriteString("\n")
-
-	for _, cl := range contextLines {
-		linePrefix := fmt.Sprintf("%4d │ ", cl.LineNum)
-		if cl.LineNum == m.selectedLine {
-			// Highlight the target line
-			contextText.WriteString(lineNumStyle.Bold(true).Render(linePrefix))
-			contextText.WriteString(highlightStyle.Render(cl.Text))
-		} else {
-			contextText.WriteString(lineNumStyle.Render(linePrefix))
-			contextText.WriteString(cl.Text)
+		for _, cl := range contextLines {
+			linePrefix := fmt.Sprintf("%4d │ ", cl.LineNum)
+			if cl.LineNum == m.selectedLine {
+				builder.WriteString(lineNumStyle.Bold(true).Render(linePrefix))
+				builder.WriteString(highlightStyle.Render(cl.Text))
+			} else {
+				builder.WriteString(lineNumStyle.Render(linePrefix))
+				builder.WriteString(cl.Text)
+			}
+			builder.WriteString("\n")
 		}
-		contextText.WriteString("\n")
+		contextText = builder.String()
 	}
 
 	// Comment type reminder
@@ -958,10 +1158,22 @@ func (m Model) viewAddComment() string {
 	)
 
 	// Modal overlay for comment input
+	var titleText string
+	if m.targetIsSection {
+		section := m.getSectionAtLine(m.selectedLine)
+		if section != nil {
+			titleText = fmt.Sprintf("📍 Add Section Comment: %s", section.Title)
+		} else {
+			titleText = fmt.Sprintf("Add Comment at Line %d", m.selectedLine)
+		}
+	} else {
+		titleText = fmt.Sprintf("💬 Add Comment at Line %d", m.selectedLine)
+	}
+
 	modalTitle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("170")).
-		Render(fmt.Sprintf("Add Comment at Line %d", m.selectedLine))
+		Render(titleText)
 
 	modalHelp := helpStyle.Render("Ctrl+S: save • Esc: cancel")
 
@@ -970,7 +1182,7 @@ func (m Model) viewAddComment() string {
 			lipgloss.Left,
 			modalTitle,
 			"",
-			contextText.String(),
+			contextText,
 			"",
 			m.commentInput.View(),
 			"",
@@ -1374,4 +1586,195 @@ func (m *Model) scrollToComment(c *comment.Comment) {
 
 	// Set the viewport offset
 	m.documentViewport.YOffset = targetOffset
+}
+
+// getSectionAtLine returns the section containing the given line, or nil
+func (m *Model) getSectionAtLine(lineNum int) *markdown.Section {
+	if m.documentSections == nil {
+		return nil
+	}
+	if section, exists := m.documentSections.SectionsByLine[lineNum]; exists {
+		return section
+	}
+	return nil
+}
+
+// isHeadingLine returns true if the line is a markdown heading
+func (m *Model) isHeadingLine(lineNum int) bool {
+	section := m.getSectionAtLine(lineNum)
+	if section == nil {
+		return false
+	}
+	return section.StartLine == lineNum
+}
+
+// getSectionPath returns the full hierarchical path for a section
+func (m *Model) getSectionPath(section *markdown.Section) string {
+	if section == nil {
+		return ""
+	}
+	return section.GetFullPath(m.documentSections.SectionsByID)
+}
+
+// viewChooseTarget renders the section vs line choice modal
+func (m Model) viewChooseTarget() string {
+	if !m.ready {
+		return "Loading..."
+	}
+
+	// Base layout with document
+	modeStr := "Choose Target"
+	title := titleStyle.Render(fmt.Sprintf("📄 %s - Mode: %s", m.filename, modeStr))
+
+	// Layout: document on left, comments on right (background)
+	content := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		m.documentViewport.View(),
+		commentPanelStyle.Render(m.commentViewport.View()),
+	)
+
+	// Get section info
+	section := m.getSectionAtLine(m.selectedLine)
+	sectionPath := m.getSectionPath(section)
+
+	// Build choice modal
+	modalTitle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("170")).
+		Render("Add comment to:")
+
+	var choices strings.Builder
+	choices.WriteString(fmt.Sprintf("  [s] 📍 Section: %s\n", sectionPath))
+	choices.WriteString(fmt.Sprintf("      (covers lines %d-%d)\n\n", section.StartLine, section.EndLine))
+	choices.WriteString(fmt.Sprintf("  [l] 💬 Line %d only (heading line)\n\n", m.selectedLine))
+
+	modalHelp := helpStyle.Render("s: section • l: line • Esc: cancel")
+
+	modal := modalOverlayStyle.Render(
+		lipgloss.JoinVertical(
+			lipgloss.Left,
+			modalTitle,
+			"",
+			choices.String(),
+			modalHelp,
+		),
+	)
+
+	// Position modal over content (centered)
+	positioned := lipgloss.Place(
+		m.width,
+		m.height-2,
+		lipgloss.Center,
+		lipgloss.Center,
+		modal,
+		lipgloss.WithWhitespaceChars(" "),
+	)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		lipgloss.Place(
+			m.width,
+			m.height-2,
+			lipgloss.Left,
+			lipgloss.Top,
+			content,
+		),
+		positioned,
+	)
+}
+
+// viewSelectSuggestionType renders the suggestion type choice modal
+func (m Model) viewSelectSuggestionType() string {
+	if !m.ready {
+		return "Loading..."
+	}
+
+	// Base layout with document
+	modeStr := "Choose Suggestion Type"
+	title := titleStyle.Render(fmt.Sprintf("📄 %s - Mode: %s", m.filename, modeStr))
+
+	// Layout: document on left, comments on right (background)
+	content := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		m.documentViewport.View(),
+		commentPanelStyle.Render(m.commentViewport.View()),
+	)
+
+	// Get section info
+	section := m.getSectionAtLine(m.selectedLine)
+	sectionPath := m.getSectionPath(section)
+
+	// Build choice modal
+	modalTitle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("170")).
+		Render("Create suggestion for:")
+
+	var choices strings.Builder
+	choices.WriteString("  [r] Line range (manual selection)\n\n")
+	choices.WriteString(fmt.Sprintf("  [s] 📍 Section: %s\n", sectionPath))
+	choices.WriteString(fmt.Sprintf("      (lines %d-%d)\n\n", section.StartLine, section.EndLine))
+
+	modalHelp := helpStyle.Render("r: range • s: section • Esc: cancel")
+
+	modal := modalOverlayStyle.Render(
+		lipgloss.JoinVertical(
+			lipgloss.Left,
+			modalTitle,
+			"",
+			choices.String(),
+			modalHelp,
+		),
+	)
+
+	// Position modal over content (centered)
+	positioned := lipgloss.Place(
+		m.width,
+		m.height-2,
+		lipgloss.Center,
+		lipgloss.Center,
+		modal,
+		lipgloss.WithWhitespaceChars(" "),
+	)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		lipgloss.Place(
+			m.width,
+			m.height-2,
+			lipgloss.Left,
+			lipgloss.Top,
+			content,
+		),
+		positioned,
+	)
+}
+
+// viewSelectRange renders the range selection view
+func (m Model) viewSelectRange() string {
+	if !m.ready {
+		return "Loading..."
+	}
+
+	// Base layout with document (showing range highlighting)
+	modeStr := fmt.Sprintf("Range Selection: Lines %d-%d", m.rangeStartLine, m.rangeEndLine)
+	title := titleStyle.Render(fmt.Sprintf("📄 %s - Mode: %s", m.filename, modeStr))
+
+	// Layout: document on left, comments on right (background)
+	content := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		m.documentViewport.View(),
+		commentPanelStyle.Render(m.commentViewport.View()),
+	)
+
+	helpText := helpStyle.Render("j/k: adjust end line • Enter: confirm • Esc: cancel")
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		content,
+		helpText,
+	)
 }

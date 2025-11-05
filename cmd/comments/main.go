@@ -35,6 +35,13 @@ func main() {
 		}
 		listCommand(os.Args[2], os.Args[3:])
 
+	case "get":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: comments get <file> [flags]")
+			os.Exit(1)
+		}
+		getCommand(os.Args[2], os.Args[3:])
+
 	case "add":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: comments add <file> [flags]")
@@ -146,6 +153,7 @@ func listCommand(filename string, args []string) {
 	sectionFilter := fs.String("section", "", "Filter by section path (includes nested sections)")
 	sortBy := fs.String("sort", "line", "Sort by: line, timestamp, author")
 	format := fs.String("format", "text", "Output format: text, json, table")
+	withContext := fs.Bool("with-context", false, "Include document context for each comment")
 
 	fs.Parse(args)
 
@@ -216,6 +224,13 @@ func listCommand(filename string, args []string) {
 	// Sort comments
 	sortComments(filteredComments, *sortBy)
 
+	// If --with-context is specified, use context format
+	if *withContext {
+		output := formatListWithContext(filteredComments, doc.Content)
+		fmt.Print(output)
+		return
+	}
+
 	// Output based on format
 	switch *format {
 	case "json":
@@ -284,6 +299,65 @@ func listCommand(filename string, args []string) {
 
 		fmt.Printf("    %s\n\n", thread.Text)
 	}
+}
+
+func getCommand(filename string, args []string) {
+	// Parse flags
+	fs := flag.NewFlagSet("get", flag.ExitOnError)
+	threadID := fs.String("thread", "", "Thread ID to get (required)")
+	withReplies := fs.Bool("with-replies", true, "Include replies in output (default: true)")
+
+	fs.Parse(args)
+
+	if *threadID == "" {
+		fmt.Println("Error: --thread flag is required")
+		fmt.Println("Usage: comments get <file> --thread <thread-id>")
+		os.Exit(1)
+	}
+
+	// Load document
+	doc, err := comment.LoadFromSidecar(filename)
+	if err != nil {
+		fmt.Printf("Error loading document: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Compute section metadata for all comments if not already present
+	comment.ComputeSectionsForComments(doc)
+
+	// Find the thread
+	var foundComment *comment.Comment
+	for _, thread := range doc.Threads {
+		if thread.ID == *threadID {
+			foundComment = thread
+			break
+		}
+		// Also search in replies
+		for _, reply := range thread.Replies {
+			if reply.ID == *threadID {
+				foundComment = reply
+				break
+			}
+		}
+		if foundComment != nil {
+			break
+		}
+	}
+
+	if foundComment == nil {
+		fmt.Printf("Error: Thread with ID '%s' not found\n", *threadID)
+		fmt.Println("\nAvailable threads:")
+		for i, thread := range doc.Threads {
+			fmt.Printf("  [%d] %s (Line %d) - @%s\n", i+1, thread.ID, thread.Line, thread.Author)
+		}
+		os.Exit(1)
+	}
+
+	// Get context and format output
+	ctx := getCommentContext(foundComment, doc.Content)
+	output := formatCommentWithContext(foundComment, ctx, *withReplies)
+
+	fmt.Print(output)
 }
 
 // filterCommentsByType filters comments by type prefix ([Q], [S], [B], [T], [E])
@@ -821,6 +895,7 @@ Usage:
 Commands:
   view <file>                 Open interactive TUI viewer
   list <file> [flags]         List all comments in a file
+  get <file> [flags]          Get detailed comment with context
   add <file> [flags]          Add a comment to a specific line
   batch-add <file> [flags]    Add multiple comments from JSON
   reply <file> [flags]        Reply to a comment thread
@@ -842,6 +917,11 @@ List Command Flags:
   --line-range <range>        Filter by line range (e.g., 10-30)
   --sort <field>              Sort by: line (default), timestamp, author
   --format <format>           Output format: text (default), json, table
+  --with-context              Include document context for each comment
+
+Get Command Flags:
+  --thread <id>               Thread ID to retrieve (required)
+  --with-replies              Include replies in output (default: true)
 
 Add Command Flags:
   --line <number>             Line number (required)
@@ -911,6 +991,12 @@ Examples:
   comments list document.md --author alice --type Q      # Alice's questions
   comments list document.md --format table               # Pretty table output
   comments list document.md --format json > output.json  # Export filtered results
+  comments list document.md --with-context               # Show all comments with document context
+  comments list document.md --type Q --with-context      # Show questions with context (great for LLMs!)
+
+  # Get detailed comment with context
+  comments get document.md --thread c123                 # Get comment with full context
+  comments get document.md --thread c456 --with-replies=false  # Get without replies
 
   # Single comment (author required for CLI)
   comments add document.md --line 10 --author "claude" --text "This needs review"

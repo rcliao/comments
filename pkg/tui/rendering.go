@@ -149,10 +149,11 @@ func (m *Model) renderDocumentWithCursor() string {
 		// Highlight cursor line
 		cursor := "  "
 		isSelected := lineNum == m.selectedLine
+		inRange := m.rangeActive && lineNum >= m.rangeStartLine && lineNum <= m.rangeEndLine
 
-		// Apply markdown syntax highlighting (only if not selected, as cursor style will override)
+		// Apply markdown syntax highlighting (only if not selected/in range, as cursor/range style will override)
 		styledLine := line
-		if !isSelected {
+		if !isSelected && !inRange {
 			styledLine = styleMarkdownLine(line)
 		}
 
@@ -164,6 +165,9 @@ func (m *Model) renderDocumentWithCursor() string {
 				if isSelected {
 					cursor = cursorStyle.Render("▶")
 					wrappedLine = cursorStyle.Render(wrappedLine)
+				} else if inRange {
+					cursor = rangeMarkerStyle.Render("│")
+					wrappedLine = selectedLineStyle.Render(wrappedLine)
 				}
 				rendered.WriteString(fmt.Sprintf("%s %s %s %s\n", cursor, lineNumStr, marker, wrappedLine))
 			} else {
@@ -172,6 +176,9 @@ func (m *Model) renderDocumentWithCursor() string {
 				if isSelected {
 					displayCursor = cursorStyle.Render("  ")
 					wrappedLine = cursorStyle.Render(wrappedLine)
+				} else if inRange {
+					displayCursor = rangeMarkerStyle.Render("│ ")
+					wrappedLine = selectedLineStyle.Render(wrappedLine)
 				}
 				rendered.WriteString(fmt.Sprintf("%s %s %s %s\n", displayCursor, strings.Repeat(" ", 4), "  ", wrappedLine))
 			}
@@ -255,9 +262,18 @@ func (m *Model) renderComments() string {
 			}
 		}
 
+		// Build location string with section context
+		locationStr := fmt.Sprintf("Line %d", c.Line)
+		icon := "💬"
+		if c.SectionPath != "" {
+			locationStr = fmt.Sprintf("%s (Line %d)", c.SectionPath, c.Line)
+			icon = "📍"
+		}
+
 		if c.Resolved {
-			commentText = fmt.Sprintf("✓ Line %d • @%s%s\n%s\n%s\n└─ %d replies",
-				c.Line,
+			commentText = fmt.Sprintf("✓ %s %s • @%s%s\n%s\n%s\n└─ %d replies",
+				icon,
+				locationStr,
 				c.Author,
 				suggestionIndicator,
 				c.Timestamp.Format("2006-01-02 15:04"),
@@ -265,8 +281,9 @@ func (m *Model) renderComments() string {
 				replyCount,
 			)
 		} else {
-			commentText = fmt.Sprintf("Line %d • @%s%s\n%s\n%s\n└─ %d replies",
-				c.Line,
+			commentText = fmt.Sprintf("%s %s • @%s%s\n%s\n%s\n└─ %d replies",
+				icon,
+				locationStr,
 				c.Author,
 				suggestionIndicator,
 				c.Timestamp.Format("2006-01-02 15:04"),
@@ -290,9 +307,16 @@ func (m *Model) renderThread() string {
 
 	var rendered strings.Builder
 
-	// Thread header
+	// Thread header with section context
+	locationStr := fmt.Sprintf("Line %d", m.selectedThread.Line)
+	icon := "💬"
+	if m.selectedThread.SectionPath != "" {
+		locationStr = fmt.Sprintf("%s (Line %d)", m.selectedThread.SectionPath, m.selectedThread.Line)
+		icon = "📍"
+	}
+
 	rendered.WriteString(lipgloss.NewStyle().Bold(true).Render(
-		fmt.Sprintf("Thread at Line %d\n", m.selectedThread.Line)))
+		fmt.Sprintf("%s Thread at %s\n", icon, locationStr)))
 	rendered.WriteString("\n")
 
 	// Document context - show lines around the comment
@@ -513,4 +537,103 @@ func (m *Model) getContextLines(lineNum int, contextSize int) []ContextLine {
 	}
 
 	return result
+}
+
+// getSectionContext returns section-aware context for a line
+func (m *Model) getSectionContext(lineNum int) string {
+	if m.doc == nil || m.documentSections == nil {
+		return ""
+	}
+
+	var contextText strings.Builder
+	lines := strings.Split(m.doc.Content, "\n")
+
+	// Get section for this line
+	section := m.getSectionAtLine(lineNum)
+	if section == nil {
+		// No section found, fall back to simple line context
+		return ""
+	}
+
+	// Styles
+	sectionStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("39")).
+		Bold(true)
+	
+	headingStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("170")).
+		Bold(true)
+	
+	lineNumStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240"))
+	
+	highlightStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("235")).
+		Foreground(lipgloss.Color("255")).
+		Bold(true)
+	
+	dimStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("242"))
+
+	// Show section path
+	sectionPath := m.getSectionPath(section)
+	contextText.WriteString(sectionStyle.Render("📍 Section: "))
+	contextText.WriteString(sectionPath)
+	contextText.WriteString("\n\n")
+
+	// Show the heading line
+	if section.StartLine > 0 && section.StartLine <= len(lines) {
+		headingLine := lines[section.StartLine-1]
+		contextText.WriteString(headingStyle.Render(headingLine))
+		contextText.WriteString("\n")
+		contextText.WriteString(dimStyle.Render(fmt.Sprintf("(lines %d-%d)", section.StartLine, section.EndLine)))
+		contextText.WriteString("\n\n")
+	}
+
+	// Show context around target line within section
+	// Show a few lines before and after the target, but stay within section bounds
+	contextSize := 2
+	start := lineNum - contextSize
+	if start < section.StartLine {
+		start = section.StartLine
+	}
+	end := lineNum + contextSize
+	if end > section.EndLine {
+		end = section.EndLine
+	}
+
+	// Skip heading line if we're showing section content
+	if start == section.StartLine && lineNum != section.StartLine {
+		start++
+	}
+
+	// Show ellipsis if we're skipping lines after heading
+	if start > section.StartLine+1 {
+		contextText.WriteString(dimStyle.Render("    ...\n"))
+	}
+
+	for i := start; i <= end && i <= len(lines); i++ {
+		lineText := ""
+		if i > 0 && i <= len(lines) {
+			lineText = lines[i-1]
+		}
+		
+		linePrefix := fmt.Sprintf("%4d │ ", i)
+		if i == lineNum {
+			// Highlight the target line
+			contextText.WriteString(lineNumStyle.Bold(true).Render(linePrefix))
+			contextText.WriteString(highlightStyle.Render(lineText))
+		} else {
+			contextText.WriteString(lineNumStyle.Render(linePrefix))
+			contextText.WriteString(lineText)
+		}
+		contextText.WriteString("\n")
+	}
+
+	// Show ellipsis if there's more content in the section
+	if end < section.EndLine {
+		contextText.WriteString(dimStyle.Render("    ...\n"))
+	}
+
+	return contextText.String()
 }
