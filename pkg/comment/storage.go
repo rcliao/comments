@@ -82,35 +82,36 @@ func LoadFromSidecar(mdPath string) (*DocumentWithComments, error) {
 	doc.DocumentHash = storage.DocumentHash
 	doc.LastValidated = storage.LastValidated
 
-	// Validate the sidecar against the current document
-	isValid, issues, err := ValidateSidecar(doc)
-	if err != nil {
-		return nil, fmt.Errorf("validation error: %w", err)
-	}
+	// Migrate old format comments to new format (adds default values for Status, Priority, etc.)
+	doc.MigrateDocument()
 
-	// If validation failed, archive stale sidecar and return empty document
-	if !isValid {
-		// Archive the stale sidecar
-		if err := ArchiveStaleSidecar(mdPath); err != nil {
-			// Log warning but continue with empty document
-			fmt.Fprintf(os.Stderr, "Warning: Failed to archive stale sidecar: %v\n", err)
-		} else {
-			fmt.Fprintf(os.Stderr, "Warning: Sidecar file is stale and has been archived\n")
-			fmt.Fprintf(os.Stderr, "%s\n", FormatValidationIssues(issues))
+	// Validate comments and mark orphaned ones (granular validation)
+	orphanedCount, issues := ValidateAndUpdateCommentStatus(doc)
+
+	// Report validation results to user
+	if orphanedCount > 0 {
+		fmt.Fprintf(os.Stderr, "Warning: %d comment(s) marked as orphaned due to document changes\n", orphanedCount)
+		fmt.Fprintf(os.Stderr, "%s\n", FormatValidationIssues(issues))
+		fmt.Fprintf(os.Stderr, "Use './comments list --status orphaned' to view orphaned comments\n")
+	} else if len(issues) > 0 {
+		// Report non-orphaning issues (like section moves)
+		for _, issue := range issues {
+			if issue.Severity == "info" {
+				fmt.Fprintf(os.Stderr, "Info: %s\n", issue.Message)
+			}
 		}
-
-		// Return empty document with current hash
-		return &DocumentWithComments{
-			Content:       content,
-			Threads:       []*Comment{},
-			DocumentHash:  contentHash,
-			LastValidated: time.Now(),
-		}, nil
 	}
 
 	// Update hash and timestamp to current values
 	doc.DocumentHash = contentHash
 	doc.LastValidated = time.Now()
+
+	// Save the updated sidecar with new statuses
+	if orphanedCount > 0 || len(issues) > 0 {
+		if err := SaveToSidecar(mdPath, doc); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Failed to save updated sidecar: %v\n", err)
+		}
+	}
 
 	return doc, nil
 }

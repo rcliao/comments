@@ -3,6 +3,7 @@ package comment
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/rcliao/comments/pkg/markdown"
 )
@@ -14,7 +15,95 @@ type ValidationIssue struct {
 	CommentID string // Optional: which comment has the issue
 }
 
+// ValidateAndUpdateCommentStatus validates comments and marks orphaned ones (granular validation)
+// This is the new approach that preserves comments across document modifications
+// Returns: number of comments orphaned, validation issues
+func ValidateAndUpdateCommentStatus(doc *DocumentWithComments) (int, []ValidationIssue) {
+	issues := []ValidationIssue{}
+	orphanedCount := 0
+
+	// Check 1: Document hash - if mismatch, validate individual comments
+	expectedHash := ComputeDocumentHash(doc.Content)
+	hashMismatch := doc.DocumentHash != expectedHash
+
+	if hashMismatch {
+		issues = append(issues, ValidationIssue{
+			Severity: "warning",
+			Message:  "Document has been modified - validating individual comments",
+		})
+	}
+
+	lines := strings.Split(doc.Content, "\n")
+	lineCount := len(lines)
+
+	// Parse document structure for section validation
+	docStructure := markdown.ParseDocument(doc.Content)
+
+	// Validate each comment individually
+	allComments := doc.GetAllComments()
+	for _, comment := range allComments {
+		// Skip already orphaned/completed comments
+		if comment.IsOrphaned() || comment.IsCompleted() {
+			continue
+		}
+
+		orphanReason := ""
+
+		// Check line bounds
+		if comment.Line < 1 {
+			orphanReason = fmt.Sprintf("Invalid line number: %d", comment.Line)
+		} else if comment.Line > lineCount {
+			orphanReason = fmt.Sprintf("Line %d out of bounds (document has %d lines)", comment.Line, lineCount)
+		}
+
+		// Check section paths (if comment is section-based)
+		if orphanReason == "" && comment.SectionPath != "" {
+			section := docStructure.FindSection(comment.SectionPath)
+			if section == nil {
+				orphanReason = fmt.Sprintf("Section '%s' no longer exists", comment.SectionPath)
+			} else if section.StartLine != comment.Line {
+				// Section exists but moved - update line position
+				comment.OriginalLine = comment.Line
+				comment.Line = section.StartLine
+				issues = append(issues, ValidationIssue{
+					Severity:  "info",
+					Message:   fmt.Sprintf("Section '%s' moved from line %d to %d", comment.SectionPath, comment.OriginalLine, comment.Line),
+					CommentID: comment.ID,
+				})
+			}
+		}
+
+		// Check suggestion line ranges
+		if orphanReason == "" && comment.IsSuggestion {
+			if comment.StartLine > lineCount || comment.EndLine > lineCount {
+				orphanReason = fmt.Sprintf("Suggestion line range %d-%d out of bounds (document has %d lines)", comment.StartLine, comment.EndLine, lineCount)
+			}
+		}
+
+		// Mark comment as orphaned if validation failed
+		if orphanReason != "" {
+			now := time.Now()
+			comment.Status = "orphaned"
+			comment.OrphanedReason = orphanReason
+			comment.OrphanedAt = &now
+			if comment.OriginalLine == 0 {
+				comment.OriginalLine = comment.Line
+			}
+
+			orphanedCount++
+			issues = append(issues, ValidationIssue{
+				Severity:  "warning",
+				Message:   fmt.Sprintf("Comment orphaned: %s", orphanReason),
+				CommentID: comment.ID,
+			})
+		}
+	}
+
+	return orphanedCount, issues
+}
+
 // ValidateSidecar checks if the sidecar is still valid for the current document
+// DEPRECATED: Use ValidateAndUpdateCommentStatus for granular validation
 // Returns: isValid, issues, error
 func ValidateSidecar(doc *DocumentWithComments) (bool, []ValidationIssue, error) {
 	issues := []ValidationIssue{}

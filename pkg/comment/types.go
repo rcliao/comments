@@ -24,6 +24,13 @@ type Comment struct {
 	// State
 	Resolved bool // Whether the comment/thread has been resolved
 
+	// Status tracking (for TODO/task management)
+	Status         string     // Comment status: "active", "orphaned", "resolved", "completed"
+	Priority       string     // Priority level: "low", "medium", "high" (default: "medium")
+	OriginalLine   int        // Original line where comment was first attached (preserved for orphaned comments)
+	OrphanedReason string     // Explanation of why comment was orphaned (empty if active)
+	OrphanedAt     *time.Time // Timestamp when comment was marked as orphaned (nil if never orphaned)
+
 	// Thread structure (nested replies)
 	Replies []*Comment // Nested replies to this comment (empty for leaf comments)
 
@@ -82,6 +89,40 @@ func (c *Comment) LatestTimestamp() time.Time {
 		}
 	}
 	return latest
+}
+
+// Status management methods
+
+// IsActive returns true if the comment is active (attached to valid position)
+func (c *Comment) IsActive() bool {
+	status := c.GetStatus()
+	return status == "active"
+}
+
+// IsOrphaned returns true if the comment's position is no longer valid
+func (c *Comment) IsOrphaned() bool {
+	return c.Status == "orphaned"
+}
+
+// IsCompleted returns true if the comment/task has been marked as completed
+func (c *Comment) IsCompleted() bool {
+	return c.Status == "completed"
+}
+
+// GetStatus returns the comment status with default "active" for backward compatibility
+func (c *Comment) GetStatus() string {
+	if c.Status == "" {
+		return "active"
+	}
+	return c.Status
+}
+
+// GetPriority returns the comment priority with default "medium"
+func (c *Comment) GetPriority() string {
+	if c.Priority == "" {
+		return "medium"
+	}
+	return c.Priority
 }
 
 // Position represents the location of a comment in a document (v2.0 simplified)
@@ -152,4 +193,74 @@ func findInReplies(replies []*Comment, id string) *Comment {
 		}
 	}
 	return nil
+}
+
+// GetActiveComments returns all comments with status "active"
+func (d *DocumentWithComments) GetActiveComments() []*Comment {
+	return d.GetCommentsByStatus("active")
+}
+
+// GetOrphanedComments returns all comments with status "orphaned"
+func (d *DocumentWithComments) GetOrphanedComments() []*Comment {
+	return d.GetCommentsByStatus("orphaned")
+}
+
+// GetCompletedComments returns all comments with status "completed"
+func (d *DocumentWithComments) GetCompletedComments() []*Comment {
+	return d.GetCommentsByStatus("completed")
+}
+
+// GetCommentsByStatus returns all comments (roots + replies) with the given status
+func (d *DocumentWithComments) GetCommentsByStatus(status string) []*Comment {
+	filtered := []*Comment{}
+	for _, comment := range d.GetAllComments() {
+		if comment.GetStatus() == status {
+			filtered = append(filtered, comment)
+		}
+	}
+	return filtered
+}
+
+// GetCommentsByPriority returns all comments with the given priority
+func (d *DocumentWithComments) GetCommentsByPriority(priority string) []*Comment {
+	filtered := []*Comment{}
+	for _, comment := range d.GetAllComments() {
+		if comment.GetPriority() == priority {
+			filtered = append(filtered, comment)
+		}
+	}
+	return filtered
+}
+
+// Migration helpers for upgrading old sidecars to new format
+
+// MigrateComment updates a comment to the new format with status/priority fields
+// This is called when loading old sidecars that don't have the new fields
+func MigrateComment(c *Comment) {
+	// Set default status if empty
+	if c.Status == "" {
+		c.Status = "active"
+	}
+
+	// Set default priority if empty
+	if c.Priority == "" {
+		c.Priority = "medium"
+	}
+
+	// Preserve original line position
+	if c.OriginalLine == 0 && c.Line > 0 {
+		c.OriginalLine = c.Line
+	}
+
+	// Recursively migrate all replies
+	for _, reply := range c.Replies {
+		MigrateComment(reply)
+	}
+}
+
+// MigrateDocument migrates all comments in a document to the new format
+func (d *DocumentWithComments) MigrateDocument() {
+	for _, thread := range d.Threads {
+		MigrateComment(thread)
+	}
 }

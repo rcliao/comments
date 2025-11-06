@@ -44,7 +44,9 @@ type Model struct {
 	showResolved       bool
 
 	// Input state
-	author string // User name for comments
+	author      string // User name for comments
+	priority    string // Priority for new comment: low, medium (default), high
+	commentType string // Type for new comment: Q, S, B, T, E, or empty for no type
 
 	// Section input support
 	targetIsSection bool // True if user wants to comment on section, false for line only
@@ -93,6 +95,8 @@ func NewModel() Model {
 		commentInput:      ta,
 		proposedTextInput: proposedTA,
 		author:            author,
+		priority:          "medium",
+		commentType:       "",
 		showResolved:      false,
 		startedWithFile:   false,
 	}
@@ -120,6 +124,8 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 		commentInput:      ta,
 		proposedTextInput: proposedTA,
 		author:            author,
+		priority:          "medium",
+		commentType:       "",
 		showResolved:      false,
 		startedWithFile:   true,
 	}
@@ -615,6 +621,43 @@ func (m Model) handleAddCommentKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Cancel comment creation
 		m.mode = ModeLineSelect
 		m.commentInput.Reset()
+		// Reset priority and type to defaults
+		m.priority = "medium"
+		m.commentType = ""
+		return m, nil
+
+	case "ctrl+p":
+		// Cycle priority: medium -> high -> low -> medium
+		switch m.priority {
+		case "medium":
+			m.priority = "high"
+		case "high":
+			m.priority = "low"
+		case "low":
+			m.priority = "medium"
+		default:
+			m.priority = "medium"
+		}
+		return m, nil
+
+	case "ctrl+t":
+		// Cycle type: none -> Q -> S -> B -> T -> E -> none
+		switch m.commentType {
+		case "":
+			m.commentType = "Q"
+		case "Q":
+			m.commentType = "S"
+		case "S":
+			m.commentType = "B"
+		case "B":
+			m.commentType = "T"
+		case "T":
+			m.commentType = "E"
+		case "E":
+			m.commentType = ""
+		default:
+			m.commentType = ""
+		}
 		return m, nil
 
 	case "ctrl+s":
@@ -624,11 +667,25 @@ func (m Model) handleAddCommentKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Empty comment, just cancel
 			m.mode = ModeLineSelect
 			m.commentInput.Reset()
+			// Reset priority and type to defaults
+			m.priority = "medium"
+			m.commentType = ""
 			return m, nil
 		}
 
-		// Create new comment
-		newComment := comment.NewComment(m.author, m.selectedLine, text)
+		// Create new comment with type if specified
+		var newComment *comment.Comment
+		if m.commentType != "" {
+			// Auto-prefix text with type like CLI does
+			commentText := "[" + m.commentType + "] " + text
+			newComment = comment.NewCommentWithType(m.author, m.selectedLine, commentText, m.commentType)
+		} else {
+			newComment = comment.NewComment(m.author, m.selectedLine, text)
+		}
+
+		// Set priority and status
+		newComment.Priority = m.priority
+		newComment.Status = "active"
 
 		// Add section metadata if targeting section
 		if m.targetIsSection {
@@ -647,9 +704,11 @@ func (m Model) handleAddCommentKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.documentViewport.SetContent(m.renderDocumentWithCursor())
 		m.commentViewport.SetContent(m.renderComments())
 
-		// Return to line select mode
+		// Return to line select mode and reset to defaults
 		m.mode = ModeLineSelect
 		m.commentInput.Reset()
+		m.priority = "medium"
+		m.commentType = ""
 		return m, nil
 	}
 
@@ -1148,14 +1207,34 @@ func (m Model) viewAddComment() string {
 		contextText = builder.String()
 	}
 
-	// Comment type reminder
-	typeReminderStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("242")).
-		Italic(true)
+	// Current selection display
+	selectionStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("170")).
+		Bold(true)
 
-	typeReminder := typeReminderStyle.Render(
-		"Tip: Use type prefixes: [Q] Question • [S] Suggestion • [B] Blocker • [T] Technical • [E] Editorial",
-	)
+	priorityLabel := selectionStyle.Render(fmt.Sprintf("Priority: %s", strings.ToUpper(m.priority)))
+
+	typeLabel := "None"
+	if m.commentType != "" {
+		typeLabel = fmt.Sprintf("[%s]", m.commentType)
+		switch m.commentType {
+		case "Q":
+			typeLabel += " Question"
+		case "S":
+			typeLabel += " Suggestion"
+		case "B":
+			typeLabel += " Bug"
+		case "T":
+			typeLabel += " TODO"
+		case "E":
+			typeLabel += " Enhancement"
+		}
+	}
+	typeDisplay := selectionStyle.Render(fmt.Sprintf("Type: %s", typeLabel))
+
+	selectionInfo := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("242")).
+		Render(fmt.Sprintf("%s  •  %s", priorityLabel, typeDisplay))
 
 	// Modal overlay for comment input
 	var titleText string
@@ -1175,7 +1254,7 @@ func (m Model) viewAddComment() string {
 		Foreground(lipgloss.Color("170")).
 		Render(titleText)
 
-	modalHelp := helpStyle.Render("Ctrl+S: save • Esc: cancel")
+	modalHelp := helpStyle.Render("Ctrl+S: save • Ctrl+P: cycle priority • Ctrl+T: cycle type • Esc: cancel")
 
 	modal := modalOverlayStyle.Render(
 		lipgloss.JoinVertical(
@@ -1186,7 +1265,7 @@ func (m Model) viewAddComment() string {
 			"",
 			m.commentInput.View(),
 			"",
-			typeReminder,
+			selectionInfo,
 			"",
 			modalHelp,
 		),
