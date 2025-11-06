@@ -37,5 +37,5 @@ Thumbs.db
 *.tmp
 *.bak
 
-# Application binary
-comments
+# Application binary (root directory only)
+/comments
