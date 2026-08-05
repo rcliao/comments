@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "documentHash": "94bc094a1e607d98b0987c6d9ef57b2129e882847b876ba01622d54d96d8b849",
-  "lastValidated": "2026-08-05T16:00:16.665994-07:00",
+  "lastValidated": "2026-08-05T16:10:24.228514-07:00",
   "threads": [
     {
       "ID": "ceqp4",
@@ -1126,12 +1126,105 @@
       "OriginalText": "",
       "ProposedText": "",
       "Accepted": null
+    },
+    {
+      "ID": "cyidb",
+      "Author": "rcliao",
+      "Timestamp": "2026-08-05T16:08:04.176918-07:00",
+      "Text": "Reading is not necessary tiring given I often need to review the agent prompt/replies anyway",
+      "Type": "",
+      "Line": 7,
+      "SectionID": "",
+      "SectionPath": "",
+      "Anchor": {
+        "selected_text": "- **Reading raw markdown is tiring.** Headings are styled, but body prose shows `**bold**`, `` `code` ``, and list syntax verbatim — reviewers parse markup instead of reading. Review here is mostly *design docs*, not source code: prose comfort is the primary need (decided in review).",
+        "context_after": "- **No review motions.** Getting to \"the next thing needing my attention\" takes line-by-line cursoring; there is no next-open-comment jump, no TOC, no way to triage a long spec section by section."
+      },
+      "AnchorConfidence": "exact",
+      "Resolved": false,
+      "Blocking": false,
+      "Status": "active",
+      "Priority": "medium",
+      "OriginalLine": 7,
+      "OrphanedReason": "",
+      "OrphanedAt": null,
+      "Replies": [
+        {
+          "ID": "cb8kj",
+          "Author": "rcliao",
+          "Timestamp": "2026-08-05T16:08:32.656738-07:00",
+          "Text": "the problem is more of how do we track the conversation thread/branch withing the doc (which I hope comments to be able to resolve)",
+          "Type": "",
+          "Line": 7,
+          "SectionID": "",
+          "SectionPath": "",
+          "Anchor": {
+            "selected_text": "- **Reading raw markdown is tiring.** Headings are styled, but body prose shows `**bold**`, `` `code` ``, and list syntax verbatim — reviewers parse markup instead of reading. Review here is mostly *design docs*, not source code: prose comfort is the primary need (decided in review).",
+            "context_after": "- **No review motions.** Getting to \"the next thing needing my attention\" takes line-by-line cursoring; there is no next-open-comment jump, no TOC, no way to triage a long spec section by section."
+          },
+          "AnchorConfidence": "exact",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "active",
+          "Priority": "medium",
+          "OriginalLine": 7,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        },
+        {
+          "ID": "ckvoo",
+          "Author": "claude",
+          "Timestamp": "2026-08-05T16:10:24.2282-07:00",
+          "Text": "Important reframe, noted: reading comfort is secondary — the core problem is tracking conversation threads/branches within the doc. This reprioritizes implementation: thread navigation/tracking (motions, sidebar, thread history) ahead of rendered mode. Will reflect in the doc next round.",
+          "Type": "",
+          "Line": 7,
+          "SectionID": "",
+          "SectionPath": "",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "",
+          "Priority": "",
+          "OriginalLine": 0,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
+      "IsSuggestion": false,
+      "StartLine": 0,
+      "EndLine": 0,
+      "OriginalText": "",
+      "ProposedText": "",
+      "Accepted": null
     }
   ],
   "reviews": [
     {
       "author": "rcliao",
       "timestamp": "2026-08-05T16:00:16.665643-07:00",
+      "decision": "approved"
+    },
+    {
+      "author": "rcliao",
+      "timestamp": "2026-08-05T16:07:16.668194-07:00",
+      "decision": "approved"
+    },
+    {
+      "author": "rcliao",
+      "timestamp": "2026-08-05T16:09:30.480034-07:00",
       "decision": "approved"
     }
   ],
