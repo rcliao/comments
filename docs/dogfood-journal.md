@@ -6,6 +6,20 @@ Convention: newest entry first. Tag friction items `[friction]`, validated wins 
 
 ---
 
+## 2026-08-05 (night) — Foundation: commits, CI, TUI markers + first TUI/MCP tests
+
+**What we did:** Committed the day's arc (2 commits, each buildable), added CI, improved the document-pane gutter, and closed the two zero-test gaps.
+
+- `[win]` `pkg/mcp` now has real tests: a live client↔server session over the SDK's in-memory transport covers tool registration (17), snake_case round-trip, gate lifecycle, human-zone refusal, and reanchor. The `serve-mcp` startup panic class is now caught by `go test`, not by a human.
+- `[win]` `pkg/tui` has its first tests (6): gutter marker variants, grouping/badges, focus-follows-cursor, blocking/`~fuzzy` markers, document-order sorting — pure rendering functions made this cheap.
+- `[win]` Gutter markers now carry review state: `⛔N` for lines with unresolved blocking threads, `💬N` unresolved count (roots only — was inflated by replies), quiet `✓` for fully-resolved lines; decided suggestions no longer count as open.
+- `[win]` CI (GitHub Actions): build, vet, test, plus the full review-flow smoke (validate → seed → gate exit 10 → resolve → signoff → gate exit 0) — dry-run locally before committing.
+- `[friction]` Interactive TUI verification still pending a human pass — rendering is tested, feel is not.
+
+**State at entry close:** all packages tested and green; interactive TUI check + SDD integration recipes are next.
+
+---
+
 ## 2026-08-05 (evening) — MCP 2026-07-28 spec + dead-code trim
 
 **What we did:** Upgraded the MCP go-sdk v1.1.0 → v1.7.0-pre.1 (the 2026-07-28 stateless-spec beta) and trimmed the CLI to the recommended flow (agent drafts → seed → human `view` review → agent processes → gate unblocks → implement).

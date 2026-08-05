@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Review-flow smoke test
+        run: |
+          set -e
+          go build -o comments ./cmd/comments
+          printf '# Doc\n\n## Problem\n\nIt is slow.\n\n## Goals / Non-Goals\n\nFaster. Non-goal: rewrite.\n\n## Proposed Design\n\nCache.\n\n## Options Considered\n\n### Option 1: Cache (recommended)\n\nGood.\n\n### Option 2: Rewrite\n\nBig.\n\n## Risks\n\nStaleness: accepted.\n\n## Unresolved Questions\n\nNone.\n' > /tmp/ci-doc.md
+          ./comments validate /tmp/ci-doc.md --template design-doc
+          ./comments seed /tmp/ci-doc.md --template design-doc
+          # gate must fail (exit 10) while seeded blocking threads are open
+          if ./comments gate /tmp/ci-doc.md; then echo "gate should have failed"; exit 1; fi
+          for id in $(./comments list /tmp/ci-doc.md --format json 2>/dev/null | python3 -c "import json,sys; print(' '.join(c['id'] for c in json.load(sys.stdin)))"); do
+            ./comments resolve /tmp/ci-doc.md --thread "$id"
+          done
+          ./comments signoff /tmp/ci-doc.md --author ci
+          # gate must now pass
+          ./comments gate /tmp/ci-doc.md

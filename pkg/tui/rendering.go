@@ -72,6 +72,40 @@ func styleMarkdownLine(line string) string {
 	return line
 }
 
+// rootThreadsByLine groups root threads (not replies) by their anchor line
+func rootThreadsByLine(threads []*comment.Comment) map[int][]*comment.Comment {
+	byLine := map[int][]*comment.Comment{}
+	for _, t := range threads {
+		byLine[t.Line] = append(byLine[t.Line], t)
+	}
+	return byLine
+}
+
+// lineMarker builds the gutter marker for a line's threads: unresolved blocking
+// stands out, plain unresolved shows a count, fully-resolved lines get a quiet check
+func lineMarker(threads []*comment.Comment) string {
+	if len(threads) == 0 {
+		return "  "
+	}
+	unresolved, blocking := 0, false
+	for _, t := range threads {
+		if !t.Resolved && !(t.IsSuggestion && t.Accepted != nil) {
+			unresolved++
+			if t.Blocking {
+				blocking = true
+			}
+		}
+	}
+	switch {
+	case blocking:
+		return blockingMarkerStyle.Render(fmt.Sprintf("⛔%d", unresolved))
+	case unresolved > 0:
+		return commentMarkerStyle.Render(fmt.Sprintf("💬%d", unresolved))
+	default:
+		return resolvedMarkerStyle.Render("✓ ")
+	}
+}
+
 // renderDocument renders the document with line numbers and comment markers
 func (m *Model) renderDocument() string {
 	if m.doc == nil {
@@ -87,18 +121,14 @@ func (m *Model) renderDocument() string {
 		availableWidth = 40 // Minimum width
 	}
 
-	// Group comments by line (only root comments)
-	commentsByLine := comment.GroupCommentsByLine(m.doc.Threads)
+	// Group root threads by line (replies share the root's line)
+	commentsByLine := rootThreadsByLine(m.doc.Threads)
 
 	for i, line := range lines {
 		lineNum := i + 1
 		lineNumStr := lineNumberStyle.Render(fmt.Sprintf("%d", lineNum))
 
-		// Add comment marker if this line has comments
-		marker := "  "
-		if comments := commentsByLine[lineNum]; len(comments) > 0 {
-			marker = commentMarkerStyle.Render(fmt.Sprintf("💬%d", len(comments)))
-		}
+		marker := lineMarker(commentsByLine[lineNum])
 
 		// Apply markdown syntax highlighting
 		styledLine := styleMarkdownLine(line)
@@ -134,18 +164,14 @@ func (m *Model) renderDocumentWithCursor() string {
 		availableWidth = 40 // Minimum width
 	}
 
-	// Group comments by line
-	commentsByLine := comment.GroupCommentsByLine(m.doc.Threads)
+	// Group root threads by line
+	commentsByLine := rootThreadsByLine(m.doc.Threads)
 
 	for i, line := range lines {
 		lineNum := i + 1
 		lineNumStr := lineNumberStyle.Render(fmt.Sprintf("%d", lineNum))
 
-		// Add comment marker if this line has comments
-		marker := "  "
-		if comments := commentsByLine[lineNum]; len(comments) > 0 {
-			marker = commentMarkerStyle.Render(fmt.Sprintf("💬%d", len(comments)))
-		}
+		marker := lineMarker(commentsByLine[lineNum])
 
 		// Highlight cursor line
 		cursor := "  "

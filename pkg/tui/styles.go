@@ -39,6 +39,15 @@ var (
 				Foreground(lipgloss.Color("63")).
 				Bold(true)
 
+	// Gutter marker: unresolved blocking threads on this line
+	blockingMarkerStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("196")).
+				Bold(true)
+
+	// Gutter marker: all threads on this line resolved
+	resolvedMarkerStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("28"))
+
 	// Cursor (for line selection)
 	cursorStyle = lipgloss.NewStyle().
 			Background(lipgloss.Color("62")).
