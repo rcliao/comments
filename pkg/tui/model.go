@@ -281,11 +281,12 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.documentViewport.YOffset = 0
 		m.documentViewport.SetContent(m.renderDocumentWithCursor())
 		m.documentViewport.YOffset = 0 // Set again after content
+		m.refreshSidebar()
 		return m, nil
 
 	case "j", "down":
 		// Navigate comments
-		visibleComments := comment.GetVisibleComments(m.doc.Threads, m.showResolved)
+		visibleComments := m.visibleComments()
 		if m.selectedComment < len(visibleComments)-1 {
 			m.selectedComment++
 			m.commentViewport.SetContent(m.renderComments())
@@ -295,7 +296,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "k", "up":
-		visibleComments := comment.GetVisibleComments(m.doc.Threads, m.showResolved)
+		visibleComments := m.visibleComments()
 		if m.selectedComment > 0 {
 			m.selectedComment--
 			m.commentViewport.SetContent(m.renderComments())
@@ -306,7 +307,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "enter":
 		// Expand selected comment thread
-		visibleComments := comment.GetVisibleComments(m.doc.Threads, m.showResolved)
+		visibleComments := m.visibleComments()
 		if len(visibleComments) > 0 && m.selectedComment < len(visibleComments) {
 			selectedThread := visibleComments[m.selectedComment]
 			m.selectedThread = selectedThread
@@ -352,6 +353,7 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.selectedLine++
 			m.documentViewport.SetContent(m.renderDocumentWithCursor())
 			m.scrollToLine(m.selectedLine)
+			m.refreshSidebar()
 		}
 		return m, nil
 
@@ -361,6 +363,7 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.selectedLine--
 			m.documentViewport.SetContent(m.renderDocumentWithCursor())
 			m.scrollToLine(m.selectedLine)
+			m.refreshSidebar()
 		}
 		return m, nil
 
@@ -373,6 +376,7 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.documentViewport.SetContent(m.renderDocumentWithCursor())
 		m.scrollToLine(m.selectedLine)
+		m.refreshSidebar()
 		return m, nil
 
 	case "ctrl+u":
@@ -384,6 +388,7 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.documentViewport.SetContent(m.renderDocumentWithCursor())
 		m.scrollToLine(m.selectedLine)
+		m.refreshSidebar()
 		return m, nil
 
 	case "g":
@@ -398,6 +403,7 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.selectedLine = totalLines
 		m.documentViewport.SetContent(m.renderDocumentWithCursor())
 		m.scrollToLine(m.selectedLine)
+		m.refreshSidebar()
 		return m, nil
 
 	case "c", "enter":
@@ -1856,4 +1862,31 @@ func (m Model) viewSelectRange() string {
 		content,
 		helpText,
 	)
+}
+
+// refreshSidebar re-renders the comment sidebar around the current focus line
+// and scrolls the focused group into view (focus-follows-cursor, G3)
+func (m *Model) refreshSidebar() {
+	content := m.renderComments()
+	m.commentViewport.SetContent(content)
+
+	// Scroll the expanded ("▼") group into view
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if strings.Contains(line, "▼ ") {
+			offset := i - 2
+			if offset < 0 {
+				offset = 0
+			}
+			maxOffset := len(lines) - m.commentViewport.Height
+			if maxOffset < 0 {
+				maxOffset = 0
+			}
+			if offset > maxOffset {
+				offset = maxOffset
+			}
+			m.commentViewport.YOffset = offset
+			return
+		}
+	}
 }

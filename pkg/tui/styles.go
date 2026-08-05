@@ -34,6 +34,11 @@ var (
 	selectedCommentStyle = lipgloss.NewStyle().
 				Background(lipgloss.Color("237"))
 
+	// Sidebar group header (line + thread count badge)
+	groupHeaderStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("63")).
+				Bold(true)
+
 	// Cursor (for line selection)
 	cursorStyle = lipgloss.NewStyle().
 			Background(lipgloss.Color("62")).

@@ -54,7 +54,6 @@ go tool cover -html=coverage.out
 ./comments accept examples/sample.md --suggestion c123 --preview
 ./comments accept examples/sample.md --suggestion c123
 ./comments reject examples/sample.md --suggestion c456
-./comments batch-accept examples/sample.md --author "claude"
 
 # List with filters
 ./comments list examples/sample.md --author alice --format json
@@ -65,10 +64,6 @@ go tool cover -html=coverage.out
 ./comments batch-add examples/sample.md --json comments.json
 ./comments batch-reply examples/sample.md --json replies.json
 echo '[{"thread":"c123","author":"claude","text":"LGTM"}]' | ./comments batch-reply examples/sample.md --json -
-
-# LLM integration (requires ANTHROPIC_API_KEY)
-export ANTHROPIC_API_KEY=your_key
-./comments ask examples/sample.md --prompt "Explain this" --line 5
 
 # Section-based operations
 # Add comments by section instead of line number
@@ -83,7 +78,179 @@ export ANTHROPIC_API_KEY=your_key
 ./comments add doc.md --line 10 --author "claude" --text @comment.txt
 ./comments suggest doc.md --start-line 5 --end-line 8 --author "claude" \
   --text "Major refactor" --original @original.txt --proposed @proposed.txt
+
+# Review gate (for agent loops and CI)
+# Exit codes: 0 = approved, 10 = changes requested
+./comments add doc.md --line 10 --author "eric" --text "Fix this first" --blocking
+./comments gate doc.md                  # human-readable
+./comments gate doc.md --json           # machine-readable decision with context
+./comments gate specs/001-feature/      # aggregate over a directory
+./comments gate doc.md --strict         # any unresolved comment fails, not just blocking
+./comments signoff doc.md               # record a completed review pass (decision derived from gate)
+./comments signoff doc.md --decision changes_requested --note "see blocking comments"
+
+# Doc templates (guardrails for agent-written docs)
+./comments template list                       # built-ins: design-doc, adr, rfc (+ project templates in .comments/templates/)
+./comments template show design-doc
+./comments validate draft.md --template design-doc          # structural check, exit 1 on violations
+./comments validate draft.md --template design-doc --json
+./comments seed draft.md --template design-doc              # materialize review criteria + NEEDS CLARIFICATION markers as threads
+./comments gate draft.md                                    # gate now also validates against the recorded template
+
+# MCP Server (Model Context Protocol for LLM integration)
+./comments serve-mcp
 ```
+
+### Doc Templates (Review Guardrails)
+
+Templates constrain what an agent writes so humans can review it well. A template (YAML, built-in or in `.comments/templates/`) declares:
+
+- **Sections**: required headings (matched by title or path suffix), order, `max_words` caps (attacks LLM padding), `min_subsections` (e.g. "Options Considered" needs >= 2 alternatives).
+- **`zone: human`**: human-decision sections. Threads anchored there cannot be resolved by agents over MCP — the agent gets an error telling it to reply instead; only the human resolves (CLI/TUI).
+- **`review_criteria`**: per-section review checklist items; `comments seed` materializes them as blocking threads anchored at the section heading ("unit tests for the writing", Spec Kit checklist style).
+- **Markers**: every `[NEEDS CLARIFICATION: ...]` occurrence is a validation violation and seeds a blocking Q thread at that line — agents must flag ambiguity instead of guessing (Spec Kit convention).
+
+Workflow: agent reads the template (`comments_get_template`) as its writing brief → drafts → `comments_validate` and self-corrects structure → `comments_seed` → human review = resolving seeded/own threads → `comments gate` (validates structure + comment state; `seed` records the template in the sidecar so the gate picks it up automatically) → `signoff`.
+
+### Review Gate and Signoff
+
+The gate turns review state into a machine-readable contract for agent loops and SDD phase boundaries:
+
+- **Blocking comments**: `--blocking` on `add` (or `"blocking": true` in batch/MCP) marks a thread as gate-failing until resolved. Non-blocking comments are reported but don't fail the gate.
+- **`comments gate <file-or-dir>`**: exit 0 = approved, exit 10 = changes requested (revdiff/Plannotator convention). `--json` emits `{"decision", "files", "summary"}` with blocking/non-blocking/pending-suggestion lists and document context. `--strict` fails on any unresolved thread or pending suggestion.
+- **`comments signoff <file>`**: records a human review pass (`reviews` array in the sidecar) with a decision derived from the gate (or overridden via `--decision`). This is the signal `comments_request_review` waits for.
+- **Agent loop**: agent drafts → calls `comments_request_review` (MCP, blocks) → human reviews (`comments view`, `add --blocking`, etc.) → human runs `comments signoff` → agent receives decision + remaining comments → addresses them one at a time (see `skills/review-comments/SKILL.md`) → repeat until gate passes.
+
+### Model Context Protocol (MCP) Integration
+
+**Overview:** The `comments` tool provides a Model Context Protocol (MCP) server for seamless LLM integration. This enables LLMs like Claude to access documents, manage comments, and collaborate on document editing through a standardized protocol.
+
+**Starting the MCP Server:**
+
+```bash
+./comments serve-mcp
+```
+
+The server runs over stdio and exposes:
+- **2 Resources** (subscribable) for accessing documents and threads
+- **11 Tools** for all comment operations
+
+**MCP Resources:**
+
+Resources expose document data that LLMs can read and subscribe to:
+
+```
+comments://doc/{filepath}
+  - Returns: Full document with all comment threads
+  - Format: JSON with Content, Threads, DocumentHash, LastValidated
+  - Example: comments://doc/examples/sample.md
+
+comments://thread/{filepath}/{thread_id}
+  - Returns: Specific comment thread with all nested replies
+  - Format: JSON Comment object
+  - Example: comments://thread/examples/sample.md/c123
+```
+
+**MCP Tools:**
+
+All CLI operations are available as MCP tools with automatic JSON schema validation:
+
+*Read Operations:*
+- **comments_list** - List/filter comments (all filtering options: author, type, section, search, status, priority, line range)
+- **comments_get** - Get specific comment with context
+- **comments_status** - Get document status (pending suggestions, orphaned comments, staleness)
+
+*Write Operations:*
+- **comments_add** - Add root comment (by line or section)
+- **comments_reply** - Reply to thread
+- **comments_resolve** - Mark thread resolved/unresolved
+
+*Suggestion Operations:*
+- **comments_suggest** - Create multi-line edit suggestion
+- **comments_accept** - Accept suggestion (with preview option, applies changes to document)
+- **comments_reject** - Reject suggestion
+
+*Batch Operations:*
+- **comments_batch_add** - Bulk comment addition
+- **comments_batch_reply** - Bulk reply addition
+
+*Review Gate Operations:*
+- **comments_gate** - Evaluate review gate for a file or directory (approved / changes_requested)
+- **comments_request_review** - Block until the human records a signoff (`comments signoff`), then return the decision and remaining comments
+
+*Template Operations:*
+- **comments_get_template** - Read a template as a writing brief (or list templates)
+- **comments_validate** - Check document structure against a template before requesting review
+- **comments_seed** - Materialize template review criteria and ambiguity markers as anchored threads
+
+*Anchor Migration:*
+- **comments_reanchor** - After editing a commented document, migrate the anchors your edits displaced (batch comment_id → new line/section); required post-edit step for agents
+
+### Content Anchoring (v2.1)
+
+Comments carry a content `Anchor` (target line text + one line of context each side), captured automatically at creation. On document change, each comment re-anchors via a cascade: exact position → exact text search → normalized (whitespace/case-insensitive) search, labeled `anchor_confidence: fuzzy` → section-path fallback (`section-level`) → orphan. `add --line N` stores N exactly — comments no longer snap to section headings. Old sidecars get anchors backfilled lazily on load when the document hash matches. Comment IDs are short random base36 (`c7f3k`); existing long IDs stay valid, and `SaveToSidecar` guarantees uniqueness.
+
+**Example MCP Tool Usage:**
+
+```json
+// comments_list with filters
+{
+  "filepath": "examples/sample.md",
+  "author": "alice",
+  "type": "Q",
+  "resolved": false,
+  "with_context": true
+}
+
+// comments_add
+{
+  "filepath": "examples/sample.md",
+  "author": "claude",
+  "text": "Consider adding error handling here",
+  "line": 42,
+  "type": "S",
+  "priority": "high"
+}
+
+// comments_suggest
+{
+  "filepath": "examples/sample.md",
+  "author": "claude",
+  "text": "Improve error message clarity",
+  "start_line": 15,
+  "end_line": 17,
+  "original_text": "Error occurred",
+  "proposed_text": "Failed to process request: connection timeout"
+}
+
+// comments_batch_add
+{
+  "filepath": "examples/sample.md",
+  "comments": [
+    {"author": "claude", "text": "Great point!", "line": 10, "type": "Q"},
+    {"author": "claude", "text": "Add tests", "line": 25, "type": "T"}
+  ]
+}
+```
+
+**Integration with LLM Clients:**
+
+To use the MCP server with Claude or other LLM clients:
+
+1. Configure your MCP client to launch: `./comments serve-mcp`
+2. The client will communicate via stdio
+3. LLMs can now:
+   - Read documents with `comments://doc/{path}` resources
+   - Add comments and suggestions via tools
+   - Manage threads (reply, resolve)
+   - Accept/reject suggestions with automatic document updates
+
+**Benefits:**
+- **Structured Collaboration**: LLMs can add inline feedback instead of rewriting documents
+- **Track Changes**: Suggestions provide preview-before-apply workflow
+- **Context-Rich**: Section paths and surrounding lines provide better context
+- **Batch Efficient**: Bulk operations reduce round-trips
+- **Real-time**: Resource subscriptions notify of changes
 
 ### Section-Based Operations
 
@@ -161,10 +328,6 @@ The system follows a clear separation of concerns across three main layers:
    - **Modes**: State machine for different UI modes
    - **Rendering**: Pure functions that transform model state into terminal output
    - **Styles**: Centralized lipgloss styling definitions
-
-3. **LLM Integration Layer** (`pkg/llm/`)
-   - **Provider Interface**: Abstract LLM provider contract
-   - **Claude Provider**: Anthropic API implementation with context building and streaming
 
 ### Critical Architecture Patterns
 
@@ -311,11 +474,8 @@ pkg/
 │   ├── modes.go      # View mode state machine
 │   ├── rendering.go  # Pure rendering functions
 │   └── styles.go     # Lipgloss styling
-├── markdown/         # Markdown parsing
-│   └── parser.go     # ATX heading parser for section addressing
-└── llm/              # LLM provider integration
-    ├── types.go      # Provider interface
-    └── claude.go     # Anthropic implementation
+└── markdown/         # Markdown parsing
+    └── parser.go     # ATX heading parser for section addressing
 
 cmd/
 ├── comments/         # Main CLI application
@@ -415,22 +575,13 @@ func GroupCommentsByLine(threads []*Comment) map[int][]*Comment
 
 When mode changes, update the **active** viewport's content, not all viewports.
 
-### LLM Integration
+### Recommended Review Flow (the tool's core loop)
 
-**Context Building**: The LLM provider receives:
-```go
-type CompletionRequest struct {
-    DocumentContent  string
-    Comments         []*Comment
-    Prompt           string
-    ContextStartLine int
-    ContextEndLine   int
-    Temperature      float64
-    MaxTokens        int
-}
-```
-
-The provider is responsible for building the actual LLM prompt from this context.
+1. **Agent produces doc** under a template: read the brief (`comments_get_template`), draft, `comments validate` until structure is clean.
+2. **Seed** review threads: `comments seed` (template criteria + NEEDS CLARIFICATION markers become blocking threads; template recorded in sidecar).
+3. **Human reviews** in the TUI: `comments view <doc>` — walk threads, reply/resolve, add comments (`--blocking` for must-fix), then `comments signoff`.
+4. **Agent processes feedback** one comment at a time (see `skills/review-comments/SKILL.md`): reply/resolve/suggest, `comments_reanchor` after edits, re-request review.
+5. **Iterate until the gate unblocks**: `comments gate <doc>` exit 0 → implement.
 
 ## Testing Strategy
 
@@ -663,7 +814,6 @@ If threads show wrong structure in v2.0:
 
 ## Environment Variables
 
-- `ANTHROPIC_API_KEY`: Required for LLM integration (`ask` command)
 - `USER`: Used as default author name for comments (falls back to "user")
 
 ## Dependencies

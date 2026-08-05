@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -9,7 +8,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/rcliao/comments/pkg/comment"
-	"github.com/rcliao/comments/pkg/markdown"
 	"github.com/rcliao/comments/pkg/tui"
 )
 
@@ -100,33 +98,39 @@ func main() {
 		}
 		rejectCommand(os.Args[2], os.Args[3:])
 
-	case "batch-accept":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments batch-accept <file> [flags]")
-			os.Exit(1)
-		}
-		batchAcceptCommand(os.Args[2], os.Args[3:])
+	case "template":
+		templateCommand(os.Args[2:])
 
-	case "status":
+	case "validate":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments status <file> [flags]")
+			fmt.Println("Usage: comments validate <file> --template <name>")
 			os.Exit(1)
 		}
-		statusCommand(os.Args[2], os.Args[3:])
+		validateCommand(os.Args[2], os.Args[3:])
 
-	case "reattach":
+	case "seed":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments reattach <file> [flags]")
+			fmt.Println("Usage: comments seed <file> --template <name>")
 			os.Exit(1)
 		}
-		reattachCommand(os.Args[2], os.Args[3:])
+		seedCommand(os.Args[2], os.Args[3:])
 
-	case "cleanup":
+	case "gate":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments cleanup <file> [flags]")
+			fmt.Println("Usage: comments gate <file-or-dir> [flags]")
 			os.Exit(1)
 		}
-		cleanupCommand(os.Args[2], os.Args[3:])
+		gateCommand(os.Args[2], os.Args[3:])
+
+	case "signoff":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: comments signoff <file> [flags]")
+			os.Exit(1)
+		}
+		signoffCommand(os.Args[2], os.Args[3:])
+
+	case "serve-mcp":
+		serveMCPCommand()
 
 	case "help", "-h", "--help":
 		printUsage()
@@ -457,6 +461,7 @@ func addCommand(filename string, args []string) {
 	author := fs.String("author", "", "Author name (required)")
 	commentType := fs.String("type", "", "Comment type: Q, S, B, T, E (auto-prefixes text)")
 	priority := fs.String("priority", "medium", "Priority: low, medium, high (default: medium)")
+	blocking := fs.Bool("blocking", false, "Mark comment as blocking (must be resolved before gate passes)")
 
 	fs.Parse(args)
 
@@ -537,6 +542,7 @@ func addCommand(filename string, args []string) {
 	// Set priority
 	newComment.Priority = *priority
 	newComment.Status = "active"
+	newComment.Blocking = *blocking
 
 	// Compute section metadata for the new comment
 	comment.UpdateCommentSection(newComment, doc.Content)
@@ -898,331 +904,6 @@ func rejectCommand(filename string, args []string) {
 	fmt.Printf("✓ Suggestion %s rejected\n", *suggestionID)
 }
 
-func batchAcceptCommand(filename string, args []string) {
-	// Parse flags
-	fs := flag.NewFlagSet("batch-accept", flag.ExitOnError)
-	filterAuthor := fs.String("author", "", "Accept all suggestions by author")
-
-	fs.Parse(args)
-
-	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
-	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
-	}
-
-	var suggestionsToAccept []*comment.Comment
-
-	// Get suggestions by author filter
-	if *filterAuthor != "" {
-		suggestionsToAccept = comment.GetSuggestionsByAuthor(doc.Threads, *filterAuthor)
-	} else {
-		// Get all pending suggestions
-		suggestionsToAccept = comment.GetPendingSuggestions(doc.Threads)
-	}
-
-	if len(suggestionsToAccept) == 0 {
-		fmt.Println("No pending suggestions found matching criteria")
-		os.Exit(0)
-	}
-
-	fmt.Printf("Found %d pending suggestion(s) to accept\n", len(suggestionsToAccept))
-
-	// Apply each suggestion sequentially
-	acceptedCount := 0
-	for _, suggestion := range suggestionsToAccept {
-		// Apply suggestion
-		newContent, err := comment.ApplySuggestion(doc.Content, suggestion)
-		if err != nil {
-			fmt.Printf("⚠ Warning: Failed to apply suggestion %s: %v\n", suggestion.ID, err)
-			continue
-		}
-
-		// Update document content
-		doc.Content = newContent
-
-		// Mark as accepted
-		if err := comment.AcceptSuggestion(doc.Threads, suggestion.ID); err != nil {
-			fmt.Printf("⚠ Warning: Failed to mark suggestion %s as accepted: %v\n", suggestion.ID, err)
-			continue
-		}
-
-		// Recalculate comment lines after this edit
-		linesAdded := len(strings.Split(suggestion.ProposedText, "\n"))
-		comment.RecalculateCommentLines(doc.Threads, suggestion.StartLine, suggestion.EndLine, linesAdded)
-
-		acceptedCount++
-		fmt.Printf("  ✓ Accepted and applied %s\n", suggestion.ID)
-	}
-
-	// Save
-	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving document: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("\n✓ Successfully accepted and applied %d of %d suggestions\n", acceptedCount, len(suggestionsToAccept))
-}
-
-func statusCommand(filename string, args []string) {
-	// Parse flags
-	fs := flag.NewFlagSet("status", flag.ExitOnError)
-	commentID := fs.String("comment", "", "Comment ID to update (required)")
-	newStatus := fs.String("status", "", "New status: active, orphaned, resolved, completed (required)")
-
-	fs.Parse(args)
-
-	if *commentID == "" {
-		fmt.Println("Error: --comment flag is required")
-		fmt.Println("Usage: comments status <file> --comment <id> --status <status>")
-		os.Exit(1)
-	}
-
-	if *newStatus == "" {
-		fmt.Println("Error: --status flag is required")
-		fmt.Println("Valid statuses: active, orphaned, resolved, completed")
-		os.Exit(1)
-	}
-
-	// Validate status value
-	validStatuses := map[string]bool{
-		"active":    true,
-		"orphaned":  true,
-		"resolved":  true,
-		"completed": true,
-	}
-	if !validStatuses[*newStatus] {
-		fmt.Printf("Error: Invalid status '%s'\n", *newStatus)
-		fmt.Println("Valid statuses: active, orphaned, resolved, completed")
-		os.Exit(1)
-	}
-
-	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
-	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Find the comment
-	foundComment := doc.FindCommentByID(*commentID)
-	if foundComment == nil {
-		fmt.Printf("Error: Comment '%s' not found\n", *commentID)
-		os.Exit(1)
-	}
-
-	// Update status
-	oldStatus := foundComment.GetStatus()
-	foundComment.Status = *newStatus
-
-	// If changing from orphaned to active, clear orphaned metadata
-	if oldStatus == "orphaned" && *newStatus == "active" {
-		foundComment.OrphanedReason = ""
-		foundComment.OrphanedAt = nil
-	}
-
-	// Save changes
-	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving changes: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("Updated comment %s status: %s → %s\n", *commentID, oldStatus, *newStatus)
-}
-
-func reattachCommand(filename string, args []string) {
-	// Parse flags
-	fs := flag.NewFlagSet("reattach", flag.ExitOnError)
-	commentID := fs.String("comment", "", "Comment ID to reattach (required)")
-	newLine := fs.Int("line", 0, "New line number to attach to (required)")
-	sectionPath := fs.String("section", "", "Section path to attach to (alternative to --line)")
-
-	fs.Parse(args)
-
-	if *commentID == "" {
-		fmt.Println("Error: --comment flag is required")
-		fmt.Println("Usage: comments reattach <file> --comment <id> --line <num>")
-		fmt.Println("   or: comments reattach <file> --comment <id> --section <path>")
-		os.Exit(1)
-	}
-
-	if *newLine == 0 && *sectionPath == "" {
-		fmt.Println("Error: either --line or --section flag is required")
-		os.Exit(1)
-	}
-
-	if *newLine != 0 && *sectionPath != "" {
-		fmt.Println("Error: cannot specify both --line and --section")
-		os.Exit(1)
-	}
-
-	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
-	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Find the comment
-	foundComment := doc.FindCommentByID(*commentID)
-	if foundComment == nil {
-		fmt.Printf("Error: Comment '%s' not found\n", *commentID)
-		os.Exit(1)
-	}
-
-	// Determine target line
-	targetLine := *newLine
-	if *sectionPath != "" {
-		// Find section
-		docStructure := markdown.ParseDocument(doc.Content)
-		section := docStructure.FindSection(*sectionPath)
-		if section == nil {
-			fmt.Printf("Error: Section '%s' not found\n", *sectionPath)
-			fmt.Println("\nAvailable sections:")
-			for _, sec := range docStructure.Sections {
-				fmt.Printf("  - %s\n", sec.GetFullPath(docStructure.SectionsByID))
-			}
-			os.Exit(1)
-		}
-		targetLine = section.StartLine
-		foundComment.SectionID = section.ID
-		foundComment.SectionPath = section.GetFullPath(docStructure.SectionsByID)
-	}
-
-	// Validate line number
-	lines := strings.Split(doc.Content, "\n")
-	if targetLine < 1 || targetLine > len(lines) {
-		fmt.Printf("Error: Line %d out of bounds (document has %d lines)\n", targetLine, len(lines))
-		os.Exit(1)
-	}
-
-	// Reattach comment
-	oldLine := foundComment.Line
-	foundComment.Line = targetLine
-	foundComment.Status = "active"
-	foundComment.OrphanedReason = ""
-	foundComment.OrphanedAt = nil
-
-	// Save changes
-	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving changes: %v\n", err)
-		os.Exit(1)
-	}
-
-	locationStr := fmt.Sprintf("line %d", targetLine)
-	if *sectionPath != "" {
-		locationStr = fmt.Sprintf("section '%s' (line %d)", *sectionPath, targetLine)
-	}
-	fmt.Printf("Reattached comment %s: line %d → %s\n", *commentID, oldLine, locationStr)
-}
-
-func cleanupCommand(filename string, args []string) {
-	// Parse flags
-	fs := flag.NewFlagSet("cleanup", flag.ExitOnError)
-	dryRun := fs.Bool("dry-run", false, "Show what would be cleaned up without actually doing it")
-	statusFilter := fs.String("status", "completed", "Status to clean up (completed or resolved)")
-
-	fs.Parse(args)
-
-	// Validate status
-	if *statusFilter != "completed" && *statusFilter != "resolved" {
-		fmt.Println("Error: --status must be 'completed' or 'resolved'")
-		os.Exit(1)
-	}
-
-	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
-	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Find comments to clean up
-	var toCleanup []*comment.Comment
-	for _, c := range doc.GetAllComments() {
-		if c.GetStatus() == *statusFilter {
-			toCleanup = append(toCleanup, c)
-		}
-	}
-
-	if len(toCleanup) == 0 {
-		fmt.Printf("No %s comments to clean up\n", *statusFilter)
-		return
-	}
-
-	// Show what will be cleaned up
-	fmt.Printf("Found %d %s comment(s) to clean up:\n\n", len(toCleanup), *statusFilter)
-	for i, c := range toCleanup {
-		fmt.Printf("[%d] %s • @%s • Line %d\n", i+1, c.ID, c.Author, c.Line)
-		fmt.Printf("    %s\n\n", c.Text)
-	}
-
-	if *dryRun {
-		fmt.Println("Dry run - no changes made")
-		return
-	}
-
-	// Archive to separate file
-	sidecarPath := comment.GetSidecarPath(filename)
-	archivePath := strings.TrimSuffix(sidecarPath, ".json") + fmt.Sprintf(".archived.%s", *statusFilter)
-
-	// Load or create archive
-	var archive comment.StorageFormat
-	if archiveData, err := os.ReadFile(archivePath); err == nil {
-		json.Unmarshal(archiveData, &archive)
-	} else {
-		archive = comment.StorageFormat{
-			Version:       comment.StorageVersion,
-			Threads:       []*comment.Comment{},
-			DocumentHash:  doc.DocumentHash,
-			LastValidated: doc.LastValidated,
-		}
-	}
-
-	// Remove from doc.Threads and add to archive
-	cleanupIDs := make(map[string]bool)
-	for _, c := range toCleanup {
-		cleanupIDs[c.ID] = true
-		// Only add root comments to archive (replies are nested)
-		for _, thread := range doc.Threads {
-			if thread.ID == c.ID {
-				archive.Threads = append(archive.Threads, thread)
-				break
-			}
-		}
-	}
-
-	// Filter out cleaned up threads
-	var remainingThreads []*comment.Comment
-	for _, thread := range doc.Threads {
-		if !cleanupIDs[thread.ID] {
-			remainingThreads = append(remainingThreads, thread)
-		}
-	}
-	doc.Threads = remainingThreads
-
-	// Save updated sidecar
-	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving sidecar: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Save archive
-	archiveBytes, err := json.MarshalIndent(archive, "", "  ")
-	if err != nil {
-		fmt.Printf("Error creating archive: %v\n", err)
-		os.Exit(1)
-	}
-	if err := os.WriteFile(archivePath, archiveBytes, 0644); err != nil {
-		fmt.Printf("Error writing archive: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("✓ Cleaned up %d %s comment(s)\n", len(toCleanup), *statusFilter)
-	fmt.Printf("✓ Archived to: %s\n", archivePath)
-}
-
 func printUsage() {
 	usage := `comments - CLI tool for collaborative document commenting
 
@@ -1241,12 +922,12 @@ Commands:
   suggest <file> [flags]      Add an edit suggestion to a specific line
   accept <file> [flags]       Accept a suggestion and apply changes
   reject <file> [flags]       Reject a suggestion
-  batch-accept <file> [flags] Accept multiple suggestions at once
-  status <file> [flags]       Update comment status (active/orphaned/resolved/completed)
-  reattach <file> [flags]     Reattach an orphaned comment to a new line/section
-  cleanup <file> [flags]      Archive completed/resolved comments
-  export <file> [flags]       Export comments to JSON format
-  publish <file> [flags]      Output clean markdown without comments
+  gate <file-or-dir> [flags]  Evaluate review gate (exit 0 = approved, 10 = changes requested)
+  signoff <file> [flags]      Record a completed human review pass
+  template list|show <name>   List or inspect doc templates (guardrails for agent-written docs)
+  validate <file> [flags]     Check document structure against a template (exit 1 on violations)
+  seed <file> [flags]         Create review threads from a template's criteria and markers
+  serve-mcp                   Start Model Context Protocol server (for LLM integration)
   help                        Show this help message
 
 List Command Flags:
@@ -1273,6 +954,24 @@ Add Command Flags:
   --author <name>             Author name (required)
   --type <type>               Comment type: Q, S, B, T, E (auto-prefixes text)
   --priority <priority>       Priority: low, medium, high (default: medium)
+  --blocking                  Mark as blocking (must be resolved before gate passes)
+
+Gate Command Flags:
+  --json                      Output machine-readable JSON decision
+  --strict                    Fail on any unresolved comment or pending suggestion
+  --context <n>               Lines of context around each comment (default: 2)
+  --template <name>           Also validate structure against a template (defaults to sidecar record)
+
+Validate/Seed Command Flags:
+  --template <name>           Template name (defaults to template recorded in sidecar)
+  --json                      (validate) Output violations as JSON
+  --author <name>             (seed) Author for seeded threads (default: template)
+
+Signoff Command Flags:
+  --author <name>             Reviewer name (defaults to $USER)
+  --decision <decision>       Override: approved or changes_requested (default: derived from gate)
+  --note <text>               Optional review note
+  --strict                    Derive decision using strict gate rules
 
 Batch-Add Command Flags:
   --json <file|->             JSON file path or '-' for stdin (required)
@@ -1315,26 +1014,6 @@ Batch-Accept Command Flags:
   --type <type>               Accept all suggestions of this type
   --check-conflicts           Check for conflicts before accepting (default: true)
 
-Status Command Flags:
-  --comment <id>              Comment ID to update (required)
-  --status <status>           New status: active, orphaned, resolved, completed (required)
-
-Reattach Command Flags:
-  --comment <id>              Comment ID to reattach (required)
-  --line <number>             New line number (use either --line or --section)
-  --section <path>            Section path (use either --line or --section)
-
-Cleanup Command Flags:
-  --status <status>           Status to clean up: completed (default) or resolved
-  --dry-run                   Preview what would be cleaned up without doing it
-
-Export Command Flags:
-  --format <format>           Export format: json (default: json)
-  --output <file>             Output file (default: stdout)
-
-Publish Command Flags:
-  --output <file>             Output file (default: stdout)
-
 Examples:
   # Interactive mode
   comments view document.md
@@ -1373,45 +1052,21 @@ Examples:
     comments batch-reply document.md --json -
   comments resolve document.md --thread c123
 
-  # Suggestions - propose edits with track-changes workflow
-  # Simple line suggestion
-  comments suggest document.md --line 10 --author "editor" \
-    --text "Simplify this sentence" \
-    --original "The system allows users to collaborate effectively" \
-    --proposed "The system enables collaboration"
 
-  # Multi-line suggestion
-  comments suggest document.md --type multi-line --start-line 5 --end-line 8 \
-    --author "writer" --text "Restructure intro" \
-    --original "Line 1\nLine 2\nLine 3\nLine 4" \
-    --proposed "New line 1\nNew line 2"
+  # Suggestions - propose edits with track-changes workflow
+  comments suggest document.md --start-line 5 --end-line 8 \
+    --author "claude" --text "Restructure intro" \
+    --original "old text" --proposed "new text"
 
   # Accept/reject suggestions
   comments accept document.md --suggestion c123 --preview  # Preview changes first
   comments accept document.md --suggestion c123            # Apply the changes
   comments reject document.md --suggestion c456            # Reject suggestion
 
-  # Batch accept suggestions
-  comments batch-accept document.md --author "copywriter"  # Accept all from author
-  comments batch-accept document.md --type "line"          # Accept all line suggestions
-
   # Status management - track TODOs and handle document changes
   comments list document.md --status orphaned              # View comments orphaned by edits
   comments list document.md --priority high                # View high-priority TODOs
   comments list document.md --status active --priority high # Active high-priority items
-  comments status document.md --comment c123 --status completed  # Mark TODO as done
-  comments reattach document.md --comment c456 --line 42   # Reattach orphaned comment
-  comments reattach document.md --comment c789 --section "Introduction"  # Reattach to section
-  comments cleanup document.md --dry-run                   # Preview cleanup
-  comments cleanup document.md --status completed          # Archive completed TODOs
-
-  # Export comments for programmatic access
-  comments export document.md                    # Print JSON to stdout
-  comments export document.md --output comments.json  # Save to file
-
-  # Publish clean markdown (strip all comments)
-  comments publish document.md                   # Print to stdout
-  comments publish document.md --output final.md # Save to file
 
 Batch-Add JSON Format:
   [

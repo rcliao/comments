@@ -1,0 +1,28 @@
+template: adr
+version: 1
+description: Architecture Decision Record (MADR-style) — forces alternatives and consequences
+doc:
+  max_words: 1200
+sections:
+  - heading: "Context and Problem Statement"
+    required: true
+    max_words: 250
+    zone: human
+    review_criteria:
+      - "Is the decision driver list complete (what actually forces this choice)?"
+  - heading: "Considered Options"
+    required: true
+    min_subsections: 2
+    review_criteria:
+      - "Does each option list honest cons, not just the winner's pros?"
+  - heading: "Decision Outcome"
+    required: true
+    zone: human
+    review_criteria:
+      - "Does the outcome state why the chosen option beats the runner-up?"
+  - heading: "Consequences"
+    required: true
+    review_criteria:
+      - "Are negative consequences listed, not only positive ones?"
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION"

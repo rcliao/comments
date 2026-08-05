@@ -14,10 +14,12 @@ const StorageVersion = "2.0"
 
 // StorageFormat represents the JSON sidecar file structure (v2.0)
 type StorageFormat struct {
-	Version       string     `json:"version"`        // Format version ("2.0")
-	DocumentHash  string     `json:"documentHash"`   // SHA-256 hash for staleness detection
-	LastValidated time.Time  `json:"lastValidated"`  // Last validation timestamp
-	Threads       []*Comment `json:"threads"`        // Root comment threads with nested replies
+	Version       string         `json:"version"`        // Format version ("2.0")
+	DocumentHash  string         `json:"documentHash"`   // SHA-256 hash for staleness detection
+	LastValidated time.Time      `json:"lastValidated"`  // Last validation timestamp
+	Threads       []*Comment     `json:"threads"`        // Root comment threads with nested replies
+	Reviews       []ReviewRecord `json:"reviews,omitempty"` // Completed review passes (signoffs)
+	Template      string         `json:"template,omitempty"` // Doc template governing this document
 }
 
 // GetSidecarPath returns the sidecar JSON path for a given markdown file
@@ -81,6 +83,8 @@ func LoadFromSidecar(mdPath string) (*DocumentWithComments, error) {
 	doc.Threads = storage.Threads
 	doc.DocumentHash = storage.DocumentHash
 	doc.LastValidated = storage.LastValidated
+	doc.Reviews = storage.Reviews
+	doc.Template = storage.Template
 
 	// Migrate old format comments to new format (adds default values for Status, Priority, etc.)
 	doc.MigrateDocument()
@@ -128,12 +132,17 @@ func SaveToSidecar(mdPath string, doc *DocumentWithComments) error {
 	doc.DocumentHash = ComputeDocumentHash(doc.Content)
 	doc.LastValidated = time.Now()
 
+	// Guarantee ID uniqueness across all write paths
+	EnsureUniqueIDs(doc)
+
 	// Prepare storage format
 	storage := StorageFormat{
 		Version:       StorageVersion,
 		DocumentHash:  doc.DocumentHash,
 		LastValidated: doc.LastValidated,
 		Threads:       doc.Threads,
+		Reviews:       doc.Reviews,
+		Template:      doc.Template,
 	}
 
 	// Marshal to JSON with indentation for readability
@@ -192,21 +201,3 @@ func ListSidecars(dir string) ([]string, error) {
 	return sidecars, nil
 }
 
-// ArchiveStaleSidecar renames a stale sidecar to .backup with timestamp
-func ArchiveStaleSidecar(mdPath string) error {
-	sidecarPath := GetSidecarPath(mdPath)
-	if _, err := os.Stat(sidecarPath); os.IsNotExist(err) {
-		return nil // Nothing to archive
-	}
-
-	// Create backup filename with timestamp
-	timestamp := time.Now().Format("20060102_150405")
-	backupPath := fmt.Sprintf("%s.backup.%s", sidecarPath, timestamp)
-
-	// Rename the file
-	if err := os.Rename(sidecarPath, backupPath); err != nil {
-		return fmt.Errorf("failed to archive sidecar: %w", err)
-	}
-
-	return nil
-}

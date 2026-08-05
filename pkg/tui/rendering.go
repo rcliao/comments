@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -212,88 +213,133 @@ func getCommentTypeColor(text string) string {
 }
 
 // renderComments renders the comment panel
+// visibleComments returns the sidebar's thread list, ordered by document line
+// so the sidebar reads top-to-bottom with the document (focus-follows-cursor, G3)
+func (m *Model) visibleComments() []*comment.Comment {
+	visible := comment.GetVisibleComments(m.doc.Threads, m.showResolved)
+	sort.SliceStable(visible, func(i, j int) bool { return visible[i].Line < visible[j].Line })
+	return visible
+}
+
+// focusLine is the document line the sidebar should expand around:
+// the cursor in line-select mode, otherwise the selected comment's line
+func (m *Model) focusLine() int {
+	if m.mode == ModeLineSelect {
+		return m.selectedLine
+	}
+	visible := m.visibleComments()
+	if len(visible) > 0 && m.selectedComment >= 0 && m.selectedComment < len(visible) {
+		return visible[m.selectedComment].Line
+	}
+	return 0
+}
+
+// threadMarkers builds the status/type indicator string for a thread
+func threadMarkers(c *comment.Comment) string {
+	markers := ""
+	if c.Blocking && !c.Resolved {
+		markers += " [BLOCKING]"
+	}
+	if c.IsSuggestion {
+		if c.IsPending() {
+			markers += " [📝 SUGGESTION]"
+		} else if c.Accepted != nil && *c.Accepted {
+			markers += " [✓ ACCEPTED]"
+		} else if c.Accepted != nil && !*c.Accepted {
+			markers += " [✗ REJECTED]"
+		}
+	}
+	switch c.AnchorConfidence {
+	case comment.ConfidenceFuzzy:
+		markers += " ~fuzzy"
+	case comment.ConfidenceSectionLevel:
+		markers += " §section"
+	}
+	return markers
+}
+
+// renderComments renders the sidebar grouped by line: the focused line's group
+// auto-expands for glanceable review; other groups collapse to one line per thread
 func (m *Model) renderComments() string {
 	if m.doc == nil {
 		return "No comments"
 	}
 
-	visibleComments := comment.GetVisibleComments(m.doc.Threads, m.showResolved)
-	if len(visibleComments) == 0 {
+	visible := m.visibleComments()
+	if len(visible) == 0 {
 		if m.showResolved {
 			return "No comments"
 		}
 		return "No unresolved comments\n\nPress R to show resolved"
 	}
 
-	var rendered strings.Builder
 	statusText := "unresolved"
 	if m.showResolved {
 		statusText = "all"
 	}
-	rendered.WriteString(fmt.Sprintf("Comments (%d %s)\n\n", len(visibleComments), statusText))
+	focus := m.focusLine()
 
-	for i, c := range visibleComments {
-		// Get reply count directly from thread (v2.0)
-		replyCount := c.CountReplies()
+	var rendered strings.Builder
+	rendered.WriteString(fmt.Sprintf("Comments (%d %s)\n\n", len(visible), statusText))
 
-		// Highlight selected comment
-		style := lipgloss.NewStyle()
-		if i == m.selectedComment {
-			style = selectedCommentStyle
+	for i := 0; i < len(visible); {
+		line := visible[i].Line
+		group := []*comment.Comment{}
+		groupStart := i
+		for i < len(visible) && visible[i].Line == line {
+			group = append(group, visible[i])
+			i++
+		}
+
+		// Group header: location + count badge
+		header := fmt.Sprintf("📍 Line %d", line)
+		if sp := group[0].SectionPath; sp != "" {
+			parts := strings.Split(sp, " > ")
+			header = fmt.Sprintf("📍 %s (Line %d)", parts[len(parts)-1], line)
+		}
+		if len(group) > 1 {
+			header += fmt.Sprintf(" · %d threads", len(group))
+		}
+		expanded := line == focus
+		if expanded {
+			header = "▼ " + header
 		} else {
-			// Apply color-coding based on comment type
-			if typeColor := getCommentTypeColor(c.Text); typeColor != "" {
+			header = "▸ " + header
+		}
+		rendered.WriteString(groupHeaderStyle.Render(header))
+		rendered.WriteString("\n")
+
+		for gi, c := range group {
+			idx := groupStart + gi
+			style := lipgloss.NewStyle()
+			if idx == m.selectedComment {
+				style = selectedCommentStyle
+			} else if typeColor := getCommentTypeColor(c.Text); typeColor != "" {
 				style = style.Foreground(lipgloss.Color(typeColor))
 			}
-		}
 
-		// Build comment text
-		var commentText string
-
-		// Add suggestion indicator if this is a suggestion
-		suggestionIndicator := ""
-		if c.IsSuggestion {
-			if c.IsPending() {
-				suggestionIndicator = " [📝 SUGGESTION]"
-			} else if c.Accepted != nil && *c.Accepted {
-				suggestionIndicator = " [✓ ACCEPTED]"
-			} else if c.Accepted != nil && !*c.Accepted {
-				suggestionIndicator = " [✗ REJECTED]"
+			resolvedMark := ""
+			if c.Resolved {
+				resolvedMark = "✓ "
 			}
-		}
 
-		// Build location string with section context
-		locationStr := fmt.Sprintf("Line %d", c.Line)
-		icon := "💬"
-		if c.SectionPath != "" {
-			locationStr = fmt.Sprintf("%s (Line %d)", c.SectionPath, c.Line)
-			icon = "📍"
+			if expanded {
+				text := fmt.Sprintf("  %s@%s%s · %s\n  %s\n  └─ %d replies",
+					resolvedMark, c.Author, threadMarkers(c),
+					c.Timestamp.Format("2006-01-02 15:04"),
+					c.Text, c.CountReplies())
+				rendered.WriteString(style.Render(text))
+			} else {
+				summary := c.Text
+				if len(summary) > 46 {
+					summary = summary[:46] + "…"
+				}
+				text := fmt.Sprintf("  %s@%s%s: %s", resolvedMark, c.Author, threadMarkers(c), summary)
+				rendered.WriteString(style.Render(text))
+			}
+			rendered.WriteString("\n")
 		}
-
-		if c.Resolved {
-			commentText = fmt.Sprintf("✓ %s %s • @%s%s\n%s\n%s\n└─ %d replies",
-				icon,
-				locationStr,
-				c.Author,
-				suggestionIndicator,
-				c.Timestamp.Format("2006-01-02 15:04"),
-				c.Text,
-				replyCount,
-			)
-		} else {
-			commentText = fmt.Sprintf("%s %s • @%s%s\n%s\n%s\n└─ %d replies",
-				icon,
-				locationStr,
-				c.Author,
-				suggestionIndicator,
-				c.Timestamp.Format("2006-01-02 15:04"),
-				c.Text,
-				replyCount,
-			)
-		}
-
-		rendered.WriteString(style.Render(commentText))
-		rendered.WriteString("\n\n")
+		rendered.WriteString("\n")
 	}
 
 	return rendered.String()

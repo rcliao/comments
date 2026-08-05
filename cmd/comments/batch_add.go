@@ -15,9 +15,11 @@ import (
 type BatchComment struct {
 	Line    int    `json:"line,omitempty"`    // Line number (use either line or section)
 	Section string `json:"section,omitempty"` // Section path (use either line or section)
-	Author  string `json:"author"`
-	Text    string `json:"text"`
-	Type    string `json:"type,omitempty"` // Q, S, B, T, E
+	Author   string `json:"author"`
+	Text     string `json:"text"`
+	Type     string `json:"type,omitempty"`     // Q, S, B, T, E
+	Priority string `json:"priority,omitempty"` // low, medium, high
+	Blocking bool   `json:"blocking,omitempty"` // Must be resolved before gate passes
 
 	// Suggestion fields (optional) - simplified to multi-line only
 	IsSuggestion bool   `json:"is_suggestion,omitempty"`
@@ -207,6 +209,11 @@ func batchAddCommand(filename string, args []string) {
 				newComment = comment.NewComment(bc.Author, bc.Line, text)
 			}
 		}
+
+		if bc.Priority != "" {
+			newComment.Priority = bc.Priority
+		}
+		newComment.Blocking = bc.Blocking
 
 		// Compute section metadata for the new comment
 		comment.UpdateCommentSection(newComment, doc.Content)

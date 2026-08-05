@@ -144,7 +144,9 @@ func GetSectionForLine(docContent string, line int) string {
 	return docStructure.GetSectionPath(line)
 }
 
-// UpdateCommentSection updates section metadata for a single comment
+// UpdateCommentSection updates section metadata for a single comment.
+// Called at every comment-creation site, so it also captures the content
+// anchor (v2.1) — the comment's line is trusted as ground truth here.
 func UpdateCommentSection(comment *Comment, docContent string) {
 	if comment == nil || comment.Line <= 0 {
 		return
@@ -158,5 +160,12 @@ func UpdateCommentSection(comment *Comment, docContent string) {
 	} else {
 		comment.SectionID = ""
 		comment.SectionPath = ""
+	}
+
+	if comment.Anchor == nil {
+		comment.Anchor = CaptureAnchor(docContent, comment.Line)
+		if comment.Anchor != nil && comment.AnchorConfidence == "" {
+			comment.AnchorConfidence = ConfidenceExact
+		}
 	}
 }

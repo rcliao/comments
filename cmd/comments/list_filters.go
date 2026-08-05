@@ -142,12 +142,15 @@ func outputJSON(threads []*comment.Comment, allThreads []*comment.Comment, docCo
 		Timestamp      string        `json:"timestamp"`
 		Text           string        `json:"text"`
 		Type           string        `json:"type,omitempty"`
-		Status         string        `json:"status"`
-		Priority       string        `json:"priority"`
-		Resolved       bool          `json:"resolved"`
-		ReplyCount     int           `json:"reply_count"`
-		SectionPath    string        `json:"section_path,omitempty"`
-		OrphanedReason string        `json:"orphaned_reason,omitempty"`
+		Status           string      `json:"status"`
+		Priority         string      `json:"priority"`
+		Blocking         bool        `json:"blocking"`
+		Resolved         bool        `json:"resolved"`
+		ReplyCount       int         `json:"reply_count"`
+		SectionPath      string      `json:"section_path,omitempty"`
+		OrphanedReason   string      `json:"orphaned_reason,omitempty"`
+		AnchorConfidence string      `json:"anchor_confidence,omitempty"`
+		IsSuggestion     bool        `json:"is_suggestion,omitempty"`
 		// Context fields (only included when --with-context is specified)
 		LineContent    string        `json:"line_content,omitempty"`
 		ContextBefore  string        `json:"context_before,omitempty"`
@@ -172,6 +175,9 @@ func outputJSON(threads []*comment.Comment, allThreads []*comment.Comment, docCo
 			ReplyCount:     thread.CountReplies(),
 			SectionPath:    thread.SectionPath,
 			OrphanedReason: thread.OrphanedReason,
+			Blocking:         thread.Blocking,
+			AnchorConfidence: thread.AnchorConfidence,
+			IsSuggestion:     thread.IsSuggestion,
 		}
 
 		// Add context if requested

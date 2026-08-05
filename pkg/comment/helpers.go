@@ -1,14 +1,57 @@
 package comment
 
 import (
+	"crypto/rand"
 	"fmt"
+	"math/big"
 	"time"
 )
 
-// generateID generates a unique comment ID based on timestamp
+const idAlphabet = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+// generateID generates a short random comment ID (v2.1: 4-char base36, e.g. "c7f3k").
+// Collisions within a document are resolved at save time by EnsureUniqueIDs.
 func generateID() string {
-	// Use nanosecond timestamp for uniqueness
-	return fmt.Sprintf("c%d", time.Now().UnixNano())
+	return "c" + randomBase36(4)
+}
+
+func randomBase36(n int) string {
+	b := make([]byte, n)
+	max := big.NewInt(int64(len(idAlphabet)))
+	for i := range b {
+		idx, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			// Fall back to timestamp-derived digit; practically unreachable
+			idx = big.NewInt(time.Now().UnixNano() % int64(len(idAlphabet)))
+		}
+		b[i] = idAlphabet[idx.Int64()]
+	}
+	return string(b)
+}
+
+// EnsureUniqueIDs regenerates any duplicate comment IDs within a document,
+// growing the ID length on repeated collision. Existing (long) IDs are untouched
+// unless duplicated. Called from SaveToSidecar so every write path is covered.
+func EnsureUniqueIDs(doc *DocumentWithComments) {
+	seen := map[string]bool{}
+	for _, c := range doc.GetAllComments() {
+		if !seen[c.ID] {
+			seen[c.ID] = true
+			continue
+		}
+		length := 4
+		for attempt := 0; ; attempt++ {
+			if attempt > 0 && attempt%3 == 0 {
+				length++
+			}
+			candidate := "c" + randomBase36(length)
+			if !seen[candidate] {
+				c.ID = candidate
+				seen[candidate] = true
+				break
+			}
+		}
+	}
 }
 
 // NewComment creates a new root comment (v2.0)

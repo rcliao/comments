@@ -1,0 +1,190 @@
+package mcp
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/rcliao/comments/pkg/comment"
+)
+
+const (
+	defaultReviewTimeout = 600 * time.Second
+	reviewPollInterval   = 2 * time.Second
+)
+
+// gateFileResult is the per-file payload returned by comments_gate
+type gateFileResult struct {
+	File               string                `json:"file"`
+	Decision           string                `json:"decision"`
+	Blocking           []gateComment         `json:"blocking"`
+	NonBlocking        []gateComment         `json:"non_blocking"`
+	PendingSuggestions []gateComment         `json:"pending_suggestions"`
+	LastReview         *comment.ReviewRecord `json:"last_review,omitempty"`
+}
+
+// gateComment mirrors the CLI gate JSON shape (snake_case)
+type gateComment struct {
+	ID          string   `json:"id"`
+	Author      string   `json:"author"`
+	Line        int      `json:"line"`
+	Text        string   `json:"text"`
+	Type        string   `json:"type,omitempty"`
+	Priority    string   `json:"priority"`
+	Blocking    bool     `json:"blocking"`
+	SectionPath string   `json:"section_path,omitempty"`
+	Context     []string `json:"context,omitempty"`
+}
+
+func (s *Server) handleGate(ctx context.Context, req *mcp.CallToolRequest, args GateRequest) (*mcp.CallToolResult, any, error) {
+	absPath, err := filepath.Abs(args.FilePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid file path: %w", err)
+	}
+
+	decision, files, err := evaluateGateForPath(absPath, args.Strict)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	result := map[string]any{
+		"decision": decision,
+		"strict":   args.Strict,
+		"files":    files,
+	}
+	return jsonToolResult(result)
+}
+
+// handleRequestReview blocks until a human records a signoff (comments signoff)
+// newer than the request, then returns the review decision and gate state.
+func (s *Server) handleRequestReview(ctx context.Context, req *mcp.CallToolRequest, args RequestReviewRequest) (*mcp.CallToolResult, any, error) {
+	absPath, err := filepath.Abs(args.FilePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid file path: %w", err)
+	}
+	if _, err := os.Stat(absPath); err != nil {
+		return nil, nil, fmt.Errorf("document not found: %w", err)
+	}
+
+	timeout := defaultReviewTimeout
+	if args.TimeoutSeconds > 0 {
+		timeout = time.Duration(args.TimeoutSeconds) * time.Second
+	}
+	requestedAt := time.Now()
+	deadline := requestedAt.Add(timeout)
+
+	for {
+		if review := latestReviewSince(absPath, requestedAt); review != nil {
+			decision, files, err := evaluateGateForPath(absPath, args.Strict)
+			if err != nil {
+				return nil, nil, err
+			}
+			result := map[string]any{
+				"status":        "review_completed",
+				"review":        review,
+				"gate_decision": decision,
+				"files":         files,
+			}
+			return jsonToolResult(result)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		case <-time.After(reviewPollInterval):
+		}
+		if time.Now().After(deadline) {
+			result := map[string]any{
+				"status":  "timeout",
+				"message": fmt.Sprintf("no human signoff within %s; ask the reviewer to run: comments signoff %s", timeout, args.FilePath),
+			}
+			return jsonToolResult(result)
+		}
+	}
+}
+
+// latestReviewSince reads the sidecar without validation side effects and
+// returns the newest review record after t, or nil.
+func latestReviewSince(mdPath string, t time.Time) *comment.ReviewRecord {
+	data, err := os.ReadFile(comment.GetSidecarPath(mdPath))
+	if err != nil {
+		return nil
+	}
+	var storage comment.StorageFormat
+	if err := json.Unmarshal(data, &storage); err != nil {
+		return nil
+	}
+	if n := len(storage.Reviews); n > 0 {
+		latest := storage.Reviews[n-1]
+		if latest.Timestamp.After(t) {
+			return &latest
+		}
+	}
+	return nil
+}
+
+func evaluateGateForPath(path string, strict bool) (string, []gateFileResult, error) {
+	targets, err := comment.FindGateTargets(path)
+	if err != nil {
+		return "", nil, err
+	}
+	if len(targets) == 0 {
+		return "", nil, fmt.Errorf("no markdown files with comment sidecars found under %s", path)
+	}
+
+	decision := comment.DecisionApproved
+	files := make([]gateFileResult, 0, len(targets))
+	for _, file := range targets {
+		doc, err := comment.LoadFromSidecar(file)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to load %s: %w", file, err)
+		}
+		result := comment.EvaluateGate(doc, strict)
+		files = append(files, gateFileResult{
+			File:               file,
+			Decision:           result.Decision,
+			Blocking:           toGateComments(result.Blocking, doc.Content),
+			NonBlocking:        toGateComments(result.NonBlocking, doc.Content),
+			PendingSuggestions: toGateComments(result.PendingSuggestions, doc.Content),
+			LastReview:         result.LastReview,
+		})
+		if result.Decision == comment.DecisionChangesRequested {
+			decision = comment.DecisionChangesRequested
+		}
+	}
+	return decision, files, nil
+}
+
+func toGateComments(comments []*comment.Comment, docContent string) []gateComment {
+	out := []gateComment{}
+	for _, c := range comments {
+		out = append(out, gateComment{
+			ID:          c.ID,
+			Author:      c.Author,
+			Line:        c.Line,
+			Text:        c.Text,
+			Type:        c.Type,
+			Priority:    c.GetPriority(),
+			Blocking:    c.Blocking,
+			SectionPath: c.SectionPath,
+			Context:     getContextLines(docContent, c.Line, 2),
+		})
+	}
+	return out
+}
+
+func jsonToolResult(v any) (*mcp.CallToolResult, any, error) {
+	jsonData, err := json.Marshal(v)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to serialize result: %w", err)
+	}
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(jsonData)},
+		},
+	}, nil, nil
+}

@@ -21,8 +21,13 @@ type Comment struct {
 	SectionID   string // ID of the section this comment belongs to (e.g., "s1", "s2")
 	SectionPath string // Full hierarchical path (e.g., "Intro > Overview > Key Points")
 
+	// Content anchor (v2.1): what the comment points at, for re-anchoring after edits
+	Anchor           *Anchor `json:",omitempty"` // Target line text + surrounding context
+	AnchorConfidence string  `json:",omitempty"` // exact, fuzzy, or section-level (set by re-anchor cascade)
+
 	// State
 	Resolved bool // Whether the comment/thread has been resolved
+	Blocking bool // If true, this thread must be resolved before the gate passes
 
 	// Status tracking (for TODO/task management)
 	Status         string     // Comment status: "active", "orphaned", "resolved", "completed"
@@ -130,12 +135,22 @@ type Position struct {
 	Line int // Current line number (may change as doc is edited)
 }
 
+// ReviewRecord captures a completed human review pass over a document
+type ReviewRecord struct {
+	Author    string    `json:"author"`
+	Timestamp time.Time `json:"timestamp"`
+	Decision  string    `json:"decision"` // "approved" or "changes_requested"
+	Note      string    `json:"note,omitempty"`
+}
+
 // DocumentWithComments represents a parsed document with comment threads (v2.0)
 type DocumentWithComments struct {
 	Content      string     // Raw markdown content without comment markup
 	Threads      []*Comment // Root comment threads (each may contain nested replies)
 	DocumentHash string     // SHA-256 hash of content for staleness detection
 	LastValidated time.Time  // Last time sidecar was validated against document
+	Reviews      []ReviewRecord // Completed review passes (signoffs), newest last
+	Template     string         // Name of the doc template governing this document (set by seed)
 }
 
 // GetAllComments returns a flat list of all comments (roots + replies)

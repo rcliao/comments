@@ -1,0 +1,35 @@
+template: rfc
+version: 1
+description: RFC (Rust-RFC-style) — motivation, guide/reference explanation, drawbacks, rationale, unresolved questions
+doc:
+  max_words: 3000
+sections:
+  - heading: "Summary"
+    required: true
+    max_words: 150
+  - heading: "Motivation"
+    required: true
+    max_words: 400
+    zone: human
+    review_criteria:
+      - "Would the motivation convince someone who has not seen the implementation?"
+  - heading: "Guide-level Explanation"
+    required: true
+    review_criteria:
+      - "Could a new team member act on this explanation alone?"
+  - heading: "Reference-level Explanation"
+    required: true
+  - heading: "Drawbacks"
+    required: true
+    review_criteria:
+      - "Is at least one real drawback acknowledged (not a strawman)?"
+  - heading: "Rationale and Alternatives"
+    required: true
+    min_subsections: 1
+    review_criteria:
+      - "Is 'do nothing' considered as an alternative?"
+  - heading: "Unresolved Questions"
+    required: true
+    zone: human
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION"

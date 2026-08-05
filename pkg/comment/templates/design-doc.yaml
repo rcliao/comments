@@ -1,0 +1,39 @@
+template: design-doc
+version: 1
+description: Design/tech-design doc optimized for human review (bounded length, forced alternatives, explicit unknowns)
+doc:
+  max_words: 2000
+sections:
+  - heading: "Problem"
+    required: true
+    max_words: 300
+    zone: human
+    review_criteria:
+      - "Is the problem stated without embedding a solution?"
+      - "Is it clear who is affected and how much it matters?"
+  - heading: "Goals / Non-Goals"
+    required: true
+    max_words: 200
+    zone: human
+    review_criteria:
+      - "Are non-goals explicit enough to prevent scope creep?"
+  - heading: "Proposed Design"
+    required: true
+    max_words: 800
+    review_criteria:
+      - "Can a reviewer trace every goal to a part of the design?"
+  - heading: "Options Considered"
+    required: true
+    min_subsections: 2
+    review_criteria:
+      - "Is a simpler alternative listed and explicitly rejected with a reason?"
+  - heading: "Risks"
+    required: true
+    max_words: 200
+    review_criteria:
+      - "Are only genuine risks listed (no boilerplate), each mitigated or explicitly accepted?"
+  - heading: "Unresolved Questions"
+    required: true
+    zone: human
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION"
