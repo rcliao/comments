@@ -64,6 +64,16 @@ type Model struct {
 	rangeActive         bool // True if range selection is active
 	suggestionIsSection bool // True if suggestion is section-based
 
+	// Review pack state
+	suggestionQueue   map[string]bool // suggestion ID -> accept(true)/reject(false); applied at verdict
+	sidebarDensity    int             // densityFull / densityCondensed / densityHidden (S cycles)
+	showLineSummaries bool            // dimmed end-of-line thread summaries (L toggles)
+	helpReturnMode    ViewMode        // mode to restore when closing the help overlay
+	tocReturnMode     ViewMode        // mode to restore when closing the TOC overlay
+	tocEntries        []tocEntry      // flattened section list for the TOC overlay
+	tocSelected       int             // selected row in the TOC overlay
+	restoredYOffset   int             // document scroll restored from persisted view state
+
 	// Dimensions
 	width  int
 	height int
@@ -102,6 +112,8 @@ func NewModel() Model {
 		commentType:       "",
 		showResolved:      false,
 		startedWithFile:   false,
+		suggestionQueue:   map[string]bool{},
+		showLineSummaries: true,
 	}
 }
 
@@ -131,11 +143,19 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 		commentType:       "",
 		showResolved:      false,
 		startedWithFile:   true,
+		suggestionQueue:   map[string]bool{},
+		showLineSummaries: true,
 	}
 
 	// Parse sections
 	if doc != nil {
 		m.documentSections = markdown.ParseDocument(doc.Content)
+	}
+
+	// Resume the previous review position, if one was persisted
+	if st, ok := loadViewState(filename); ok {
+		m.selectedLine = st.SelectedLine
+		m.restoredYOffset = st.YOffset
 	}
 
 	return m
@@ -158,6 +178,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.handleResize()
 
 	case tea.KeyMsg:
+		// Ctrl+C is the universal silent escape: persist the reading
+		// position, quit without a verdict (queued decisions stay unapplied)
+		if msg.String() == "ctrl+c" {
+			m.saveViewStateNow()
+			return m, tea.Quit
+		}
 		return m.handleKeyPress(msg)
 	}
 
@@ -171,9 +197,12 @@ func (m *Model) handleResize() {
 		return
 	}
 
-	// Split screen: 60% for document, 40% for comments/thread
-	docWidth := int(float64(m.width) * 0.6)
+	// Split screen: 60% document / 40% comments, unless the sidebar is hidden
+	docWidth := m.docPaneWidth()
 	panelWidth := m.width - docWidth - 4
+	if panelWidth < 0 {
+		panelWidth = 0
+	}
 
 	// Set textarea width to use most of the screen width
 	// Account for modal borders (2), padding (4), and some margin (10)
@@ -190,7 +219,8 @@ func (m *Model) handleResize() {
 
 		if m.doc != nil {
 			m.documentViewport.SetContent(m.renderDocument())
-			m.documentViewport.YOffset = 0 // Explicitly start at top
+			// Resume the persisted scroll position (0 when none was saved)
+			m.documentViewport.SetYOffset(m.restoredYOffset)
 			m.commentViewport.SetContent(m.renderComments())
 			m.commentViewport.YOffset = 0 // Explicitly start at top
 		}
@@ -202,6 +232,52 @@ func (m *Model) handleResize() {
 		m.commentViewport.Height = m.height - 2
 		m.threadViewport.Width = m.width - 4
 		m.threadViewport.Height = m.height - 2
+	}
+}
+
+// Sidebar density levels (S cycles: full → condensed → hidden)
+const (
+	densityFull      = iota // expanded threads at the focused line
+	densityCondensed        // one line per thread, counts only
+	densityHidden           // sidebar gone; document takes the full width
+)
+
+// docPaneWidth returns the document pane width for the current sidebar density
+func (m *Model) docPaneWidth() int {
+	if m.sidebarDensity == densityHidden {
+		width := m.width - 2
+		if width < 1 {
+			width = 1
+		}
+		return width
+	}
+	return int(float64(m.width) * 0.6)
+}
+
+// cycleSidebarDensity advances full → condensed → hidden → full and
+// reflows both panes at the new widths
+func (m *Model) cycleSidebarDensity() {
+	m.sidebarDensity = (m.sidebarDensity + 1) % 3
+	m.handleResize()
+	m.refreshDocumentPane()
+	m.commentViewport.SetContent(m.renderComments())
+}
+
+// toggleLineSummaries flips the virtual-text summaries and re-renders
+func (m *Model) toggleLineSummaries() {
+	m.showLineSummaries = !m.showLineSummaries
+	m.refreshDocumentPane()
+}
+
+// refreshDocumentPane re-renders the document viewport for the current mode
+func (m *Model) refreshDocumentPane() {
+	if m.doc == nil {
+		return
+	}
+	if m.mode == ModeLineSelect || m.mode == ModeSelectRange {
+		m.documentViewport.SetContent(m.renderDocumentWithCursor())
+	} else {
+		m.documentViewport.SetContent(m.renderDocument())
 	}
 }
 
@@ -234,6 +310,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleSelectSuggestionTypeKeys(msg)
 	case ModeSelectRange:
 		return m.handleSelectRangeKeys(msg)
+	case ModeHelp:
+		return m.handleHelpKeys(msg)
+	case ModeTOC:
+		return m.handleTOCKeys(msg)
 	default:
 		return m, nil
 	}
@@ -276,21 +356,37 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.ready = false
 		return m, nil
 
-	case "ctrl+c":
-		return m, tea.Quit
-
 	case "c":
-		// Enter line selection mode to add comment
+		// Enter line selection mode to add comment; keep a restored or
+		// previously used cursor position instead of jumping to the top
 		m.mode = ModeLineSelect
-		m.selectedLine = 1
+		if m.selectedLine < 1 {
+			m.selectedLine = 1
+		}
 
 		// Completely reset the viewport to fix scroll offset issues
-		docWidth := int(float64(m.width) * 0.6)
-		m.documentViewport = viewport.New(docWidth, m.height-2)
+		m.documentViewport = viewport.New(m.docPaneWidth(), m.height-2)
 		m.documentViewport.YOffset = 0
 		m.documentViewport.SetContent(m.renderDocumentWithCursor())
-		m.documentViewport.YOffset = 0 // Set again after content
+		m.scrollToLine(m.selectedLine)
 		m.refreshSidebar()
+		return m, nil
+
+	case "?":
+		m.helpReturnMode = m.mode
+		m.mode = ModeHelp
+		return m, nil
+
+	case "S":
+		m.cycleSidebarDensity()
+		return m, nil
+
+	case "L":
+		m.toggleLineSummaries()
+		return m, nil
+
+	case "t":
+		m.openTOC()
 		return m, nil
 
 	case "j", "down":
@@ -349,11 +445,27 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = ModeBrowse
 
 		// Reset the viewport to fix any scroll offset issues
-		docWidth := int(float64(m.width) * 0.6)
-		m.documentViewport = viewport.New(docWidth, m.height-2)
+		m.documentViewport = viewport.New(m.docPaneWidth(), m.height-2)
 		m.documentViewport.YOffset = 0
 		m.documentViewport.SetContent(m.renderDocument())
 		m.documentViewport.YOffset = 0
+		return m, nil
+
+	case "?":
+		m.helpReturnMode = m.mode
+		m.mode = ModeHelp
+		return m, nil
+
+	case "S":
+		m.cycleSidebarDensity()
+		return m, nil
+
+	case "L":
+		m.toggleLineSummaries()
+		return m, nil
+
+	case "t":
+		m.openTOC()
 		return m, nil
 
 	case "j", "down":
@@ -813,6 +925,7 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// If file was provided directly, quit the app
 		// Otherwise, go back to file picker
 		if m.startedWithFile {
+			m.saveViewStateNow()
 			return m, tea.Quit
 		}
 		m.mode = ModeFilePicker
@@ -830,34 +943,18 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, textarea.Blink
 
 	case "a":
-		// Accept suggestion (if thread root is a pending suggestion)
+		// Queue an accept for this pending suggestion; nothing mutates
+		// until the verdict dialog applies the queue ("queue until verdict")
 		if m.selectedThread != nil && m.selectedThread.IsSuggestion && m.selectedThread.IsPending() {
-			m.selectedSuggestion = m.selectedThread
-			m.mode = ModeReviewSuggestion
-			// Generate preview
-			preview, err := comment.ApplySuggestion(m.doc.Content, m.selectedSuggestion)
-			if err != nil {
-				m.err = fmt.Errorf("failed to generate preview: %w", err)
-			} else {
-				m.suggestionPreview = preview
-			}
-			return m, nil
+			m.queueDecision(m.selectedThread.ID, true)
+			m.threadViewport.SetContent(m.renderThread())
 		}
 		return m, nil
 
 	case "x":
-		// Reject suggestion (if root comment is a pending suggestion), otherwise resolve thread
+		// Queue a reject for a pending suggestion; otherwise resolve thread
 		if m.selectedThread != nil && m.selectedThread.IsSuggestion && m.selectedThread.IsPending() {
-			// Reject the suggestion using helper
-			if err := comment.RejectSuggestion(m.doc.Threads, m.selectedThread.ID); err != nil {
-				m.err = fmt.Errorf("failed to reject suggestion: %w", err)
-				return m, nil
-			}
-			// Save document
-			if err := comment.SaveToSidecar(m.filename, m.doc); err != nil {
-				m.err = fmt.Errorf("failed to save: %w", err)
-			}
-			// Refresh thread view
+			m.queueDecision(m.selectedThread.ID, false)
 			m.threadViewport.SetContent(m.renderThread())
 			return m, nil
 		}
@@ -963,46 +1060,13 @@ func (m Model) handleReviewSuggestionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "y", "enter":
-		// Accept and apply suggestion
-		if m.selectedSuggestion == nil {
-			m.mode = ModeThreadView
-			return m, nil
+		// Queue the accept; the verdict dialog applies all queued
+		// decisions atomically ("queue until verdict" — decided in review)
+		if m.selectedSuggestion != nil {
+			m.queueDecision(m.selectedSuggestion.ID, true)
 		}
 
-		// Apply suggestion to document
-		newContent, err := comment.ApplySuggestion(m.doc.Content, m.selectedSuggestion)
-		if err != nil {
-			m.err = fmt.Errorf("failed to apply suggestion: %w", err)
-			m.mode = ModeThreadView
-			m.selectedSuggestion = nil
-			m.suggestionPreview = ""
-			return m, nil
-		}
-
-		// Update document content
-		m.doc.Content = newContent
-
-		// Mark suggestion as accepted using helper
-		if err := comment.AcceptSuggestion(m.doc.Threads, m.selectedSuggestion.ID); err != nil {
-			m.err = err
-			return m, nil
-		}
-
-		// Recalculate comment line numbers
-		linesAdded := len(strings.Split(m.selectedSuggestion.ProposedText, "\n"))
-		comment.RecalculateCommentLines(m.doc.Threads, m.selectedSuggestion.StartLine, m.selectedSuggestion.EndLine, linesAdded)
-
-		// Save document
-		if err := m.saveDocument(); err != nil {
-			m.err = err
-			return m, nil
-		}
-
-		// Refresh all views
-		m.documentViewport.SetContent(m.renderDocument())
-		m.commentViewport.SetContent(m.renderComments())
-
-		// Return to thread view
+		// Return to thread view showing the queued state
 		m.mode = ModeThreadView
 		m.threadViewport.SetContent(m.renderThread())
 		m.selectedSuggestion = nil
@@ -1109,6 +1173,9 @@ func (m Model) updateByMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.commentInput, cmd = m.commentInput.Update(msg)
 	case ModeThreadView:
 		m.threadViewport, cmd = m.threadViewport.Update(msg)
+	case ModeHelp, ModeTOC:
+		// Overlays are static; keys are handled in their key handlers
+		cmd = nil
 	}
 
 	return m, cmd
@@ -1181,6 +1248,10 @@ func (m Model) View() string {
 		return m.viewSelectSuggestionType()
 	case ModeSelectRange:
 		return m.viewSelectRange()
+	case ModeHelp:
+		return m.viewHelp()
+	case ModeTOC:
+		return m.viewTOC()
 	default:
 		return "Unknown mode"
 	}
@@ -1212,22 +1283,27 @@ func (m Model) viewBrowse() string {
 
 	var helpText string
 	if m.mode == ModeLineSelect {
-		helpText = "j/k: move • r: open thread • Tab: cycle threads on line • c: comment • s: suggest • Ctrl+D/U: page • Esc: cancel"
+		helpText = "j/k: move • r: open thread • Tab: cycle threads on line • c: comment • s: suggest • t: TOC • ?: help • Esc: cancel"
 	} else {
 		quitText := "back"
 		if m.startedWithFile {
 			quitText = "quit"
 		}
-		helpText = fmt.Sprintf("j/k: navigate • c: comment • Enter: expand • R: toggle resolved • q: %s", quitText)
+		helpText = fmt.Sprintf("j/k: navigate • c: comment • Enter: expand • t: TOC • S: sidebar • ?: help • q: %s", quitText)
 	}
 	help := helpStyle.Render(helpText)
 
-	// Layout: document on left, comments on right
-	content := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		m.documentViewport.View(),
-		commentPanelStyle.Render(m.commentViewport.View()),
-	)
+	// Layout: document on left, comments on right (unless sidebar is hidden)
+	var content string
+	if m.sidebarDensity == densityHidden {
+		content = m.documentViewport.View()
+	} else {
+		content = lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			m.documentViewport.View(),
+			commentPanelStyle.Render(m.commentViewport.View()),
+		)
+	}
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
@@ -1391,7 +1467,11 @@ func (m Model) viewThread() string {
 	if m.startedWithFile {
 		quitText = "quit"
 	}
-	help := helpStyle.Render(fmt.Sprintf("r: reply • x: resolve • Esc: back • q: %s", quitText))
+	actionText := "x: resolve"
+	if m.selectedThread.IsSuggestion && m.selectedThread.IsPending() {
+		actionText = "a/x: queue accept/reject"
+	}
+	help := helpStyle.Render(fmt.Sprintf("r: reply • %s • Esc: back • q: %s", actionText, quitText))
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
@@ -2013,11 +2093,18 @@ func (m *Model) refreshSidebar() {
 // handleVerdictKeys handles the exit verdict dialog: a approve / c request changes / esc back
 func (m Model) handleVerdictKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	record := func(decision string) (tea.Model, tea.Cmd) {
+		// Apply all queued suggestion decisions atomically, then record the
+		// signoff — one save covers content, threads, and the review record
+		if err := m.applySuggestionQueue(); err != nil {
+			m.err = err
+			return m, nil
+		}
 		comment.AddReviewRecord(m.doc, m.author, decision, "", false)
 		if err := comment.SaveToSidecar(m.filename, m.doc); err != nil {
 			m.err = err
 			return m, nil
 		}
+		m.saveViewStateNow()
 		m.VerdictDecision = decision
 		return m, tea.Quit
 	}
@@ -2027,6 +2114,7 @@ func (m Model) handleVerdictKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "c":
 		return record(comment.DecisionChangesRequested)
 	case "esc", "q":
+		// Back to review; queued decisions are kept, not discarded
 		m.mode = m.verdictReturnMode
 		return m, nil
 	}
@@ -2036,9 +2124,13 @@ func (m Model) handleVerdictKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // viewVerdict renders the exit verdict dialog over a dimmed summary
 func (m *Model) viewVerdict() string {
 	result := comment.EvaluateGate(m.doc, false)
+	queueLine := ""
+	if n := len(m.suggestionQueue); n > 0 {
+		queueLine = fmt.Sprintf("\n%d queued suggestion decision(s) — applied on submit; Esc keeps them\n", n)
+	}
 	dialog := fmt.Sprintf(
-		"Submit review for %s\n\n%d blocking · %d open · %d pending suggestions\n\n[a] Approve (signoff, exit 0)\n[c] Request changes (signoff, exit 10)\n[Esc] Back to review",
-		m.filename, len(result.Blocking), len(result.NonBlocking), len(result.PendingSuggestions))
+		"Submit review for %s\n\n%d blocking · %d open · %d pending suggestions\n%s\n[a] Approve (signoff, exit 0)\n[c] Request changes (signoff, exit 10)\n[Esc] Back to review",
+		m.filename, len(result.Blocking), len(result.NonBlocking), len(result.PendingSuggestions), queueLine)
 	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 3).Render(dialog)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }

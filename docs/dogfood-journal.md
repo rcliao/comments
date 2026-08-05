@@ -6,6 +6,21 @@ Convention: newest entry first. Tag friction items `[friction]`, validated wins 
 
 ---
 
+## 2026-08-05 — Review-pack TUI batch: help, queued accepts, density, summaries, TOC, resume
+
+**What we did:** Shipped six approved items from `docs/design-tui-review-first.md` as one TUI pack: `?` help overlay, queue-until-verdict suggestion decisions, `S` sidebar density cycle, `L` virtual-text line summaries, `t` TOC overlay, and per-document position persistence.
+
+- `[win]` `?` (Eric's explicit ask) opens a full-screen keybinding reference grouped by activity (move/threads/compose/review/exit); any key closes. Hint bars now point at it, so they could stay short.
+- `[win]` "Queue until verdict" is real: `a`/`x` on a pending suggestion mark it QUEUED in the model, nothing mutates mid-review; the verdict dialog shows the queue count and applies all decisions atomically (bottom-up so line ranges stay truthful, anchors recalculated, one save) before the signoff. Esc keeps the queue.
+- `[win]` `S` cycles sidebar full → condensed (one line per thread) → hidden (document takes full width); `L` toggles dimmed `· @rcliao ×2 1 open` end-of-line summaries (on by default) — reading-heavy passes no longer fight the panel.
+- `[win]` `t` TOC overlay from the section parser with per-section open counts; Enter jumps into line-select at the heading. Reopening a doc resumes cursor + scroll from `.comments/view-state.json` (sidecar-adjacent, keyed by filename).
+- `[win]` TUI suite 14 → 27 tests, all features covered through pure render functions or key-handler round-trips.
+- `[friction]` The old accept path had two surfaces (thread view + preview modal) with separate apply logic; queueing collapsed them, but the preview modal is now unreachable — candidate for a future `p` preview-from-queue binding or removal.
+
+**State at entry close:** review pack green (`go build`, `go vet`, 27 TUI tests); `.comments/` view-state dir is new — may want a .gitignore entry.
+
+---
+
 ## 2026-08-05 (evening 2) — Render-first decided; seed de-genericized; watch shipped
 
 **What we did:** Processed TUI-doc review round 2 (render-first wins), inverted seed into agent self-review callouts, and built `comments watch`.

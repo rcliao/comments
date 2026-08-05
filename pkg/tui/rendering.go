@@ -81,6 +81,12 @@ func rootThreadsByLine(threads []*comment.Comment) map[int][]*comment.Comment {
 	return byLine
 }
 
+// isOpenThread reports whether a root thread still needs attention:
+// unresolved and, for suggestions, not yet decided
+func isOpenThread(t *comment.Comment) bool {
+	return !t.Resolved && !(t.IsSuggestion && t.Accepted != nil)
+}
+
 // lineMarker builds the gutter marker for a line's threads: unresolved blocking
 // stands out, plain unresolved shows a count, fully-resolved lines get a quiet check
 func lineMarker(threads []*comment.Comment) string {
@@ -89,7 +95,7 @@ func lineMarker(threads []*comment.Comment) string {
 	}
 	unresolved, blocking := 0, false
 	for _, t := range threads {
-		if !t.Resolved && !(t.IsSuggestion && t.Accepted != nil) {
+		if isOpenThread(t) {
 			unresolved++
 			if t.Blocking {
 				blocking = true
@@ -104,6 +110,35 @@ func lineMarker(threads []*comment.Comment) string {
 	default:
 		return resolvedMarkerStyle.Render("✓ ")
 	}
+}
+
+// lineSummary builds the dimmed virtual-text summary for a commented line:
+// first thread's author, thread count, open count (`· @rcliao ×2 1 open`).
+// Returns "" for uncommented lines.
+func lineSummary(threads []*comment.Comment) string {
+	if len(threads) == 0 {
+		return ""
+	}
+	open := 0
+	for _, t := range threads {
+		if isOpenThread(t) {
+			open++
+		}
+	}
+	return virtualTextStyle.Render(fmt.Sprintf("· @%s ×%d %d open", threads[0].Author, len(threads), open))
+}
+
+// lineSummarySuffix returns the end-of-line summary (with leading space) for
+// a line's threads, honoring the L toggle
+func (m *Model) lineSummarySuffix(threads []*comment.Comment) string {
+	if !m.showLineSummaries {
+		return ""
+	}
+	summary := lineSummary(threads)
+	if summary == "" {
+		return ""
+	}
+	return " " + summary
 }
 
 // renderDocument renders the document with line numbers and comment markers
@@ -137,8 +172,8 @@ func (m *Model) renderDocument() string {
 		wrappedLines := strings.Split(wordwrap.String(styledLine, availableWidth), "\n")
 		for j, wrappedLine := range wrappedLines {
 			if j == 0 {
-				// First line: show line number and marker
-				rendered.WriteString(fmt.Sprintf("%s %s %s\n", lineNumStr, marker, wrappedLine))
+				// First line: show line number, marker, and virtual-text summary
+				rendered.WriteString(fmt.Sprintf("%s %s %s%s\n", lineNumStr, marker, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum])))
 			} else {
 				// Continuation lines: indent with spaces
 				rendered.WriteString(fmt.Sprintf("%s %s %s\n", strings.Repeat(" ", 4), "  ", wrappedLine))
@@ -196,7 +231,7 @@ func (m *Model) renderDocumentWithCursor() string {
 					cursor = rangeMarkerStyle.Render("│")
 					wrappedLine = selectedLineStyle.Render(wrappedLine)
 				}
-				rendered.WriteString(fmt.Sprintf("%s %s %s %s\n", cursor, lineNumStr, marker, wrappedLine))
+				rendered.WriteString(fmt.Sprintf("%s %s %s %s%s\n", cursor, lineNumStr, marker, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum])))
 			} else {
 				// Continuation lines: indent with spaces
 				displayCursor := "  "
@@ -320,6 +355,9 @@ func (m *Model) renderComments() string {
 	if m.doc == nil {
 		return "No comments"
 	}
+	if m.sidebarDensity == densityHidden {
+		return ""
+	}
 
 	visible := m.visibleComments()
 	if len(visible) == 0 {
@@ -356,7 +394,8 @@ func (m *Model) renderComments() string {
 		if len(group) > 1 {
 			header += fmt.Sprintf(" · %d threads", len(group))
 		}
-		expanded := line == focus
+		// Condensed density forces every group to one line per thread
+		expanded := line == focus && m.sidebarDensity == densityFull
 		if expanded {
 			header = "▼ " + header
 		} else {
@@ -530,6 +569,9 @@ func (m *Model) renderThread() string {
 		var stateText string
 		if m.selectedThread.IsPending() {
 			stateText = "📝 PENDING SUGGESTION"
+			if queued := m.queuedLabel(m.selectedThread.ID); queued != "" {
+				stateText = "⏳ " + queued + " — applies at verdict (q)"
+			}
 		} else if m.selectedThread.Accepted != nil && *m.selectedThread.Accepted {
 			stateText = "✓ ACCEPTED SUGGESTION"
 		} else if m.selectedThread.Accepted != nil && !*m.selectedThread.Accepted {
@@ -559,7 +601,7 @@ func (m *Model) renderThread() string {
 			suggestionText += fmt.Sprintf("\nProposed:\n  %s\n", m.selectedThread.ProposedText)
 		}
 
-		suggestionText += "\nPress 'a' to accept or 'x' to reject"
+		suggestionText += "\n'a' queues accept · 'x' queues reject — all queued decisions apply at the verdict (q)"
 
 		rendered.WriteString(suggestionStyle.Render(suggestionText))
 		rendered.WriteString("\n\n")

@@ -65,6 +65,11 @@ var (
 	selectedLineStyle = lipgloss.NewStyle().
 				Background(lipgloss.Color("235"))
 
+	// Virtual-text line summaries (dimmed end-of-line thread digest)
+	virtualTextStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("240")).
+				Italic(true)
+
 	// Modal overlay
 	modalOverlayStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).

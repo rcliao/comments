@@ -42,6 +42,12 @@ const (
 
 	// ModeVerdict shows the exit verdict dialog (approve / request changes)
 	ModeVerdict
+
+	// ModeHelp shows the full-screen keybinding reference overlay
+	ModeHelp
+
+	// ModeTOC shows the table-of-contents overlay with per-section open counts
+	ModeTOC
 )
 
 // String returns the string representation of the view mode
@@ -71,6 +77,12 @@ func (m ViewMode) String() string {
 		return "SELECT_SUGGESTION_TYPE"
 	case ModeSelectRange:
 		return "SELECT_RANGE"
+	case ModeVerdict:
+		return "VERDICT"
+	case ModeHelp:
+		return "HELP"
+	case ModeTOC:
+		return "TOC"
 	default:
 		return "UNKNOWN"
 	}
