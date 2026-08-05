@@ -6,6 +6,20 @@ Convention: newest entry first. Tag friction items `[friction]`, validated wins 
 
 ---
 
+## 2026-08-05 (evening 2) — Render-first decided; seed de-genericized; watch shipped
+
+**What we did:** Processed TUI-doc review round 2 (render-first wins), inverted seed into agent self-review callouts, and built `comments watch`.
+
+- `[win]` Eric flipped the TUI design to render-first ("we review design docs, not source code") — the doc now leads with rendered prose + block-level anchors, source mode on `v`. 11 threads re-anchored through the full rewrite; one resolved thread orphaned gracefully.
+- `[win]` Seed critique (Eric): generic criteria threads = checklist noise → criteria are now agent self-review prompts; agents post doc-specific callouts (weakest reasoning, assumptions); `seed --markers-only` ships. Review queue on the live doc went 8 generic → 5 doc-specific.
+- `[win]` `comments watch` emits NDJSON review events (comment_added/reply_added/thread_resolved/signoff/gate_changed) by polling sidecar mtimes — the sidecar is the event bus, so TUI/CLI/MCP writers all covered with zero IPC. Live-verified full sequence.
+- `[friction]` Third mis-threaded reply on stacked threads — strengthens the case for the redesign's per-block grouping + reply-in-place.
+- `[idea]` watch consumers next: agent harness wake-up (replaces blocked request_review), macOS notifier pipe, TUI live-reload.
+
+**State at entry close:** TUI doc gate at 0 blocking (2 small questions open); watch committed.
+
+---
+
 ## 2026-08-05 (late) — TUI research + dive-to-reply shipped mid-review
 
 **What we did:** Researched terminal reading/review UX (glow, frogmouth, octo.nvim, prr, revdiff, neomutt, epy, Crush — report 4), drafted the review-first TUI design doc under our own template (seeded, awaiting Eric's review), and shipped two interactions Eric asked for while reviewing in the TUI.
