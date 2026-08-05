@@ -170,9 +170,20 @@ func viewCommand(filename string) {
 	// Run TUI
 	p := tea.NewProgram(model, tea.WithAltScreen())
 
-	if _, err := p.Run(); err != nil {
+	final, err := p.Run()
+	if err != nil {
 		fmt.Printf("Error running TUI: %v\n", err)
 		os.Exit(1)
+	}
+	// Verdict exit codes: view doubles as the interactive gate
+	if fm, ok := final.(tui.Model); ok {
+		switch fm.VerdictDecision {
+		case comment.DecisionApproved:
+			fmt.Println("✓ Review submitted: approved")
+		case comment.DecisionChangesRequested:
+			fmt.Println("✗ Review submitted: changes requested")
+			os.Exit(comment.GateExitCode)
+		}
 	}
 }
 

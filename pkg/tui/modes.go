@@ -39,6 +39,9 @@ const (
 
 	// ModeSelectRange shows visual range selection for multi-line suggestions
 	ModeSelectRange
+
+	// ModeVerdict shows the exit verdict dialog (approve / request changes)
+	ModeVerdict
 )
 
 // String returns the string representation of the view mode

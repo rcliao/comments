@@ -40,6 +40,8 @@ type Model struct {
 	selectedComment    int              // For comment navigation
 	selectedThread     *comment.Comment // Thread root (v2.0)
 	returnToLineSelect bool             // Thread view was entered from line-select; Esc returns there
+	verdictReturnMode  ViewMode         // Mode to restore when leaving the verdict dialog
+	VerdictDecision    string           // Set when the user exits via the verdict dialog
 	selectedSuggestion *comment.Comment // For suggestion review mode
 	suggestionPreview  string           // Preview of suggested changes
 	showResolved       bool
@@ -216,6 +218,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleAddCommentKeys(msg)
 	case ModeThreadView:
 		return m.handleThreadViewKeys(msg)
+	case ModeVerdict:
+		return m.handleVerdictKeys(msg)
 	case ModeReply:
 		return m.handleReplyKeys(msg)
 	case ModeResolve:
@@ -257,8 +261,12 @@ func (m Model) handleFilePickerKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q":
-		// If file was provided directly, quit the app
-		// Otherwise, go back to file picker
+		// Exit is a verdict (approved TUI design): q opens the verdict dialog
+		if m.doc != nil {
+			m.verdictReturnMode = ModeBrowse
+			m.mode = ModeVerdict
+			return m, nil
+		}
 		if m.startedWithFile {
 			return m, tea.Quit
 		}
@@ -420,6 +428,38 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.commentInput.Reset()
 		m.commentInput.Focus()
 		return m, textarea.Blink
+
+	case "q":
+		m.verdictReturnMode = ModeLineSelect
+		m.mode = ModeVerdict
+		return m, nil
+
+	case "]", "]c":
+		// Jump to next line with an open thread
+		for _, c := range m.visibleComments() {
+			if !c.Resolved && c.Line > m.selectedLine {
+				m.selectedLine = c.Line
+				break
+			}
+		}
+		m.documentViewport.SetContent(m.renderDocumentWithCursor())
+		m.scrollToLine(m.selectedLine)
+		m.refreshSidebar()
+		return m, nil
+
+	case "[":
+		// Jump to previous line with an open thread
+		visible := m.visibleComments()
+		for i := len(visible) - 1; i >= 0; i-- {
+			if !visible[i].Resolved && visible[i].Line < m.selectedLine {
+				m.selectedLine = visible[i].Line
+				break
+			}
+		}
+		m.documentViewport.SetContent(m.renderDocumentWithCursor())
+		m.scrollToLine(m.selectedLine)
+		m.refreshSidebar()
+		return m, nil
 
 	case "r":
 		// Dive into the focused thread on this line (reply from there)
@@ -1121,6 +1161,8 @@ func (m Model) View() string {
 		return m.viewFilePicker()
 	case ModeBrowse, ModeLineSelect:
 		return m.viewBrowse()
+	case ModeVerdict:
+		return m.viewVerdict()
 	case ModeAddComment:
 		return m.viewAddComment()
 	case ModeThreadView:
@@ -1966,4 +2008,37 @@ func (m *Model) refreshSidebar() {
 			return
 		}
 	}
+}
+
+// handleVerdictKeys handles the exit verdict dialog: a approve / c request changes / esc back
+func (m Model) handleVerdictKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	record := func(decision string) (tea.Model, tea.Cmd) {
+		comment.AddReviewRecord(m.doc, m.author, decision, "", false)
+		if err := comment.SaveToSidecar(m.filename, m.doc); err != nil {
+			m.err = err
+			return m, nil
+		}
+		m.VerdictDecision = decision
+		return m, tea.Quit
+	}
+	switch msg.String() {
+	case "a":
+		return record(comment.DecisionApproved)
+	case "c":
+		return record(comment.DecisionChangesRequested)
+	case "esc", "q":
+		m.mode = m.verdictReturnMode
+		return m, nil
+	}
+	return m, nil
+}
+
+// viewVerdict renders the exit verdict dialog over a dimmed summary
+func (m *Model) viewVerdict() string {
+	result := comment.EvaluateGate(m.doc, false)
+	dialog := fmt.Sprintf(
+		"Submit review for %s\n\n%d blocking · %d open · %d pending suggestions\n\n[a] Approve (signoff, exit 0)\n[c] Request changes (signoff, exit 10)\n[Esc] Back to review",
+		m.filename, len(result.Blocking), len(result.NonBlocking), len(result.PendingSuggestions))
+	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 3).Render(dialog)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }

@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -256,5 +258,51 @@ func keyMsg(key string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyEsc}
 	default:
 		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
+	}
+}
+
+func TestVerdictDialogFlow(t *testing.T) {
+	m := testModel([]*comment.Comment{{ID: "c1", Line: 5, Text: "open", Author: "rcliao"}})
+	m.filename = filepath.Join(t.TempDir(), "v.md")
+	os.WriteFile(m.filename, []byte(tuiTestDoc), 0644)
+
+	// q from browse opens the verdict dialog
+	next, _ := m.handleBrowseKeys(keyMsg("q"))
+	nm := next.(Model)
+	if nm.mode != ModeVerdict {
+		t.Fatalf("q should open verdict dialog, got %v", nm.mode)
+	}
+	// esc returns to browse
+	back, _ := nm.handleVerdictKeys(keyMsg("esc"))
+	if back.(Model).mode != ModeBrowse {
+		t.Error("esc should return to previous mode")
+	}
+	// a approves: records signoff and quits
+	done, cmd := nm.handleVerdictKeys(keyMsg("a"))
+	dm := done.(Model)
+	if dm.VerdictDecision != comment.DecisionApproved || cmd == nil {
+		t.Errorf("a should record approval and quit, got %q", dm.VerdictDecision)
+	}
+	if len(dm.doc.Reviews) != 1 || dm.doc.Reviews[0].Decision != comment.DecisionApproved {
+		t.Errorf("signoff not recorded: %v", dm.doc.Reviews)
+	}
+}
+
+func TestOpenCommentMotions(t *testing.T) {
+	m := testModel([]*comment.Comment{
+		{ID: "c1", Line: 3, Text: "a", Author: "r"},
+		{ID: "c2", Line: 5, Text: "b", Author: "r", Resolved: true},
+		{ID: "c3", Line: 9, Text: "c", Author: "r"},
+	})
+	lineSelectAt(m, 3)
+
+	next, _ := m.handleLineSelectKeys(keyMsg("]"))
+	nm := next.(Model)
+	if nm.selectedLine != 9 { // skips resolved c2 at line 5
+		t.Errorf("] should jump to next OPEN comment line 9, got %d", nm.selectedLine)
+	}
+	prev, _ := nm.handleLineSelectKeys(keyMsg("["))
+	if prev.(Model).selectedLine != 3 {
+		t.Errorf("[ should jump back to line 3, got %d", prev.(Model).selectedLine)
 	}
 }
