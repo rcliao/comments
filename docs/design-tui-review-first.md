@@ -29,7 +29,7 @@ Each element is tagged with the goal it serves.
 
 **Rendered reading view as the default (G1) — decided in review.** The document renders as styled prose (glamour or equivalent), block by block: the renderer processes each top-level markdown block (paragraph, list, code fence, heading) separately, and each rendered block carries its source-line range from the existing section/block parser. Anchors therefore stay truthful at block granularity: gutter markers and virtual-text summaries (`· @rcliao ×2, 1 open` — on by default, `L` toggles) attach to the rendered block containing the comment's line.
 
-**Cursor moves by block in rendered mode (G1, G2).** `j`/`k` step through rendered blocks (a paragraph is one stop, not five wrapped lines); the focused block drives the sidebar exactly as the focused line does today. [NEEDS CLARIFICATION: for adding a *new* comment in rendered mode, is anchoring to the focused block's first source line acceptable, with `v` (source mode) as the path for exact-line placement — or should `c` always drop into source mode for line pick?]
+**Cursor moves by block in rendered mode (G1, G2).** `j`/`k` step through rendered blocks (a paragraph is one stop, not five wrapped lines); the focused block drives the sidebar exactly as the focused line does today. Adding a comment in rendered mode anchors it to the focused paragraph (its first source line) — when an exact line matters, press `v` for source mode first (decided by default in review: paragraph-level is right for prose feedback).
 
 **Source mode on `v` (G1).** Toggles to today's line-grid view (line numbers, exact line cursor, in-place heading styling) at the same scroll position — for precise line anchoring, suggestion ranges, and agent-eye verification. Render-first, source-on-demand: the inverse of the pre-review draft, per Eric's call.
 
@@ -37,7 +37,7 @@ Each element is tagged with the goal it serves.
 
 **Compose without leaving the flow (G3).** `c` opens a centered modal overlay pre-filled with anchor context; `Ctrl+E` from any compose drops into `$EDITOR` for long text. `r` on an expanded thread replies in place (shipped 2026-08-05); `R` toggles resolve on the focused thread.
 
-**Suggestions in-TUI (G3).** Focused suggestion threads show a word-level old→new preview with `a` accept / `x` reject inline; today's accept/reject is CLI-only.
+**Suggestions in-TUI (G3) — decided in review.** Focused suggestion threads show a word-level old→new preview; `a`/`x` mark them accept/reject **pending** — nothing mutates mid-review. All queued decisions apply atomically when the verdict is submitted (`q` dialog), so the document you read is the document you reviewed.
 
 **Exit is a verdict (G4) — decided in review.** `q` opens the verdict dialog: **Approve** (writes signoff, exits 0) / **Request changes** (writes signoff, exits 10) / **Back to review**. `Ctrl+C` remains the silent escape path, quitting without a review verdict. An SDD checkpoint becomes: run `comments view`, review, pick a verdict.
 
@@ -72,5 +72,5 @@ TODOs for the human reviewer — resolve the matching thread or edit here:
 - [x] `q` verdict prompt: **yes — `q` opens the verdict dialog; `Ctrl+C` is the silent escape** (review, 2026-08-05)
 - [x] Virtual-text summaries: **on by default** (review, 2026-08-05)
 - [x] `--editor` round-trip: **deprioritized — tool over editor integration** (review, 2026-08-05)
-- [ ] Block-level anchoring for new comments in rendered mode, or always drop to source for line pick? (marker in Proposed Design)
-- [ ] In-TUI accept: apply immediately mid-review, or queue until the verdict dialog? (thread `ccn6g` — re-asked; the earlier reply answered the sidebar question instead)
+- [x] New comments in rendered mode anchor to the **focused paragraph**; `v` (source mode) for exact lines (decided by default, review round 3)
+- [x] In-TUI accept/reject: **queued, applied together at the verdict dialog** (review, 2026-08-05)
