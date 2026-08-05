@@ -124,10 +124,11 @@ func seedCommand(filename string, args []string) {
 	fs := flag.NewFlagSet("seed", flag.ExitOnError)
 	templateName := fs.String("template", "", "Template name (defaults to template recorded in sidecar)")
 	author := fs.String("author", "template", "Author for seeded threads")
+	markersOnly := fs.Bool("markers-only", false, "Seed only NEEDS CLARIFICATION markers, not generic criteria (agent posts specific callouts instead)")
 	fs.Parse(args)
 
 	t, doc := loadTemplateForDoc(filename, *templateName)
-	added := comment.SeedTemplateThreads(doc, t, *author)
+	added := comment.SeedTemplateThreads(doc, t, *author, *markersOnly)
 
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
 		fmt.Printf("Error saving document: %v\n", err)

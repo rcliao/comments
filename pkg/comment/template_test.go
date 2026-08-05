@@ -93,7 +93,7 @@ Something [NEEDS CLARIFICATION: which?] here.
 
 func TestComputeSeedTargets(t *testing.T) {
 	doc := strings.Replace(conformingDoc, "Things are slow.", "Things are [NEEDS CLARIFICATION: how slow?] slow.", 1)
-	targets := ComputeSeedTargets(doc, testTemplate(t))
+	targets := ComputeSeedTargets(doc, testTemplate(t), false)
 
 	var criteria, markers int
 	for _, target := range targets {
@@ -119,7 +119,7 @@ func TestSeedTemplateThreadsIdempotent(t *testing.T) {
 	doc := &DocumentWithComments{Content: conformingDoc}
 	tmpl := testTemplate(t)
 
-	first := SeedTemplateThreads(doc, tmpl, "template")
+	first := SeedTemplateThreads(doc, tmpl, "template", false)
 	if len(first) != 1 {
 		t.Fatalf("expected 1 seeded thread, got %d", len(first))
 	}
@@ -127,7 +127,7 @@ func TestSeedTemplateThreadsIdempotent(t *testing.T) {
 		t.Errorf("seeding should record template name, got %q", doc.Template)
 	}
 
-	second := SeedTemplateThreads(doc, tmpl, "template")
+	second := SeedTemplateThreads(doc, tmpl, "template", false)
 	if len(second) != 0 {
 		t.Errorf("re-seeding should add nothing, got %d", len(second))
 	}
@@ -155,5 +155,14 @@ func TestLoadBuiltinTemplates(t *testing.T) {
 		if tmpl.Name != name {
 			t.Errorf("template %q has mismatched name %q", name, tmpl.Name)
 		}
+	}
+}
+
+func TestSeedMarkersOnly(t *testing.T) {
+	doc := strings.Replace(conformingDoc, "Things are slow.", "Things are [NEEDS CLARIFICATION: how slow?] slow.", 1)
+	targets := ComputeSeedTargets(doc, testTemplate(t), true)
+
+	if len(targets) != 1 || targets[0].Type != "Q" {
+		t.Errorf("markers-only should seed only the marker Q thread, got %v", targets)
 	}
 }

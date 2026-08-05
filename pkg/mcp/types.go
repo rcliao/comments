@@ -155,7 +155,8 @@ type ValidateRequest struct {
 type SeedRequest struct {
 	FilePath string `json:"filepath" jsonschema:"Path to the markdown file"`
 	Template string `json:"template,omitempty" jsonschema:"Template name (defaults to the template recorded in the sidecar)"`
-	Author   string `json:"author,omitempty" jsonschema:"Author for seeded threads (default 'template')"`
+	Author      string `json:"author,omitempty" jsonschema:"Author for seeded threads (default 'template')"`
+	MarkersOnly bool   `json:"markers_only,omitempty" jsonschema:"Seed only NEEDS CLARIFICATION markers; post your own doc-specific callouts instead of generic criteria"`
 }
 
 // GetTemplateRequest represents a request to read a template definition

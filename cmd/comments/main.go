@@ -966,6 +966,7 @@ Validate/Seed Command Flags:
   --template <name>           Template name (defaults to template recorded in sidecar)
   --json                      (validate) Output violations as JSON
   --author <name>             (seed) Author for seeded threads (default: template)
+  --markers-only              (seed) Seed only NEEDS CLARIFICATION markers (agent posts specific callouts)
 
 Signoff Command Flags:
   --author <name>             Reviewer name (defaults to $USER)

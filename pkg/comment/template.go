@@ -244,13 +244,18 @@ func ValidateTemplate(content string, t *Template) []Violation {
 
 // ComputeSeedTargets returns the review threads a template wants for a document:
 // per-section review criteria (anchored at the section heading) and one Q thread
-// per ambiguity marker occurrence.
-func ComputeSeedTargets(content string, t *Template) []SeedTarget {
+// per ambiguity marker occurrence. With markersOnly, generic criteria are skipped —
+// the agent is expected to post doc-specific callouts instead (see the
+// review-comments skill); only the doc-specific ambiguity markers seed.
+func ComputeSeedTargets(content string, t *Template, markersOnly bool) []SeedTarget {
 	targets := []SeedTarget{}
 	structure := markdown.ParseDocument(content)
 	lines := strings.Split(content, "\n")
 
 	for _, ts := range t.Sections {
+		if markersOnly {
+			break
+		}
 		section := findTemplateSection(structure, ts.Heading)
 		if section == nil {
 			continue
@@ -287,7 +292,7 @@ func ComputeSeedTargets(content string, t *Template) []SeedTarget {
 // SeedTemplateThreads materializes seed targets as comment threads, skipping
 // targets that already exist (same author + text) so seeding is idempotent.
 // Returns the newly created comments.
-func SeedTemplateThreads(doc *DocumentWithComments, t *Template, author string) []*Comment {
+func SeedTemplateThreads(doc *DocumentWithComments, t *Template, author string, markersOnly bool) []*Comment {
 	existing := map[string]bool{}
 	for _, thread := range doc.Threads {
 		if thread.Author == author {
@@ -296,7 +301,7 @@ func SeedTemplateThreads(doc *DocumentWithComments, t *Template, author string) 
 	}
 
 	added := []*Comment{}
-	for _, target := range ComputeSeedTargets(doc.Content, t) {
+	for _, target := range ComputeSeedTargets(doc.Content, t, markersOnly) {
 		text := "[" + target.Type + "] " + target.Text
 		if existing[text] {
 			continue

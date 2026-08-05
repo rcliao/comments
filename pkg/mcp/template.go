@@ -64,7 +64,7 @@ func (s *Server) handleSeed(ctx context.Context, req *mcp.CallToolRequest, args 
 	if author == "" {
 		author = "template"
 	}
-	added := comment.SeedTemplateThreads(doc, t, author)
+	added := comment.SeedTemplateThreads(doc, t, author, args.MarkersOnly)
 	if err := comment.SaveToSidecar(absPath, doc); err != nil {
 		return nil, nil, fmt.Errorf("failed to save: %w", err)
 	}

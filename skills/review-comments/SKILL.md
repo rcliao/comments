@@ -70,9 +70,28 @@ project template):
    markers wherever you would otherwise guess at the human's intent.
 2. **After drafting**, self-correct structure until clean:
    `comments validate <doc.md> --template <name>` (exit 0 = conforms).
-3. **Seed the review checklist**: `comments seed <doc.md> --template <name>` —
-   this creates blocking threads from the template's review criteria and your
-   NEEDS CLARIFICATION markers, and records the template so the gate enforces it.
+3. **Self-review, then post SPECIFIC callouts** — never dump the template's
+   generic criteria on the human. For each template criterion, judge your own
+   draft against it and post a comment about what YOU actually did, anchored at
+   the exact line it concerns (batch-add is ideal):
+
+   - Weakest reasoning: "I rejected option B mainly on argument X — my least
+     confident step, please check" (type Q, blocking)
+   - Assumptions: "Assumed the API is idempotent based on the client code —
+     verify" (type Q, blocking if the design hinges on it)
+   - Invented or from-memory facts: "This 40% figure is from memory, no
+     source" (type Q, blocking)
+   - Judgment calls the criterion asks about: "Non-goals exclude Y because of
+     Z — widen if you disagree" (type S, non-blocking)
+
+   A criterion your draft clearly satisfies needs no comment — silence is the
+   signal that you checked it. The human reviews your specific doubts, not a
+   generic checklist.
+4. **Seed the ambiguity markers**: `comments seed <doc.md> --template <name> --markers-only`
+   — turns each NEEDS CLARIFICATION marker into a blocking Q thread at its line
+   and records the template so the gate enforces structure. (Full `seed` without
+   the flag also posts the generic criteria threads — for human-only workflows
+   with no agent to do step 3.)
 4. Request review: call `comments_request_review` (MCP) with the file path, or
    ask the human to review with `comments view <doc.md>` and sign off with
    `comments signoff <doc.md>`. While waiting, do not modify the document.

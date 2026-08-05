@@ -107,7 +107,7 @@ Templates constrain what an agent writes so humans can review it well. A templat
 
 - **Sections**: required headings (matched by title or path suffix), order, `max_words` caps (attacks LLM padding), `min_subsections` (e.g. "Options Considered" needs >= 2 alternatives).
 - **`zone: human`**: human-decision sections. Threads anchored there cannot be resolved by agents over MCP — the agent gets an error telling it to reply instead; only the human resolves (CLI/TUI).
-- **`review_criteria`**: per-section review checklist items; `comments seed` materializes them as blocking threads anchored at the section heading ("unit tests for the writing", Spec Kit checklist style).
+- **`review_criteria`**: per-section self-review prompts for the *agent* — the skill requires the agent to judge its draft against each criterion and post doc-specific callouts (weakest reasoning, assumptions, invented facts) at exact lines, instead of forwarding generic questions. `comments seed` without flags still materializes criteria as generic blocking threads (useful for human-only workflows); agent flows use `seed --markers-only`.
 - **Markers**: every `[NEEDS CLARIFICATION: ...]` occurrence is a validation violation and seeds a blocking Q thread at that line — agents must flag ambiguity instead of guessing (Spec Kit convention).
 
 Workflow: agent reads the template (`comments_get_template`) as its writing brief → drafts → `comments_validate` and self-corrects structure → `comments_seed` → human review = resolving seeded/own threads → `comments gate` (validates structure + comment state; `seed` records the template in the sidecar so the gate picks it up automatically) → `signoff`.
