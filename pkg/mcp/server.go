@@ -95,6 +95,10 @@ func (s *Server) registerTools() {
 	// Review gate operations
 	s.registerGateTool()
 	s.registerRequestReviewTool()
+	s.registerCheckReviewTool()
+
+	// Agent inbox
+	s.registerInboxTool()
 
 	// Template operations
 	s.registerTemplateTools()
@@ -134,9 +138,25 @@ func (s *Server) registerGateTool() {
 func (s *Server) registerRequestReviewTool() {
 	tool := &mcp.Tool{
 		Name:        "comments_request_review",
-		Description: "Request human review of a document and block until the reviewer records a signoff (via 'comments signoff') or the timeout elapses; returns the review decision and remaining comments",
+		Description: "Request human review of a document. Default: block until the reviewer records a signoff (via 'comments signoff') or the timeout elapses, returning the review decision and remaining comments. With blocking=false: return immediately with a durable since handle for comments_check_review polling",
 	}
 	mcp.AddTool(s.mcp, tool, s.handleRequestReview)
+}
+
+func (s *Server) registerCheckReviewTool() {
+	tool := &mcp.Tool{
+		Name:        "comments_check_review",
+		Description: "Check a pending review handle: given the since timestamp from a non-blocking comments_request_review, returns pending or review_completed (with the review decision and gate state) by comparing the sidecar's newest signoff against since",
+	}
+	mcp.AddTool(s.mcp, tool, s.handleCheckReview)
+}
+
+func (s *Server) registerInboxTool() {
+	tool := &mcp.Tool{
+		Name:        "comments_inbox",
+		Description: "Agent inbox for a file or directory: unresolved threads with replies newer than since (or any replies when since is empty) plus all unresolved blocking threads, each with its last reply — everything needing attention in one call",
+	}
+	mcp.AddTool(s.mcp, tool, s.handleInbox)
 }
 
 func (s *Server) registerListTool() {
@@ -226,4 +246,3 @@ func (s *Server) registerBatchReplyTool() {
 	}
 	mcp.AddTool(s.mcp, tool, s.handleBatchReply)
 }
-

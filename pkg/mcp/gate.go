@@ -59,8 +59,12 @@ func (s *Server) handleGate(ctx context.Context, req *mcp.CallToolRequest, args 
 	return jsonToolResult(result)
 }
 
-// handleRequestReview blocks until a human records a signoff (comments signoff)
-// newer than the request, then returns the review decision and gate state.
+// handleRequestReview requests a human review. Default (blocking) mode waits
+// until a signoff (comments signoff) newer than the request is recorded, then
+// returns the review decision and gate state. With blocking=false it returns
+// immediately with a `since` handle for comments_check_review polling — the
+// handle is just a timestamp compared against the sidecar's review history, so
+// it survives agent restarts.
 func (s *Server) handleRequestReview(ctx context.Context, req *mcp.CallToolRequest, args RequestReviewRequest) (*mcp.CallToolResult, any, error) {
 	absPath, err := filepath.Abs(args.FilePath)
 	if err != nil {
@@ -68,6 +72,15 @@ func (s *Server) handleRequestReview(ctx context.Context, req *mcp.CallToolReque
 	}
 	if _, err := os.Stat(absPath); err != nil {
 		return nil, nil, fmt.Errorf("document not found: %w", err)
+	}
+
+	if args.Blocking != nil && !*args.Blocking {
+		result := map[string]any{
+			"status":  "requested",
+			"since":   time.Now().Format(time.RFC3339Nano),
+			"message": fmt.Sprintf("review requested; poll comments_check_review with this since value after the human runs: comments signoff %s", args.FilePath),
+		}
+		return jsonToolResult(result)
 	}
 
 	timeout := defaultReviewTimeout
@@ -105,6 +118,45 @@ func (s *Server) handleRequestReview(ctx context.Context, req *mcp.CallToolReque
 			return jsonToolResult(result)
 		}
 	}
+}
+
+// handleCheckReview polls a durable review handle: it compares the sidecar's
+// newest review record against the `since` timestamp. Pending until a human
+// signoff newer than `since` exists; then returns the same completed payload
+// shape as blocking comments_request_review.
+func (s *Server) handleCheckReview(ctx context.Context, req *mcp.CallToolRequest, args CheckReviewRequest) (*mcp.CallToolResult, any, error) {
+	absPath, err := filepath.Abs(args.FilePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid file path: %w", err)
+	}
+	if _, err := os.Stat(absPath); err != nil {
+		return nil, nil, fmt.Errorf("document not found: %w", err)
+	}
+	since, err := time.Parse(time.RFC3339, args.Since)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid since timestamp (want RFC3339, e.g. the value returned by comments_request_review): %w", err)
+	}
+
+	review := latestReviewSince(absPath, since)
+	if review == nil {
+		result := map[string]any{
+			"status": "pending",
+			"since":  args.Since,
+		}
+		return jsonToolResult(result)
+	}
+
+	decision, files, err := evaluateGateForPath(absPath, args.Strict)
+	if err != nil {
+		return nil, nil, err
+	}
+	result := map[string]any{
+		"status":        "review_completed",
+		"review":        review,
+		"gate_decision": decision,
+		"files":         files,
+	}
+	return jsonToolResult(result)
 }
 
 // latestReviewSince reads the sidecar without validation side effects and

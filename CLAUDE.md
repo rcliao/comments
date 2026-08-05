@@ -89,6 +89,11 @@ echo '[{"thread":"c123","author":"claude","text":"LGTM"}]' | ./comments batch-re
 ./comments signoff doc.md               # record a completed review pass (decision derived from gate)
 ./comments signoff doc.md --decision changes_requested --note "see blocking comments"
 
+# Watch review-state changes (NDJSON event stream, poll-based)
+./comments watch specs/                       # runs until killed; exits cleanly if stdout closes (EPIPE)
+./comments watch doc.md --until signoff       # exit 0 after emitting a signoff event
+./comments watch doc.md --until signoff,gate_changed --interval 500ms
+
 # Doc templates (guardrails for agent-written docs)
 ./comments template list                       # built-ins: design-doc, adr, rfc (+ project templates in .comments/templates/)
 ./comments template show design-doc
@@ -133,7 +138,7 @@ The gate turns review state into a machine-readable contract for agent loops and
 
 The server runs over stdio and exposes:
 - **2 Resources** (subscribable) for accessing documents and threads
-- **11 Tools** for all comment operations
+- **19 Tools** for all comment operations
 
 **MCP Resources:**
 
@@ -176,7 +181,11 @@ All CLI operations are available as MCP tools with automatic JSON schema validat
 
 *Review Gate Operations:*
 - **comments_gate** - Evaluate review gate for a file or directory (approved / changes_requested)
-- **comments_request_review** - Block until the human records a signoff (`comments signoff`), then return the decision and remaining comments
+- **comments_request_review** - Request human review. Default: block until the human records a signoff (`comments signoff`), then return the decision and remaining comments. With `blocking: false`: return immediately with `{status: "requested", since: <RFC3339>}` — a durable handle for later polling that survives agent restarts
+- **comments_check_review** - Poll a review handle: `{filepath, since}` returns `{status: "pending"}` until a signoff newer than `since` exists, then `{status: "review_completed", review, gate_decision, files}`
+
+*Agent Inbox:*
+- **comments_inbox** - One-call attention view for a file or directory: unresolved threads with replies newer than `since` (or any replies when `since` is empty) plus all unresolved blocking threads, each with its last reply (author, text, timestamp)
 
 *Template Operations:*
 - **comments_get_template** - Read a template as a writing brief (or list templates)

@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/rcliao/comments/pkg/comment"
 )
 
 // startTestSession connects a real client to the server over in-memory transports
@@ -91,7 +93,8 @@ func TestServerRegistersAllTools(t *testing.T) {
 		"comments_list", "comments_get", "comments_status", "comments_add",
 		"comments_reply", "comments_resolve", "comments_suggest", "comments_accept",
 		"comments_reject", "comments_batch_add", "comments_batch_reply",
-		"comments_gate", "comments_request_review",
+		"comments_gate", "comments_request_review", "comments_check_review",
+		"comments_inbox",
 		"comments_get_template", "comments_validate", "comments_seed",
 		"comments_reanchor",
 	}
@@ -193,6 +196,184 @@ func TestHumanZoneResolveRefused(t *testing.T) {
 	})
 	if !strings.Contains(errText, "human-decision zone") {
 		t.Errorf("expected human-zone refusal, got: %s", errText)
+	}
+}
+
+// TestNonBlockingReviewFlow exercises the durable review-handle loop:
+// request (non-blocking) -> check pending -> human signoff via CLI-style
+// sidecar write -> check completed.
+func TestNonBlockingReviewFlow(t *testing.T) {
+	session := startTestSession(t)
+	doc := writeFixture(t)
+
+	// A sidecar must exist for the gate evaluation after signoff
+	callTool(t, session, "comments_add", map[string]any{
+		"filepath": doc, "author": "eric", "text": "tighten this", "line": 5,
+	})
+
+	requested := callTool(t, session, "comments_request_review", map[string]any{
+		"filepath": doc, "blocking": false,
+	})
+	if requested["status"] != "requested" {
+		t.Fatalf("expected status requested, got %v", requested)
+	}
+	since, ok := requested["since"].(string)
+	if !ok || since == "" {
+		t.Fatalf("expected a since handle, got %v", requested)
+	}
+	if _, err := time.Parse(time.RFC3339, since); err != nil {
+		t.Fatalf("since is not RFC3339: %q (%v)", since, err)
+	}
+
+	// No signoff yet: pending
+	check := callTool(t, session, "comments_check_review", map[string]any{
+		"filepath": doc, "since": since,
+	})
+	if check["status"] != "pending" {
+		t.Fatalf("expected pending before signoff, got %v", check)
+	}
+
+	// Human signs off the CLI way: AddReviewRecord + SaveToSidecar
+	loaded, err := comment.LoadFromSidecar(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	comment.AddReviewRecord(loaded, "eric", "", "looks good", false)
+	if err := comment.SaveToSidecar(doc, loaded); err != nil {
+		t.Fatal(err)
+	}
+
+	check = callTool(t, session, "comments_check_review", map[string]any{
+		"filepath": doc, "since": since,
+	})
+	if check["status"] != "review_completed" {
+		t.Fatalf("expected review_completed after signoff, got %v", check)
+	}
+	review, ok := check["review"].(map[string]any)
+	if !ok || review["author"] != "eric" {
+		t.Errorf("expected review record by eric, got %v", check["review"])
+	}
+	if check["gate_decision"] != "approved" {
+		t.Errorf("expected gate approved (only non-blocking comment), got %v", check["gate_decision"])
+	}
+	if _, ok := check["files"].([]any); !ok {
+		t.Errorf("expected files array in completed payload, got %v", check["files"])
+	}
+}
+
+func TestCheckReviewRejectsBadSince(t *testing.T) {
+	session := startTestSession(t)
+	doc := writeFixture(t)
+	callTool(t, session, "comments_add", map[string]any{
+		"filepath": doc, "author": "eric", "text": "note", "line": 5,
+	})
+	errText := callToolExpectError(t, session, "comments_check_review", map[string]any{
+		"filepath": doc, "since": "not-a-timestamp",
+	})
+	if !strings.Contains(errText, "RFC3339") {
+		t.Errorf("expected RFC3339 error, got: %s", errText)
+	}
+}
+
+func TestInboxTool(t *testing.T) {
+	session := startTestSession(t)
+	doc := writeFixture(t)
+
+	// Thread 1: blocking, no replies — always in the inbox
+	callTool(t, session, "comments_add", map[string]any{
+		"filepath": doc, "author": "eric", "text": "must fix", "line": 5, "blocking": true,
+	})
+	// Thread 2: non-blocking with a reply — in the inbox via new_reply
+	callTool(t, session, "comments_add", map[string]any{
+		"filepath": doc, "author": "eric", "text": "question", "line": 9,
+	})
+	// Thread 3: non-blocking, no replies — not in the inbox
+	callTool(t, session, "comments_add", map[string]any{
+		"filepath": doc, "author": "eric", "text": "just a note", "line": 9,
+	})
+
+	listed := callTool(t, session, "comments_list", map[string]any{"filepath": doc})
+	var questionID string
+	for _, raw := range listed["comments"].([]any) {
+		c := raw.(map[string]any)
+		if c["text"] == "question" {
+			questionID = c["id"].(string)
+		}
+	}
+	if questionID == "" {
+		t.Fatal("question thread not found")
+	}
+	callTool(t, session, "comments_reply", map[string]any{
+		"filepath": doc, "thread_id": questionID, "author": "claude", "text": "answered inline",
+	})
+
+	inbox := callTool(t, session, "comments_inbox", map[string]any{"filepath": doc})
+	if inbox["count"] != float64(2) {
+		t.Fatalf("expected 2 inbox items, got %v", inbox)
+	}
+	byText := map[string]map[string]any{}
+	for _, raw := range inbox["items"].([]any) {
+		item := raw.(map[string]any)
+		thread := item["thread"].(map[string]any)
+		byText[thread["text"].(string)] = item
+	}
+	blockingItem, ok := byText["must fix"]
+	if !ok {
+		t.Fatalf("blocking thread missing from inbox: %v", byText)
+	}
+	if reasons := blockingItem["reasons"].([]any); len(reasons) != 1 || reasons[0] != "blocking" {
+		t.Errorf("expected [blocking] reasons, got %v", reasons)
+	}
+	replyItem, ok := byText["question"]
+	if !ok {
+		t.Fatalf("replied thread missing from inbox: %v", byText)
+	}
+	if reasons := replyItem["reasons"].([]any); len(reasons) != 1 || reasons[0] != "new_reply" {
+		t.Errorf("expected [new_reply] reasons, got %v", reasons)
+	}
+	last := replyItem["last_reply"].(map[string]any)
+	if last["author"] != "claude" || last["text"] != "answered inline" {
+		t.Errorf("last_reply not surfaced: %v", last)
+	}
+	// snake_case thread payload (shared commentJSON shape)
+	thread := replyItem["thread"].(map[string]any)
+	if _, ok := thread["section_path"]; !ok {
+		t.Errorf("thread payload missing snake_case keys: %v", thread)
+	}
+
+	// since in the future filters the reply-driven item but keeps blocking
+	future := time.Now().Add(time.Hour).Format(time.RFC3339)
+	inbox = callTool(t, session, "comments_inbox", map[string]any{"filepath": doc, "since": future})
+	if inbox["count"] != float64(1) {
+		t.Fatalf("expected only the blocking item with future since, got %v", inbox)
+	}
+	item := inbox["items"].([]any)[0].(map[string]any)
+	if item["thread"].(map[string]any)["text"] != "must fix" {
+		t.Errorf("expected blocking thread to survive since filter, got %v", item)
+	}
+
+	// resolved threads leave the inbox
+	callTool(t, session, "comments_resolve", map[string]any{"filepath": doc, "thread_id": questionID})
+	inbox = callTool(t, session, "comments_inbox", map[string]any{"filepath": doc})
+	if inbox["count"] != float64(1) {
+		t.Errorf("expected 1 item after resolving replied thread, got %v", inbox)
+	}
+}
+
+func TestInboxOnDirectory(t *testing.T) {
+	session := startTestSession(t)
+	doc := writeFixture(t)
+	dir := filepath.Dir(doc)
+
+	callTool(t, session, "comments_add", map[string]any{
+		"filepath": doc, "author": "eric", "text": "must fix", "line": 5, "blocking": true,
+	})
+	inbox := callTool(t, session, "comments_inbox", map[string]any{"filepath": dir})
+	if inbox["count"] != float64(1) {
+		t.Fatalf("expected 1 item for directory inbox, got %v", inbox)
+	}
+	if inbox["items"].([]any)[0].(map[string]any)["file"] == "" {
+		t.Error("inbox item missing file path")
 	}
 }
 

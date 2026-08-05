@@ -17,6 +17,7 @@ import (
 func watchCommand(target string, args []string) {
 	fs := flag.NewFlagSet("watch", flag.ExitOnError)
 	interval := fs.Duration("interval", time.Second, "Poll interval")
+	until := fs.String("until", "", "Exit 0 after emitting an event matching this comma-separated list of event types (e.g. signoff,gate_changed)")
 	fs.Parse(args)
 
 	encoder := json.NewEncoder(os.Stdout)
@@ -29,7 +30,14 @@ func watchCommand(target string, args []string) {
 
 	emit := func(events []comment.WatchEvent) {
 		for _, e := range events {
-			_ = encoder.Encode(e)
+			if err := encoder.Encode(e); err != nil {
+				// stdout is gone (EPIPE: consumer exited). Exit cleanly instead
+				// of lingering as an orphan process writing into a broken pipe.
+				os.Exit(0)
+			}
+			if comment.MatchesUntil(e.Event, *until) {
+				os.Exit(0)
+			}
 		}
 	}
 

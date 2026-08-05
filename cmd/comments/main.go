@@ -945,7 +945,7 @@ Commands:
   template list|show <name>   List or inspect doc templates (guardrails for agent-written docs)
   validate <file> [flags]     Check document structure against a template (exit 1 on violations)
   seed <file> [flags]         Create review threads from a template's criteria and markers
-  watch <file-or-dir> [flags] Emit review-state change events as NDJSON (poll-based)
+  watch <file-or-dir> [flags] Emit review-state change events as NDJSON (poll-based; --until exits on a matching event)
   serve-mcp                   Start Model Context Protocol server (for LLM integration)
   help                        Show this help message
 
@@ -992,6 +992,11 @@ Signoff Command Flags:
   --decision <decision>       Override: approved or changes_requested (default: derived from gate)
   --note <text>               Optional review note
   --strict                    Derive decision using strict gate rules
+
+Watch Command Flags:
+  --interval <duration>       Poll interval (default: 1s)
+  --until <events>            Exit 0 after emitting a matching event; comma-separated event
+                              types (e.g. signoff or signoff,gate_changed)
 
 Batch-Add Command Flags:
   --json <file|->             JSON file path or '-' for stdin (required)

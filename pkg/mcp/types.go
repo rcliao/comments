@@ -1,21 +1,20 @@
 package mcp
 
-
 // Tool request/response types for MCP operations
 
 // ListCommentsRequest represents a request to list/filter comments
 type ListCommentsRequest struct {
-	FilePath     string   `json:"filepath" jsonschema:"Path to the markdown file"`
-	Author       string   `json:"author,omitempty" jsonschema:"Filter by author name"`
-	Type         string   `json:"type,omitempty" jsonschema:"Filter by comment type (Q S B T E)"`
-	Section      string   `json:"section,omitempty" jsonschema:"Filter by section path (e.g. 'Introduction > Overview')"`
-	Search       string   `json:"search,omitempty" jsonschema:"Search in comment text"`
-	Status       string   `json:"status,omitempty" jsonschema:"Filter by status (active orphaned resolved completed)"`
-	Priority     string   `json:"priority,omitempty" jsonschema:"Filter by priority (low medium high)"`
-	Resolved     *bool    `json:"resolved,omitempty" jsonschema:"Filter by resolved state"`
-	LineStart    int      `json:"line_start,omitempty" jsonschema:"Filter comments from this line"`
-	LineEnd      int      `json:"line_end,omitempty" jsonschema:"Filter comments up to this line"`
-	WithContext  bool     `json:"with_context,omitempty" jsonschema:"Include surrounding context for each comment"`
+	FilePath    string `json:"filepath" jsonschema:"Path to the markdown file"`
+	Author      string `json:"author,omitempty" jsonschema:"Filter by author name"`
+	Type        string `json:"type,omitempty" jsonschema:"Filter by comment type (Q S B T E)"`
+	Section     string `json:"section,omitempty" jsonschema:"Filter by section path (e.g. 'Introduction > Overview')"`
+	Search      string `json:"search,omitempty" jsonschema:"Search in comment text"`
+	Status      string `json:"status,omitempty" jsonschema:"Filter by status (active orphaned resolved completed)"`
+	Priority    string `json:"priority,omitempty" jsonschema:"Filter by priority (low medium high)"`
+	Resolved    *bool  `json:"resolved,omitempty" jsonschema:"Filter by resolved state"`
+	LineStart   int    `json:"line_start,omitempty" jsonschema:"Filter comments from this line"`
+	LineEnd     int    `json:"line_end,omitempty" jsonschema:"Filter comments up to this line"`
+	WithContext bool   `json:"with_context,omitempty" jsonschema:"Include surrounding context for each comment"`
 }
 
 // GetCommentRequest represents a request to get a specific comment with context
@@ -52,9 +51,9 @@ type ReplyRequest struct {
 
 // ResolveRequest represents a request to resolve/unresolve a thread
 type ResolveRequest struct {
-	FilePath   string `json:"filepath" jsonschema:"Path to the markdown file"`
-	ThreadID   string `json:"thread_id" jsonschema:"ID of the thread to resolve"`
-	Unresolve  bool   `json:"unresolve,omitempty" jsonschema:"Set to true to unresolve the thread"`
+	FilePath  string `json:"filepath" jsonschema:"Path to the markdown file"`
+	ThreadID  string `json:"thread_id" jsonschema:"ID of the thread to resolve"`
+	Unresolve bool   `json:"unresolve,omitempty" jsonschema:"Set to true to unresolve the thread"`
 }
 
 // SuggestRequest represents a request to create an edit suggestion
@@ -83,8 +82,8 @@ type RejectSuggestionRequest struct {
 
 // BatchAddRequest represents a request to add multiple comments
 type BatchAddRequest struct {
-	FilePath string                 `json:"filepath" jsonschema:"Path to the markdown file"`
-	Comments []BatchCommentData     `json:"comments" jsonschema:"Array of comment objects to add"`
+	FilePath string             `json:"filepath" jsonschema:"Path to the markdown file"`
+	Comments []BatchCommentData `json:"comments" jsonschema:"Array of comment objects to add"`
 }
 
 // BatchCommentData represents a single comment in a batch add operation
@@ -106,8 +105,8 @@ type BatchCommentData struct {
 
 // BatchReplyRequest represents a request to add multiple replies
 type BatchReplyRequest struct {
-	FilePath string            `json:"filepath" jsonschema:"Path to the markdown file"`
-	Replies  []BatchReplyData  `json:"replies" jsonschema:"Array of reply objects to add"`
+	FilePath string           `json:"filepath" jsonschema:"Path to the markdown file"`
+	Replies  []BatchReplyData `json:"replies" jsonschema:"Array of reply objects to add"`
 }
 
 // BatchReplyData represents a single reply in a batch reply operation
@@ -123,11 +122,22 @@ type GateRequest struct {
 	Strict   bool   `json:"strict,omitempty" jsonschema:"If true fail on any unresolved comment or pending suggestion not just blocking ones"`
 }
 
-// RequestReviewRequest represents a blocking request for human review
+// RequestReviewRequest represents a request for human review. By default it
+// blocks until signoff; with blocking=false it returns a durable handle
+// (the `since` timestamp) for later comments_check_review polling.
 type RequestReviewRequest struct {
 	FilePath       string `json:"filepath" jsonschema:"Path to the markdown file to be reviewed"`
-	TimeoutSeconds int    `json:"timeout_seconds,omitempty" jsonschema:"Max seconds to wait for the human signoff (default 600)"`
+	TimeoutSeconds int    `json:"timeout_seconds,omitempty" jsonschema:"Max seconds to wait for the human signoff (default 600; blocking mode only)"`
 	Strict         bool   `json:"strict,omitempty" jsonschema:"If true evaluate the gate with strict rules after signoff"`
+	Blocking       *bool  `json:"blocking,omitempty" jsonschema:"Default true: block until signoff. Set false to return immediately with a since timestamp for comments_check_review polling"`
+}
+
+// CheckReviewRequest polls a review handle created by a non-blocking
+// comments_request_review call (or any RFC3339 timestamp the agent recorded).
+type CheckReviewRequest struct {
+	FilePath string `json:"filepath" jsonschema:"Path to the markdown file under review"`
+	Since    string `json:"since" jsonschema:"RFC3339 timestamp (the since value returned by comments_request_review with blocking=false); a signoff newer than this completes the review"`
+	Strict   bool   `json:"strict,omitempty" jsonschema:"If true evaluate the gate with strict rules once the review completes"`
 }
 
 // ReanchorMove relocates one comment to its new position after an agent edit
@@ -153,8 +163,8 @@ type ValidateRequest struct {
 
 // SeedRequest represents a request to seed template review threads
 type SeedRequest struct {
-	FilePath string `json:"filepath" jsonschema:"Path to the markdown file"`
-	Template string `json:"template,omitempty" jsonschema:"Template name (defaults to the template recorded in the sidecar)"`
+	FilePath    string `json:"filepath" jsonschema:"Path to the markdown file"`
+	Template    string `json:"template,omitempty" jsonschema:"Template name (defaults to the template recorded in the sidecar)"`
 	Author      string `json:"author,omitempty" jsonschema:"Author for seeded threads (default 'template')"`
 	MarkersOnly bool   `json:"markers_only,omitempty" jsonschema:"Seed only NEEDS CLARIFICATION markers; post your own doc-specific callouts instead of generic criteria"`
 }
@@ -166,16 +176,16 @@ type GetTemplateRequest struct {
 
 // DocumentStatus represents the status of a document's comments
 type DocumentStatus struct {
-	FilePath            string                   `json:"filepath"`
-	TotalThreads        int                      `json:"total_threads"`
-	ResolvedThreads     int                      `json:"resolved_threads"`
-	UnresolvedThreads   int                      `json:"unresolved_threads"`
-	PendingSuggestions  int                      `json:"pending_suggestions"`
-	OrphanedComments    int                      `json:"orphaned_comments"`
-	IsStale             bool                     `json:"is_stale"`
-	DocumentHash        string                   `json:"document_hash"`
-	LastValidated       string                   `json:"last_validated"`
-	SuggestionsByAuthor map[string]int           `json:"suggestions_by_author,omitempty"`
+	FilePath            string         `json:"filepath"`
+	TotalThreads        int            `json:"total_threads"`
+	ResolvedThreads     int            `json:"resolved_threads"`
+	UnresolvedThreads   int            `json:"unresolved_threads"`
+	PendingSuggestions  int            `json:"pending_suggestions"`
+	OrphanedComments    int            `json:"orphaned_comments"`
+	IsStale             bool           `json:"is_stale"`
+	DocumentHash        string         `json:"document_hash"`
+	LastValidated       string         `json:"last_validated"`
+	SuggestionsByAuthor map[string]int `json:"suggestions_by_author,omitempty"`
 }
 
 // CommentWithContext represents a comment with its surrounding context

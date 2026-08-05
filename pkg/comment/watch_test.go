@@ -40,6 +40,28 @@ func TestWatchSnapshotDiff(t *testing.T) {
 	}
 }
 
+func TestMatchesUntil(t *testing.T) {
+	cases := []struct {
+		event, spec string
+		want        bool
+	}{
+		{"signoff", "signoff", true},
+		{"signoff", "gate_changed", false},
+		{"signoff", "gate_changed,signoff", true},
+		{"gate_changed", "gate_changed,signoff", true},
+		{"reply_added", "gate_changed,signoff", false},
+		{"signoff", " signoff , gate_changed ", true}, // whitespace tolerated
+		{"signoff", "", false},                        // empty spec never matches
+		{"", "signoff", false},
+		{"signoff", "sign", false}, // no prefix matching
+	}
+	for _, c := range cases {
+		if got := MatchesUntil(c.event, c.spec); got != c.want {
+			t.Errorf("MatchesUntil(%q, %q) = %v, want %v", c.event, c.spec, got, c.want)
+		}
+	}
+}
+
 func TestWatchInitialLoadEmitsNothing(t *testing.T) {
 	dir := t.TempDir()
 	mdPath := filepath.Join(dir, "d.md")

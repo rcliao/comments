@@ -3,6 +3,7 @@ package comment
 import (
 	"encoding/json"
 	"os"
+	"strings"
 )
 
 // WatchEvent is one observed change in a document's review state.
@@ -10,12 +11,27 @@ import (
 type WatchEvent struct {
 	Event    string `json:"event"` // comment_added, reply_added, thread_resolved, thread_unresolved, suggestion_accepted, suggestion_rejected, signoff, gate_changed
 	File     string `json:"file"`
-	ID       string `json:"id,omitempty"`     // comment/thread ID
+	ID       string `json:"id,omitempty"` // comment/thread ID
 	Author   string `json:"author,omitempty"`
 	Line     int    `json:"line,omitempty"`
-	Text     string `json:"text,omitempty"`     // truncated comment text for context
+	Text     string `json:"text,omitempty"` // truncated comment text for context
 	Blocking bool   `json:"blocking,omitempty"`
 	Decision string `json:"decision,omitempty"` // signoff / gate_changed
+}
+
+// MatchesUntil reports whether an event type matches an --until spec: a
+// comma-separated list of event names (e.g. "signoff" or "signoff,gate_changed").
+// An empty spec never matches. Whitespace around names is ignored.
+func MatchesUntil(eventName, untilSpec string) bool {
+	if untilSpec == "" {
+		return false
+	}
+	for _, want := range strings.Split(untilSpec, ",") {
+		if strings.TrimSpace(want) == eventName {
+			return true
+		}
+	}
+	return false
 }
 
 // threadState is the per-thread snapshot used for diffing
@@ -31,11 +47,11 @@ type threadState struct {
 
 // WatchSnapshot captures a document's review state at one point in time
 type WatchSnapshot struct {
-	threads  map[string]threadState
-	reviews  int
+	threads      map[string]threadState
+	reviews      int
 	lastDecision string // decision of newest review
-	gate     string
-	valid    bool // false when the sidecar was missing/unreadable
+	gate         string
+	valid        bool // false when the sidecar was missing/unreadable
 }
 
 // TakeSnapshot reads a sidecar RAW (no validation side effects — validation
