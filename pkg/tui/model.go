@@ -39,6 +39,7 @@ type Model struct {
 	selectedLine       int              // For line selection mode
 	selectedComment    int              // For comment navigation
 	selectedThread     *comment.Comment // Thread root (v2.0)
+	returnToLineSelect bool             // Thread view was entered from line-select; Esc returns there
 	selectedSuggestion *comment.Comment // For suggestion review mode
 	suggestionPreview  string           // Preview of suggested changes
 	showResolved       bool
@@ -420,6 +421,32 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.commentInput.Focus()
 		return m, textarea.Blink
 
+	case "r":
+		// Dive into the focused thread on this line (reply from there)
+		if thread := m.focusedThreadAtCursor(); thread != nil {
+			m.selectedThread = thread
+			m.returnToLineSelect = true
+			m.mode = ModeThreadView
+			m.threadViewport.SetContent(m.renderThread())
+		}
+		return m, nil
+
+	case "tab":
+		// Cycle between threads stacked on this line
+		indices := m.threadIndicesAtLine(m.selectedLine)
+		if len(indices) > 1 {
+			next := indices[0]
+			for i, idx := range indices {
+				if idx == m.selectedComment {
+					next = indices[(i+1)%len(indices)]
+					break
+				}
+			}
+			m.selectedComment = next
+			m.commentViewport.SetContent(m.renderComments())
+		}
+		return m, nil
+
 	case "s":
 		// Check if on a heading line
 		if m.isHeadingLine(m.selectedLine) {
@@ -728,7 +755,16 @@ func (m Model) handleAddCommentKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		// Go back to browse mode
+		// Return to where the thread was opened from
+		if m.returnToLineSelect {
+			m.returnToLineSelect = false
+			m.selectedThread = nil
+			m.mode = ModeLineSelect
+			m.documentViewport.SetContent(m.renderDocumentWithCursor())
+			m.scrollToLine(m.selectedLine)
+			m.refreshSidebar()
+			return m, nil
+		}
 		m.mode = ModeBrowse
 		m.selectedThread = nil
 		return m, nil
@@ -1134,7 +1170,7 @@ func (m Model) viewBrowse() string {
 
 	var helpText string
 	if m.mode == ModeLineSelect {
-		helpText = "j/k: move • Ctrl+D/U: page • g/G: top/bottom • c: comment (section if heading) • s: suggest (range/section) • Esc: cancel"
+		helpText = "j/k: move • r: open thread • Tab: cycle threads on line • c: comment • s: suggest • Ctrl+D/U: page • Esc: cancel"
 	} else {
 		quitText := "back"
 		if m.startedWithFile {
@@ -1864,9 +1900,50 @@ func (m Model) viewSelectRange() string {
 	)
 }
 
+// threadIndicesAtLine returns indices into visibleComments() of threads on a line
+func (m *Model) threadIndicesAtLine(line int) []int {
+	indices := []int{}
+	for i, c := range m.visibleComments() {
+		if c.Line == line {
+			indices = append(indices, i)
+		}
+	}
+	return indices
+}
+
+// focusedThreadAtCursor returns the selected thread on the cursor line, if any.
+// Prefers the current sidebar selection when it sits on this line (Tab cycling).
+func (m *Model) focusedThreadAtCursor() *comment.Comment {
+	visible := m.visibleComments()
+	if m.selectedComment >= 0 && m.selectedComment < len(visible) && visible[m.selectedComment].Line == m.selectedLine {
+		return visible[m.selectedComment]
+	}
+	if indices := m.threadIndicesAtLine(m.selectedLine); len(indices) > 0 {
+		return visible[indices[0]]
+	}
+	return nil
+}
+
 // refreshSidebar re-renders the comment sidebar around the current focus line
 // and scrolls the focused group into view (focus-follows-cursor, G3)
 func (m *Model) refreshSidebar() {
+	// Keep the sidebar selection in step with the cursor: moving onto a
+	// commented line selects its first thread (Tab cycles among them)
+	if m.mode == ModeLineSelect {
+		if indices := m.threadIndicesAtLine(m.selectedLine); len(indices) > 0 {
+			selectedOnLine := false
+			for _, idx := range indices {
+				if idx == m.selectedComment {
+					selectedOnLine = true
+					break
+				}
+			}
+			if !selectedOnLine {
+				m.selectedComment = indices[0]
+			}
+		}
+	}
+
 	content := m.renderComments()
 	m.commentViewport.SetContent(content)
 

@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/rcliao/comments/pkg/comment"
 )
 
@@ -175,5 +177,84 @@ func TestNestedRepliesRenderRecursively(t *testing.T) {
 	out := m.renderComments()
 	if !strings.Contains(out, "first reply") || !strings.Contains(out, "nested answer") {
 		t.Errorf("nested replies should render recursively, got:\n%s", out)
+	}
+}
+
+func lineSelectAt(m *Model, line int) {
+	m.mode = ModeLineSelect
+	m.selectedLine = line
+	m.refreshSidebar()
+}
+
+func TestDiveIntoThreadFromLineSelect(t *testing.T) {
+	m := testModel([]*comment.Comment{
+		{ID: "c1", Line: 5, Text: "on five", Author: "rcliao"},
+		{ID: "c2", Line: 9, Text: "on nine", Author: "rcliao"},
+	})
+	lineSelectAt(m, 5)
+
+	next, _ := m.handleLineSelectKeys(keyMsg("r"))
+	nm := next.(Model)
+	if nm.mode != ModeThreadView || nm.selectedThread == nil || nm.selectedThread.ID != "c1" {
+		t.Fatalf("r should open thread view on the cursor line's thread, got mode=%v thread=%v", nm.mode, nm.selectedThread)
+	}
+
+	// Esc returns to line-select at the same cursor
+	back, _ := nm.handleThreadViewKeys(keyMsg("esc"))
+	bm := back.(Model)
+	if bm.mode != ModeLineSelect || bm.selectedLine != 5 {
+		t.Errorf("esc should return to line-select at line 5, got mode=%v line=%d", bm.mode, bm.selectedLine)
+	}
+}
+
+func TestDiveIsNoopOnUncommentedLine(t *testing.T) {
+	m := testModel([]*comment.Comment{{ID: "c1", Line: 5, Text: "x", Author: "rcliao"}})
+	lineSelectAt(m, 7)
+
+	next, _ := m.handleLineSelectKeys(keyMsg("r"))
+	nm := next.(Model)
+	if nm.mode != ModeLineSelect {
+		t.Errorf("r on uncommented line should stay in line-select, got %v", nm.mode)
+	}
+}
+
+func TestTabCyclesThreadsOnSameLine(t *testing.T) {
+	m := testModel([]*comment.Comment{
+		{ID: "c1", Line: 5, Text: "first", Author: "rcliao"},
+		{ID: "c2", Line: 5, Text: "second", Author: "rcliao"},
+		{ID: "c3", Line: 9, Text: "other", Author: "rcliao"},
+	})
+	lineSelectAt(m, 5)
+	if got := m.focusedThreadAtCursor().ID; got != "c1" {
+		t.Fatalf("cursor sync should select first thread on line, got %s", got)
+	}
+
+	next, _ := m.handleLineSelectKeys(keyMsg("tab"))
+	nm := next.(Model)
+	if got := nm.focusedThreadAtCursor().ID; got != "c2" {
+		t.Errorf("tab should cycle to second thread, got %s", got)
+	}
+	next2, _ := nm.handleLineSelectKeys(keyMsg("tab"))
+	nm2 := next2.(Model)
+	if got := nm2.focusedThreadAtCursor().ID; got != "c1" {
+		t.Errorf("tab should wrap back to first thread, got %s", got)
+	}
+
+	// r opens the Tab-selected thread, not the first one
+	dive, _ := nm.handleLineSelectKeys(keyMsg("r"))
+	dm := dive.(Model)
+	if dm.selectedThread == nil || dm.selectedThread.ID != "c2" {
+		t.Errorf("r should open the cycled-to thread c2, got %v", dm.selectedThread)
+	}
+}
+
+func keyMsg(key string) tea.KeyMsg {
+	switch key {
+	case "tab":
+		return tea.KeyMsg{Type: tea.KeyTab}
+	case "esc":
+		return tea.KeyMsg{Type: tea.KeyEsc}
+	default:
+		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
 	}
 }
