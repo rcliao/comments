@@ -6,6 +6,20 @@ Convention: newest entry first. Tag friction items `[friction]`, validated wins 
 
 ---
 
+## 2026-08-05 (late) — TUI research + dive-to-reply shipped mid-review
+
+**What we did:** Researched terminal reading/review UX (glow, frogmouth, octo.nvim, prr, revdiff, neomutt, epy, Crush — report 4), drafted the review-first TUI design doc under our own template (seeded, awaiting Eric's review), and shipped two interactions Eric asked for while reviewing in the TUI.
+
+- `[win]` octo.nvim independently validates our focus-follows-cursor pattern — its refinements (virtual text, thread-in-other-pane, verdict-on-exit) shape the design doc.
+- `[win]` Shipped from live feedback: `r` in line-select dives into the cursor line's thread (Esc returns to the cursor), `Tab` cycles threads stacked on one line, sidebar selection follows the cursor. 3 new interaction tests (TUI suite: 12).
+- `[win]` Second design doc drafted through the full template flow; seeded threads now show short IDs (`ceqp4`) and the Eric-tuned Risks criterion — earlier feedback compounding.
+- `[friction]` The gap Eric hit (no path from cursor to reply) was already named in the design doc as G3 — the doc lagged the need; shipping the minimal version mid-review was the right call, doc will be updated to match during review processing.
+- `[idea]` From research, cheapest next wins: `u` next-unresolved motion, verdict-on-quit, `Ctrl+E` editor compose.
+
+**State at entry close:** dive/cycle committed; `docs/design-tui-review-first.md` gate red with 8 blocking threads awaiting Eric.
+
+---
+
 ## 2026-08-05 (night, cont.) — Focus-follow verified by Eric; replies now expand inline
 
 **What we did:** Eric ran the interactive TUI pass (screenshot) — focus-follows-cursor works in the wild. His immediate ask: expand the *whole thread* at the focused line, replies included, not just the root + a reply count. Shipped.
