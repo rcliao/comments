@@ -284,6 +284,36 @@ func threadMarkers(c *comment.Comment) string {
 	return markers
 }
 
+// sidebarWrapWidth is the text width for expanded threads in the comment sidebar
+func (m *Model) sidebarWrapWidth() int {
+	width := m.commentViewport.Width - 4
+	if width < 30 {
+		width = 40 // uninitialized viewport (tests) or very narrow terminal
+	}
+	return width
+}
+
+// indentWrap word-wraps text and prefixes every line with indent
+func indentWrap(text string, width int, indent string) string {
+	wrapped := strings.Split(wordwrap.String(text, width-len(indent)), "\n")
+	for i, line := range wrapped {
+		wrapped[i] = indent + line
+	}
+	return strings.Join(wrapped, "\n")
+}
+
+// renderReplies renders a thread's replies nested under the root (expanded view)
+func renderReplies(b *strings.Builder, replies []*comment.Comment, width, depth int) {
+	indent := strings.Repeat("  ", depth+1)
+	for _, r := range replies {
+		b.WriteString(replyMetaStyle.Render(fmt.Sprintf("%s└─ @%s · %s", indent, r.Author, r.Timestamp.Format("01-02 15:04"))))
+		b.WriteString("\n")
+		b.WriteString(indentWrap(r.Text, width, indent+"   "))
+		b.WriteString("\n")
+		renderReplies(b, r.Replies, width, depth+1)
+	}
+}
+
 // renderComments renders the sidebar grouped by line: the focused line's group
 // auto-expands for glanceable review; other groups collapse to one line per thread
 func (m *Model) renderComments() string {
@@ -350,19 +380,23 @@ func (m *Model) renderComments() string {
 			}
 
 			if expanded {
-				text := fmt.Sprintf("  %s@%s%s · %s\n  %s\n  └─ %d replies",
+				wrapWidth := m.sidebarWrapWidth()
+				text := fmt.Sprintf("  %s@%s%s · %s\n%s",
 					resolvedMark, c.Author, threadMarkers(c),
 					c.Timestamp.Format("2006-01-02 15:04"),
-					c.Text, c.CountReplies())
+					indentWrap(c.Text, wrapWidth, "  "))
 				rendered.WriteString(style.Render(text))
-			} else {
-				summary := c.Text
-				if len(summary) > 46 {
-					summary = summary[:46] + "…"
-				}
-				text := fmt.Sprintf("  %s@%s%s: %s", resolvedMark, c.Author, threadMarkers(c), summary)
-				rendered.WriteString(style.Render(text))
+				rendered.WriteString("\n")
+				renderReplies(&rendered, c.Replies, wrapWidth, 1)
+				continue
 			}
+
+			summary := c.Text
+			if len(summary) > 46 {
+				summary = summary[:46] + "…"
+			}
+			text := fmt.Sprintf("  %s@%s%s: %s", resolvedMark, c.Author, threadMarkers(c), summary)
+			rendered.WriteString(style.Render(text))
 			rendered.WriteString("\n")
 		}
 		rendered.WriteString("\n")

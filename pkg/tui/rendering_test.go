@@ -123,3 +123,57 @@ func TestSidebarOrderedByLine(t *testing.T) {
 		t.Error("sidebar groups not ordered by document line")
 	}
 }
+
+func TestExpandedThreadShowsRepliesInline(t *testing.T) {
+	reply := &comment.Comment{ID: "r1", Author: "claude", Line: 5,
+		Text: "Adopted as the core of G3 with count badges"}
+	m := testModel([]*comment.Comment{
+		{ID: "c1", Line: 5, Text: "make the sidebar follow the cursor", Author: "rcliao",
+			Replies: []*comment.Comment{reply}},
+		{ID: "c2", Line: 9, Text: "other thread", Author: "rcliao",
+			Replies: []*comment.Comment{{ID: "r2", Author: "claude", Line: 9, Text: "hidden reply"}}},
+	})
+	m.mode = ModeLineSelect
+	m.selectedLine = 5
+
+	out := m.renderComments()
+	if !strings.Contains(out, "Adopted as the core of G3") {
+		t.Errorf("expanded thread should show reply text inline, got:\n%s", out)
+	}
+	if !strings.Contains(out, "└─ @claude") {
+		t.Errorf("reply meta line missing, got:\n%s", out)
+	}
+	if strings.Contains(out, "hidden reply") {
+		t.Errorf("collapsed group must not show reply bodies, got:\n%s", out)
+	}
+}
+
+func TestExpandedThreadWrapsLongText(t *testing.T) {
+	long := strings.Repeat("wrapme ", 30) // ~210 chars, must wrap at sidebar width
+	m := testModel([]*comment.Comment{{ID: "c1", Line: 5, Text: long, Author: "rcliao"}})
+	m.mode = ModeLineSelect
+	m.selectedLine = 5
+
+	out := m.renderComments()
+	for _, line := range strings.Split(out, "\n") {
+		if len(line) > 120 { // generous bound: styled + indented but wrapped
+			t.Errorf("expanded thread line not wrapped (%d chars): %.60s…", len(line), line)
+		}
+	}
+}
+
+func TestNestedRepliesRenderRecursively(t *testing.T) {
+	nested := &comment.Comment{ID: "r2", Author: "rcliao", Line: 5, Text: "nested answer"}
+	m := testModel([]*comment.Comment{
+		{ID: "c1", Line: 5, Text: "root", Author: "rcliao", Replies: []*comment.Comment{
+			{ID: "r1", Author: "claude", Line: 5, Text: "first reply", Replies: []*comment.Comment{nested}},
+		}},
+	})
+	m.mode = ModeLineSelect
+	m.selectedLine = 5
+
+	out := m.renderComments()
+	if !strings.Contains(out, "first reply") || !strings.Contains(out, "nested answer") {
+		t.Errorf("nested replies should render recursively, got:\n%s", out)
+	}
+}

@@ -48,6 +48,10 @@ var (
 	resolvedMarkerStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("28"))
 
+	// Reply author/timestamp line in expanded sidebar threads
+	replyMetaStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("243"))
+
 	// Cursor (for line selection)
 	cursorStyle = lipgloss.NewStyle().
 			Background(lipgloss.Color("62")).

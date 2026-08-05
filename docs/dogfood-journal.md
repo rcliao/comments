@@ -6,6 +6,19 @@ Convention: newest entry first. Tag friction items `[friction]`, validated wins 
 
 ---
 
+## 2026-08-05 (night, cont.) — Focus-follow verified by Eric; replies now expand inline
+
+**What we did:** Eric ran the interactive TUI pass (screenshot) — focus-follows-cursor works in the wild. His immediate ask: expand the *whole thread* at the focused line, replies included, not just the root + a reply count. Shipped.
+
+- `[win]` First human-verified TUI session: cursor on line 20 expanded the right group, gutter markers + resolved ✓ visible, keybar readable.
+- `[win]` Expanded groups now render full threads: replies nested recursively with dimmed author/time meta lines, all text word-wrapped to the sidebar width (screenshot showed text running off the edge — fixed).
+- `[win]` 3 new rendering tests: replies inline in the focused group only, wrapping bound, recursive nesting. TUI suite now 9 tests.
+- `[idea]` Next TUI step per the redesign doc: dive-in-to-reply from the expanded group (reply without leaving line-select mode).
+
+**State at entry close:** all green; sidebar is now a real review pane — glance at the focused line's full conversation, no thread-diving needed.
+
+---
+
 ## 2026-08-05 (night) — Foundation: commits, CI, TUI markers + first TUI/MCP tests
 
 **What we did:** Committed the day's arc (2 commits, each buildable), added CI, improved the document-pane gutter, and closed the two zero-test gaps.
