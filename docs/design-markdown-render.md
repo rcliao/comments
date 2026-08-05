@@ -44,7 +44,7 @@ The two workstreams, and the order this doc proposes:
 
 **Phase A — thread tracking first (G1).** Uses data we already store: signoff timestamps partition thread activity into review rounds. (1) Each thread shows a `NEW` badge when it has replies newer than your last signoff; (2) the expanded sidebar thread gets round separators (`── round 2 ──`) so a conversation's evolution is scannable; (3) `]r`/`[r` jump between threads with unseen activity — the inbox motion, mirroring the agent-side `comments_inbox`.
 
-**Phase B — rendering as polish, staged (G2, G3).** First the cheap 80%: style spans in place (bold/italic/code rendered, syntax glyphs dimmed, list bullets colored) with zero reflow — anchors untouched. Only then the full rendered mode with block↔line mapping from the approved TUI design, if in-place styling still feels insufficient in daily use. [NEEDS CLARIFICATION: does this order match your instinct — thread tracking (Phase A) before any rendering work, with full rendered mode contingent on in-place styling proving insufficient?]
+**Phase B — rendering as polish, staged (G2, G3).** First the cheap 80%: style spans in place (bold/italic/code rendered, syntax glyphs dimmed, list bullets colored) with zero reflow — anchors untouched. Only then the full rendered mode with block↔line mapping from the approved TUI design, if in-place styling still feels insufficient in daily use. Decided in review: build Phase A and Phase B step 4 together, one human test pass for both; step 5 (full rendered mode) stays contingent on step 4 proving insufficient.
 
 ## Options Considered
 
@@ -67,5 +67,6 @@ Fastest wall-clock; rejected as default because both touch pkg/tui rendering pat
 
 ## Unresolved Questions
 
-- [ ] Phase order confirmation (marker in Proposed Design)
+- [x] Order: build A + B4 together, test once; B5 contingent (review, 2026-08-05)
+- [ ] Diagrams as comment targets: anchoring inside an ASCII diagram is coarse (one block) — Eric suggests a heading over diagrams; consider a template convention
 - [ ] Should `NEW` badges clear on view (focused once) or only on reply/resolve?
