@@ -129,6 +129,13 @@ func main() {
 		}
 		signoffCommand(os.Args[2], os.Args[3:])
 
+	case "watch":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: comments watch <file-or-dir> [flags]")
+			os.Exit(1)
+		}
+		watchCommand(os.Args[2], os.Args[3:])
+
 	case "serve-mcp":
 		serveMCPCommand()
 
@@ -927,6 +934,7 @@ Commands:
   template list|show <name>   List or inspect doc templates (guardrails for agent-written docs)
   validate <file> [flags]     Check document structure against a template (exit 1 on violations)
   seed <file> [flags]         Create review threads from a template's criteria and markers
+  watch <file-or-dir> [flags] Emit review-state change events as NDJSON (poll-based)
   serve-mcp                   Start Model Context Protocol server (for LLM integration)
   help                        Show this help message
 
