@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "documentHash": "94bc094a1e607d98b0987c6d9ef57b2129e882847b876ba01622d54d96d8b849",
-  "lastValidated": "2026-08-05T15:58:46.018838-07:00",
+  "lastValidated": "2026-08-05T16:00:16.665994-07:00",
   "threads": [
     {
       "ID": "ceqp4",
@@ -1126,6 +1126,13 @@
       "OriginalText": "",
       "ProposedText": "",
       "Accepted": null
+    }
+  ],
+  "reviews": [
+    {
+      "author": "rcliao",
+      "timestamp": "2026-08-05T16:00:16.665643-07:00",
+      "decision": "approved"
     }
   ],
   "template": "design-doc"
