@@ -6,6 +6,18 @@ Convention: newest entry first. Tag friction items `[friction]`, validated wins 
 
 ---
 
+## 2026-08-05 — Cleanup pass: dead review modal removed, .comments/ ignored, stale-binary lesson recorded
+
+**What we did:** Post-review-pack housekeeping: deleted the unreachable `ModeReviewSuggestion` path, gitignored the new `.comments/` view-state dirs, and wrote the stale-binary lesson into CI and CLAUDE.md.
+
+- `[win]` The preview modal flagged in the last entry's `[friction]` note is gone: `ModeReviewSuggestion` (enum, key handler, view fn, `selectedSuggestion`/`suggestionPreview` fields) removed — nothing set the mode anymore after queued accepts, and no `p` binding ever existed to preserve. Build, vet, and full test suite stayed green.
+- `[win]` `.comments/` added to .gitignore, closing the loose end from the review-pack entry.
+- `[friction]` Stale root binary bit us again: an outdated `./comments` masqueraded as missing features. Recorded in CI (comment on the smoke test's fresh `go build -o comments`) and CLAUDE.md's Build section: always rebuild after code changes.
+
+**State at entry close:** cleanup committed; `go build`, `go vet`, `go test ./...` all green.
+
+---
+
 ## 2026-08-05 — Review-pack TUI batch: help, queued accepts, density, summaries, TOC, resume
 
 **What we did:** Shipped six approved items from `docs/design-tui-review-first.md` as one TUI pack: `?` help overlay, queue-until-verdict suggestion decisions, `S` sidebar density cycle, `L` virtual-text line summaries, `t` TOC overlay, and per-document position persistence.

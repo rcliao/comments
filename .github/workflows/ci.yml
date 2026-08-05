@@ -27,6 +27,9 @@ jobs:
       - name: Review-flow smoke test
         run: |
           set -e
+          # Build a fresh root binary for the smoke test. Root-binary staleness
+          # was a real bug in local dev: an outdated ./comments masqueraded as
+          # missing features. Always rebuild before exercising the CLI.
           go build -o comments ./cmd/comments
           printf '# Doc\n\n## Problem\n\nIt is slow.\n\n## Goals / Non-Goals\n\nFaster. Non-goal: rewrite.\n\n## Proposed Design\n\nCache.\n\n## Options Considered\n\n### Option 1: Cache (recommended)\n\nGood.\n\n### Option 2: Rewrite\n\nBig.\n\n## Risks\n\nStaleness: accepted.\n\n## Unresolved Questions\n\nNone.\n' > /tmp/ci-doc.md
           ./comments validate /tmp/ci-doc.md --template design-doc

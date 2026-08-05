@@ -39,3 +39,6 @@ Thumbs.db
 
 # Application binary (root directory only)
 /comments
+
+# TUI view-state dirs (per-document cursor/scroll persistence)
+.comments/

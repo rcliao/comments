@@ -18,6 +18,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 go build -o comments ./cmd/comments
 ```
 
+**Important**: After any code change, rebuild the root binary (`go build -o comments ./cmd/comments`) before testing CLI behavior — stale binaries have masqueraded as missing features.
+
 ### Testing
 ```bash
 # Run all tests

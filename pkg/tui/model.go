@@ -42,8 +42,6 @@ type Model struct {
 	returnToLineSelect bool             // Thread view was entered from line-select; Esc returns there
 	verdictReturnMode  ViewMode         // Mode to restore when leaving the verdict dialog
 	VerdictDecision    string           // Set when the user exits via the verdict dialog
-	selectedSuggestion *comment.Comment // For suggestion review mode
-	suggestionPreview  string           // Preview of suggested changes
 	showResolved       bool
 
 	// Input state
@@ -300,8 +298,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleReplyKeys(msg)
 	case ModeResolve:
 		return m.handleResolveKeys(msg)
-	case ModeReviewSuggestion:
-		return m.handleReviewSuggestionKeys(msg)
 	case ModeAddSuggestion:
 		return m.handleAddSuggestionKeys(msg)
 	case ModeChooseTarget:
@@ -1049,34 +1045,6 @@ func (m Model) handleResolveKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleReviewSuggestionKeys handles keys in review suggestion mode
-func (m Model) handleReviewSuggestionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc", "n":
-		// Cancel review, return to thread view
-		m.mode = ModeThreadView
-		m.selectedSuggestion = nil
-		m.suggestionPreview = ""
-		return m, nil
-
-	case "y", "enter":
-		// Queue the accept; the verdict dialog applies all queued
-		// decisions atomically ("queue until verdict" — decided in review)
-		if m.selectedSuggestion != nil {
-			m.queueDecision(m.selectedSuggestion.ID, true)
-		}
-
-		// Return to thread view showing the queued state
-		m.mode = ModeThreadView
-		m.threadViewport.SetContent(m.renderThread())
-		m.selectedSuggestion = nil
-		m.suggestionPreview = ""
-		return m, nil
-	}
-
-	return m, nil
-}
-
 // handleAddSuggestionKeys handles keys in add suggestion mode
 func (m Model) handleAddSuggestionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -1238,8 +1206,6 @@ func (m Model) View() string {
 		return m.viewReply()
 	case ModeResolve:
 		return m.viewResolve()
-	case ModeReviewSuggestion:
-		return m.viewReviewSuggestion()
 	case ModeAddSuggestion:
 		return m.viewAddSuggestion()
 	case ModeChooseTarget:
@@ -1638,86 +1604,6 @@ func (m Model) viewResolve() string {
 			lipgloss.Top,
 			threadContent,
 		),
-		positioned,
-	)
-}
-
-// viewReviewSuggestion renders the suggestion review view with preview
-func (m Model) viewReviewSuggestion() string {
-	if m.selectedSuggestion == nil {
-		return "No suggestion selected"
-	}
-
-	title := titleStyle.Render("Review Suggestion")
-
-	// Preview viewport showing the suggested changes
-	previewStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("3")).
-		Padding(1).
-		Width(m.width - 8)
-
-	var previewText string
-	if m.err != nil {
-		previewText = fmt.Sprintf("Error generating preview:\n%v", m.err)
-	} else if m.suggestionPreview != "" {
-		// Show diff-style preview
-		previewText = "Preview of changes:\n\n"
-		lines := strings.Split(m.suggestionPreview, "\n")
-		maxLines := 20
-		if len(lines) > maxLines {
-			lines = lines[:maxLines]
-			previewText += strings.Join(lines, "\n") + "\n\n... (truncated)"
-		} else {
-			previewText += m.suggestionPreview
-		}
-	} else {
-		previewText = "Generating preview..."
-	}
-
-	preview := previewStyle.Render(previewText)
-
-	// Confirmation dialog
-	confirmTitle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("3")).
-		Render("Accept this suggestion?")
-
-	suggestionInfo := fmt.Sprintf("Type: multi-line\nAuthor: @%s\nLines: %d-%d",
-		m.selectedSuggestion.Author,
-		m.selectedSuggestion.StartLine,
-		m.selectedSuggestion.EndLine)
-
-	confirmText := lipgloss.NewStyle().Render(suggestionInfo)
-	confirmHelp := helpStyle.Render("y/Enter: accept and apply • n/Esc: cancel")
-
-	dialog := modalOverlayStyle.Render(
-		lipgloss.JoinVertical(
-			lipgloss.Left,
-			confirmTitle,
-			"",
-			confirmText,
-			"",
-			confirmHelp,
-		),
-	)
-
-	// Position dialog over preview
-	positioned := lipgloss.Place(
-		m.width,
-		m.height-2,
-		lipgloss.Center,
-		lipgloss.Center,
-		dialog,
-		lipgloss.WithWhitespaceChars(" "),
-	)
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		title,
-		"",
-		preview,
-		"",
 		positioned,
 	)
 }

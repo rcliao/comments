@@ -25,9 +25,6 @@ const (
 	// ModeResolve shows a confirmation dialog to resolve a thread
 	ModeResolve
 
-	// ModeReviewSuggestion shows a suggestion with preview and accept/reject options
-	ModeReviewSuggestion
-
 	// ModeAddSuggestion shows a modal to add a new suggestion
 	ModeAddSuggestion
 
@@ -67,8 +64,6 @@ func (m ViewMode) String() string {
 		return "REPLY"
 	case ModeResolve:
 		return "RESOLVE"
-	case ModeReviewSuggestion:
-		return "REVIEW_SUGGESTION"
 	case ModeAddSuggestion:
 		return "ADD_SUGGESTION"
 	case ModeChooseTarget:
@@ -90,7 +85,7 @@ func (m ViewMode) String() string {
 
 // IsModal returns true if the mode represents a modal dialog
 func (m ViewMode) IsModal() bool {
-	return m == ModeAddComment || m == ModeReply || m == ModeResolve || m == ModeReviewSuggestion || m == ModeAddSuggestion || m == ModeChooseTarget || m == ModeSelectSuggestionType
+	return m == ModeAddComment || m == ModeReply || m == ModeResolve || m == ModeAddSuggestion || m == ModeChooseTarget || m == ModeSelectSuggestionType
 }
 
 // IsInteractive returns true if the mode requires user input
