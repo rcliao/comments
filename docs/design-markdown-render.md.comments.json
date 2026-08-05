@@ -1,0 +1,92 @@
+{
+  "version": "2.0",
+  "documentHash": "352de01058bccd0cb89621d2b81fe87259dc4e4eb4c91918d0b4278b182acf8d",
+  "lastValidated": "2026-08-05T16:37:26.231781-07:00",
+  "threads": [
+    {
+      "ID": "cylkd",
+      "Author": "template",
+      "Timestamp": "2026-08-05T16:37:26.222155-07:00",
+      "Text": "[Q] Resolve ambiguity: [NEEDS CLARIFICATION: does this order match your instinct — thread tracking (Phase A) before any rendering work, with full rendered mode contingent on in-place styling proving insufficient?]",
+      "Type": "Q",
+      "Line": 47,
+      "SectionID": "s4",
+      "SectionPath": "Markdown Rendering \u0026 Thread Tracking Priority \u003e Proposed Design",
+      "Anchor": {
+        "selected_text": "**Phase B — rendering as polish, staged (G2, G3).** First the cheap 80%: style spans in place (bold/italic/code rendered, syntax glyphs dimmed, list bullets colored) with zero reflow — anchors untouched. Only then the full rendered mode with block↔line mapping from the approved TUI design, if in-place styling still feels insufficient in daily use. [NEEDS CLARIFICATION: does this order match your instinct — thread tracking (Phase A) before any rendering work, with full rendered mode contingent on in-place styling proving insufficient?]"
+      },
+      "AnchorConfidence": "exact",
+      "Resolved": false,
+      "Blocking": true,
+      "Status": "active",
+      "Priority": "medium",
+      "OriginalLine": 47,
+      "OrphanedReason": "",
+      "OrphanedAt": null,
+      "Replies": [],
+      "IsSuggestion": false,
+      "StartLine": 0,
+      "EndLine": 0,
+      "OriginalText": "",
+      "ProposedText": "",
+      "Accepted": null
+    },
+    {
+      "ID": "csfdg",
+      "Author": "claude",
+      "Timestamp": "2026-08-05T16:37:26.231527-07:00",
+      "Text": "[Q] My weakest judgment: I rejected parallel build (Option 3) on merge risk, but Phase A (sidebar/model) and Phase B step 4 (span styling in rendering.go) overlap less than I claimed — if you want speed, parallel is defensible. Pushback welcome.",
+      "Type": "Q",
+      "Line": 49,
+      "SectionID": "s5",
+      "SectionPath": "Markdown Rendering \u0026 Thread Tracking Priority \u003e Options Considered",
+      "Anchor": {
+        "selected_text": "## Options Considered"
+      },
+      "AnchorConfidence": "exact",
+      "Resolved": false,
+      "Blocking": false,
+      "Status": "",
+      "Priority": "",
+      "OriginalLine": 0,
+      "OrphanedReason": "",
+      "OrphanedAt": null,
+      "Replies": [],
+      "IsSuggestion": false,
+      "StartLine": 0,
+      "EndLine": 0,
+      "OriginalText": "",
+      "ProposedText": "",
+      "Accepted": null
+    },
+    {
+      "ID": "ctjnl",
+      "Author": "claude",
+      "Timestamp": "2026-08-05T16:37:26.231549-07:00",
+      "Text": "[S] Dogfooding the new template criterion: included an ASCII phase diagram — check whether it actually clarifies the order or is decoration.",
+      "Type": "S",
+      "Line": 23,
+      "SectionID": "s4",
+      "SectionPath": "Markdown Rendering \u0026 Thread Tracking Priority \u003e Proposed Design",
+      "Anchor": {
+        "selected_text": "## Proposed Design"
+      },
+      "AnchorConfidence": "exact",
+      "Resolved": false,
+      "Blocking": false,
+      "Status": "",
+      "Priority": "",
+      "OriginalLine": 0,
+      "OrphanedReason": "",
+      "OrphanedAt": null,
+      "Replies": [],
+      "IsSuggestion": false,
+      "StartLine": 0,
+      "EndLine": 0,
+      "OriginalText": "",
+      "ProposedText": "",
+      "Accepted": null
+    }
+  ],
+  "template": "design-doc"
+}

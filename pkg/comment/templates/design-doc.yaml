@@ -22,6 +22,7 @@ sections:
     max_words: 800
     review_criteria:
       - "Can a reviewer trace every goal to a part of the design?"
+      - "Where structure or flow matters, would an ASCII diagram say it better than prose? Include one if so."
   - heading: "Options Considered"
     required: true
     min_subsections: 2
