@@ -266,7 +266,7 @@ func TestComputeSeedTargetsSegmentBoundary(t *testing.T) {
 }
 
 func TestLoadBuiltinTemplates(t *testing.T) {
-	for _, name := range []string{"design-doc", "adr", "rfc"} {
+	for _, name := range []string{"design-doc", "adr", "rfc", "mini"} {
 		tmpl, err := LoadTemplate(name)
 		if err != nil {
 			t.Errorf("built-in template %q failed to load: %v", name, err)
@@ -345,5 +345,85 @@ func TestLoadTemplateForDocNoProjectDir(t *testing.T) {
 	}
 	if _, err := LoadTemplateForDoc("proj-tmpl", docPath); err == nil {
 		t.Error("expected error for unknown template outside a project")
+	}
+}
+
+const cappedMarkersYAML = `template: capped
+version: 1
+sections:
+  - heading: "Problem"
+    required: true
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION"
+  max: 2
+`
+
+func TestMarkerCap(t *testing.T) {
+	tmpl, err := parseTemplate([]byte(cappedMarkersYAML))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	countRule := func(vs []Violation, rule string) int {
+		n := 0
+		for _, v := range vs {
+			if v.Rule == rule {
+				n++
+			}
+		}
+		return n
+	}
+
+	atCap := "# D\n\n## Problem\n\nA [NEEDS CLARIFICATION: x?]\nB [NEEDS CLARIFICATION: y?]\n"
+	vs := ValidateTemplate(atCap, tmpl)
+	if got := countRule(vs, "too_many_markers"); got != 0 {
+		t.Errorf("2 markers at cap 2 must not trip the cap, got %d violation(s)", got)
+	}
+	if got := countRule(vs, "unresolved_marker"); got != 2 {
+		t.Errorf("individual markers still report: want 2 unresolved_marker, got %d", got)
+	}
+
+	overCap := atCap + "C [NEEDS CLARIFICATION: z?]\n"
+	vs = ValidateTemplate(overCap, tmpl)
+	if got := countRule(vs, "too_many_markers"); got != 1 {
+		t.Fatalf("3 markers over cap 2 must add one too_many_markers violation, got %d", got)
+	}
+	for _, v := range vs {
+		if v.Rule == "too_many_markers" && !strings.Contains(v.Message, "record them as assumptions") {
+			t.Errorf("cap message should tell the agent to downgrade to assumptions, got %q", v.Message)
+		}
+	}
+
+	// Uncapped template (max absent) never trips regardless of count
+	uncapped := testTemplate(t)
+	if got := countRule(ValidateTemplate(overCap, uncapped), "too_many_markers"); got != 0 {
+		t.Errorf("template without markers.max must not cap, got %d", got)
+	}
+}
+
+func TestMiniTemplateWorkflow(t *testing.T) {
+	tmpl, err := LoadTemplate("mini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tmpl.Markers.Max != 2 {
+		t.Errorf("mini should cap markers at 2, got %d", tmpl.Markers.Max)
+	}
+
+	conforming := "# Fix\n\n## Problem\n\nList table preview splits multibyte runes.\n\n## Change\n\nUse the rune-safe truncate helper in outputTable.\n\n## Definition of Done\n\n- automated: go test ./cmd/... passes with a CJK-text fixture\n"
+	if vs := ValidateTemplate(conforming, tmpl); len(vs) != 0 {
+		t.Errorf("conforming mini doc should validate clean, got %v", vs)
+	}
+
+	missing := "# Fix\n\n## Problem\n\nX.\n\n## Change\n\nY.\n"
+	vs := ValidateTemplate(missing, tmpl)
+	found := false
+	for _, v := range vs {
+		if v.Rule == "missing_section" && strings.Contains(v.Message, "Definition of Done") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("mini must require Definition of Done, got %v", vs)
 	}
 }

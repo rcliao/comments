@@ -28,6 +28,7 @@ sections:
     min_subsections: 2
     review_criteria:
       - "Is a simpler alternative listed and explicitly rejected with a reason?"
+      - "Does each option (including rejected ones) list explicit pros AND cons as bullets, not prose?"
   - heading: "Risks"
     required: true
     max_words: 200
@@ -39,10 +40,14 @@ sections:
     zone: human
     review_criteria:
       - "Is every done-criterion objectively verifiable (a command to run, a test that passes, an observable behavior) rather than vague ('works well', 'is clean')?"
+      - "Is each criterion labeled automated (a command or test verifies it) or manual (human judgment) — and is the manual list short?"
       - "Would meeting all criteria actually satisfy the stated goals — and is anything a goal implies missing from the list?"
       - "Is it clear what is explicitly OUT of this handoff (deferred to a later phase), so done isn't argued at review time?"
   - heading: "Unresolved Questions"
     required: true
     zone: human
+    review_criteria:
+      - "Is each question marked blocking (must be decided before approval) or non-blocking (can be settled during implementation)?"
 markers:
   needs_clarification: "[NEEDS CLARIFICATION"
+  max: 3

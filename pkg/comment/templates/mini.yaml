@@ -1,0 +1,27 @@
+template: mini
+version: 1
+description: Minimal guardrail for small changes (bug fixes, tweaks) — a bounded doc beats no doc, without design-doc ceremony
+doc:
+  max_words: 400
+sections:
+  - heading: "Problem"
+    required: true
+    max_words: 100
+    zone: human
+    review_criteria:
+      - "Is the problem concrete (what breaks, for whom) in a sentence or two — no background essay?"
+  - heading: "Change"
+    required: true
+    max_words: 250
+    review_criteria:
+      - "Is the change described at the level a reviewer can veto (what and where), not a code dump?"
+      - "If there was an obvious alternative, is the reason for this one stated in a line?"
+  - heading: "Definition of Done"
+    required: true
+    max_words: 100
+    zone: human
+    review_criteria:
+      - "Is every criterion verifiable (a command, a test, an observable behavior), labeled automated or manual?"
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION"
+  max: 2

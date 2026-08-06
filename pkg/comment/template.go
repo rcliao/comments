@@ -77,11 +77,16 @@ type TemplateSection struct {
 
 type TemplateMarkers struct {
 	NeedsClarification string `yaml:"needs_clarification"` // default "[NEEDS CLARIFICATION"
+	// Max caps how many markers a doc may carry (0 = unlimited). Above the
+	// cap the agent must decide the less consequential ambiguities itself and
+	// record them as assumptions, keeping open questions to the few that
+	// genuinely need the human (Spec Kit's max-3 convention).
+	Max int `yaml:"max"`
 }
 
 // Violation is a single structural check failure
 type Violation struct {
-	Rule    string `json:"rule"` // missing_section, section_order, over_length, min_subsections, unresolved_marker, doc_over_length
+	Rule    string `json:"rule"` // missing_section, section_order, over_length, min_subsections, unresolved_marker, too_many_markers, doc_over_length
 	Section string `json:"section,omitempty"`
 	Line    int    `json:"line,omitempty"`
 	Message string `json:"message"`
@@ -310,14 +315,23 @@ func ValidateTemplate(content string, t *Template) []Violation {
 
 	// Ambiguity markers: every occurrence is a violation until removed
 	marker := t.markerPrefix()
+	markerCount := 0
 	for i, line := range lines {
-		if strings.Contains(line, marker) {
+		if n := strings.Count(line, marker); n > 0 {
+			markerCount += n // cap counts questions, not lines
 			violations = append(violations, Violation{
 				Rule:    "unresolved_marker",
 				Line:    i + 1,
 				Message: fmt.Sprintf("line %d: unresolved %s marker", i+1, marker),
 			})
 		}
+	}
+	if t.Markers.Max > 0 && markerCount > t.Markers.Max {
+		violations = append(violations, Violation{
+			Rule: "too_many_markers",
+			Message: fmt.Sprintf("%d %s markers exceed the cap of %d — keep only the questions that genuinely need the human; decide the rest and record them as assumptions",
+				markerCount, marker, t.Markers.Max),
+		})
 	}
 
 	return violations

@@ -61,13 +61,16 @@ The `comments` binary must be on PATH, or the `comments` MCP server connected
 
 ## Drafting mode (no comments yet)
 
-When drafting a new document under a template (design-doc, adr, rfc, or a
-project template):
+When drafting a new document under a template (design-doc, adr, rfc, mini for
+small changes, or a project template):
 
 1. **Before writing**, read the template as your writing brief:
    `comments template show <name>` (CLI) or `comments_get_template` (MCP).
    Respect section order, word budgets, and use `[NEEDS CLARIFICATION: ...]`
-   markers wherever you would otherwise guess at the human's intent.
+   markers where you would otherwise guess at the human's intent — but stay
+   under the template's marker cap: spend markers on the few questions that
+   genuinely need the human (scope > security > UX > technical detail), make
+   informed decisions on the rest, and record those as assumptions in the doc.
 2. **After drafting**, self-correct structure until clean:
    `comments validate <doc.md> --template <name>` (exit 0 = conforms).
 3. **Self-review, then post SPECIFIC callouts** — never dump the template's
