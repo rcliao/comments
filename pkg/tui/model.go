@@ -39,7 +39,6 @@ type Model struct {
 	selectedLine       int              // For line selection mode
 	selectedComment    int              // For comment navigation
 	selectedThread     *comment.Comment // Thread root (v2.0)
-	threadShape        threadShape      // PROTOTYPE: thread display shape (D cycles; keys_threadshapes.go)
 	returnToLineSelect bool             // Thread view was entered from line-select; Esc returns there
 	verdictReturnMode  ViewMode         // Mode to restore when leaving the verdict dialog
 	VerdictDecision    string           // Set when the user exits via the verdict dialog
@@ -250,10 +249,10 @@ func (m *Model) handleResize() {
 		m.threadViewport.SetHeight(m.height - 2)
 	}
 
-	// PROTOTYPE (keys_threadshapes.go): an open thread re-derives its shape
-	// geometry at the new size
+	// An open thread panel re-derives its geometry at the new size
+	// (keys_threadpanel.go)
 	if m.selectedThread != nil {
-		m.applyThreadShape()
+		m.applyThreadPanel()
 	}
 }
 

@@ -169,7 +169,7 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.selectedThread = thread
 			m.returnToLineSelect = true
 			m.mode = ModeThreadView
-			m.applyThreadShape()
+			m.applyThreadPanel()
 		}
 		return m, nil
 

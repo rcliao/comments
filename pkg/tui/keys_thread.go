@@ -45,13 +45,6 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.commentInput.Focus()
 		return m, textarea.Blink
 
-	case "D", "shift+d":
-		// PROTOTYPE: cycle the thread display shape live
-		// (floating → panel → drawer → floating; keys_threadshapes.go)
-		m.threadShape = (m.threadShape + 1) % threadShapeCount
-		m.applyThreadShape()
-		return m, nil
-
 	case "a":
 		// Queue an accept for this pending suggestion; nothing mutates
 		// until the verdict dialog applies the queue ("queue until verdict")

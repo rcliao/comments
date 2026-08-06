@@ -88,9 +88,9 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.selectedThread = selectedThread
 			m.mode = ModeThreadView
 			// Scroll document to center the thread's comment, then size the
-			// thread shape against that scroll position (keys_threadshapes.go)
+			// thread panel against that scroll position (keys_threadpanel.go)
 			m.scrollToComment(selectedThread)
-			m.applyThreadShape()
+			m.applyThreadPanel()
 			return m, nil
 		}
 		return m, nil

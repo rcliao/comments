@@ -47,9 +47,9 @@ var modeRegistry = map[ViewMode]modeDescriptor{
 	},
 	ModeThreadView: {
 		handleKeys: Model.handleThreadViewKeys,
-		// PROTOTYPE: thread composited over the live document in one of
-		// three shapes (keys_threadshapes.go) instead of a screen swap
-		view:           Model.viewThreadShaped,
+		// Side-panel takeover composited over the live document
+		// (keys_threadpanel.go) instead of a screen swap
+		view:           Model.viewThreadPanel,
 		updateViewport: updateThreadViewport,
 	},
 	ModeReply: {
