@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "documentHash": "94bc094a1e607d98b0987c6d9ef57b2129e882847b876ba01622d54d96d8b849",
-  "lastValidated": "2026-08-05T16:10:24.228514-07:00",
+  "lastValidated": "2026-08-05T16:33:27.248115-07:00",
   "threads": [
     {
       "ID": "ceqp4",
@@ -1187,11 +1187,16 @@
           "Line": 7,
           "SectionID": "",
           "SectionPath": "",
+          "Anchor": {
+            "selected_text": "- **Reading raw markdown is tiring.** Headings are styled, but body prose shows `**bold**`, `` `code` ``, and list syntax verbatim — reviewers parse markup instead of reading. Review here is mostly *design docs*, not source code: prose comfort is the primary need (decided in review).",
+            "context_after": "- **No review motions.** Getting to \"the next thing needing my attention\" takes line-by-line cursoring; there is no next-open-comment jump, no TOC, no way to triage a long spec section by section."
+          },
+          "AnchorConfidence": "exact",
           "Resolved": false,
           "Blocking": false,
-          "Status": "",
-          "Priority": "",
-          "OriginalLine": 0,
+          "Status": "active",
+          "Priority": "medium",
+          "OriginalLine": 7,
           "OrphanedReason": "",
           "OrphanedAt": null,
           "Replies": [],
@@ -1225,6 +1230,11 @@
     {
       "author": "rcliao",
       "timestamp": "2026-08-05T16:09:30.480034-07:00",
+      "decision": "approved"
+    },
+    {
+      "author": "rcliao",
+      "timestamp": "2026-08-05T16:33:27.247697-07:00",
       "decision": "approved"
     }
   ],
