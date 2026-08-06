@@ -61,6 +61,13 @@ var (
 			Foreground(lipgloss.Color("205")).
 			Bold(true)
 
+	// Accented line number, same 4-cell right-aligned box as lineNumberStyle
+	cursorLineNumStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("205")).
+			Bold(true).
+			Width(4).
+			Align(lipgloss.Right)
+
 	// Range selection
 	rangeMarkerStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("39")).

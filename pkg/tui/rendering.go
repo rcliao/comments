@@ -318,7 +318,7 @@ func (m *Model) renderDocumentWithCursor() string {
 			styledLine = styleMarkdownLine(line)
 		}
 		if isSelected {
-			lineNumStr = cursorAccentStyle.Render(fmt.Sprintf("%d", lineNum))
+			lineNumStr = cursorLineNumStyle.Render(fmt.Sprintf("%d", lineNum))
 		}
 
 		// Wrap long lines
@@ -327,7 +327,7 @@ func (m *Model) renderDocumentWithCursor() string {
 			if j == 0 {
 				// First line: show cursor, line number and marker
 				if isSelected {
-					cursor = cursorAccentStyle.Render("▶")
+					cursor = cursorAccentStyle.Render("▶ ")
 					wrappedLine = cursorStyle.Render(wrappedLine)
 				} else if inRange {
 					cursor = rangeMarkerStyle.Render("│")
