@@ -569,7 +569,7 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.refreshSidebar()
 		return m, nil
 
-	case "]r":
+	case "n":
 		// Jump to next line whose threads have NEW activity since the last
 		// signoff (the inbox motion, mirroring ]/[ above)
 		since := lastSignoffTime(m.doc.Reviews)
@@ -584,7 +584,7 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.refreshSidebar()
 		return m, nil
 
-	case "[r":
+	case "N":
 		// Jump to previous line whose threads have NEW activity
 		since := lastSignoffTime(m.doc.Reviews)
 		visible := m.visibleComments()
@@ -1279,7 +1279,7 @@ func (m Model) viewBrowse() string {
 
 	var helpText string
 	if m.mode == ModeLineSelect {
-		helpText = "j/k: move • r: open thread • ]r/[r: next/prev NEW • Tab: cycle threads • c: comment • s: suggest • t: TOC • ?: help • Esc: cancel"
+		helpText = "j/k: move • r: open thread • n/N: next/prev NEW • Tab: cycle threads • c: comment • s: suggest • t: TOC • ?: help • Esc: cancel"
 	} else {
 		quitText := "back"
 		if m.startedWithFile {

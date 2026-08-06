@@ -3,7 +3,7 @@ package tui
 // Tests for Phase A thread tracking (docs/design-markdown-render.md):
 // round partitioning as pure functions, NEW badges in sidebar and line
 // summaries, round separators in the expanded thread timeline, and the
-// ]r/[r new-activity motions.
+//  n/N  new-activity motions.
 
 import (
 	"strings"
@@ -212,29 +212,29 @@ func TestNewActivityMotions(t *testing.T) {
 	lineSelectAt(m, 1)
 
 	// ]r skips line 3 (seen) and lands on line 5 (new reply)
-	next, _ := m.handleLineSelectKeys(keyMsg("]r"))
+	next, _ := m.handleLineSelectKeys(keyMsg("n"))
 	nm := next.(Model)
 	if nm.selectedLine != 5 {
 		t.Fatalf("]r should skip seen line 3 and jump to 5, got %d", nm.selectedLine)
 	}
 	// ]r again lands on line 9 (fresh root)
-	next2, _ := nm.handleLineSelectKeys(keyMsg("]r"))
+	next2, _ := nm.handleLineSelectKeys(keyMsg("n"))
 	nm2 := next2.(Model)
 	if nm2.selectedLine != 9 {
 		t.Fatalf("]r should jump to fresh thread at 9, got %d", nm2.selectedLine)
 	}
 	// No further new activity: cursor stays put
-	next3, _ := nm2.handleLineSelectKeys(keyMsg("]r"))
+	next3, _ := nm2.handleLineSelectKeys(keyMsg("n"))
 	if got := next3.(Model).selectedLine; got != 9 {
 		t.Errorf("]r with nothing ahead should stay at 9, got %d", got)
 	}
 	// [r goes back to 5, then stays (line 3 has no new activity)
-	prev, _ := nm2.handleLineSelectKeys(keyMsg("[r"))
+	prev, _ := nm2.handleLineSelectKeys(keyMsg("N"))
 	pm := prev.(Model)
 	if pm.selectedLine != 5 {
 		t.Fatalf("[r should jump back to 5, got %d", pm.selectedLine)
 	}
-	prev2, _ := pm.handleLineSelectKeys(keyMsg("[r"))
+	prev2, _ := pm.handleLineSelectKeys(keyMsg("N"))
 	if got := prev2.(Model).selectedLine; got != 5 {
 		t.Errorf("[r past seen threads should stay at 5, got %d", got)
 	}
@@ -248,21 +248,21 @@ func TestNewActivityMotionsZeroSignoffFallback(t *testing.T) {
 	})
 	lineSelectAt(m, 1)
 
-	next, _ := m.handleLineSelectKeys(keyMsg("]r"))
+	next, _ := m.handleLineSelectKeys(keyMsg("n"))
 	if got := next.(Model).selectedLine; got != 3 {
 		t.Errorf("]r with no signoffs should treat every thread as new, got line %d", got)
 	}
 }
 
 func TestHelpAndHintBarMentionNewMotions(t *testing.T) {
-	if out := renderHelpOverlay(); !strings.Contains(out, "]r / [r") {
-		t.Error("help overlay should document the ]r/[r motions")
+	if out := renderHelpOverlay(); !strings.Contains(out, "n / N") {
+		t.Error("help overlay should document the  n/N  motions")
 	}
 	m := testModel(nil)
 	m.width, m.height = 120, 40
 	m.handleResize()
 	m.mode = ModeLineSelect
-	if out := m.viewBrowse(); !strings.Contains(out, "]r/[r") {
-		t.Error("line-select hint bar should mention ]r/[r")
+	if out := m.viewBrowse(); !strings.Contains(out, " n/N ") {
+		t.Error("line-select hint bar should mention  n/N ")
 	}
 }
