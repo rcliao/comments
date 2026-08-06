@@ -33,6 +33,14 @@ sections:
     max_words: 200
     review_criteria:
       - "Are only genuine risks listed (no boilerplate), each mitigated or explicitly accepted?"
+  - heading: "Definition of Done"
+    required: true
+    max_words: 200
+    zone: human
+    review_criteria:
+      - "Is every done-criterion objectively verifiable (a command to run, a test that passes, an observable behavior) rather than vague ('works well', 'is clean')?"
+      - "Would meeting all criteria actually satisfy the stated goals — and is anything a goal implies missing from the list?"
+      - "Is it clear what is explicitly OUT of this handoff (deferred to a later phase), so done isn't argued at review time?"
   - heading: "Unresolved Questions"
     required: true
     zone: human
