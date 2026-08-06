@@ -308,7 +308,7 @@ func TestListSidecars(t *testing.T) {
 
 func TestComputeDocumentHash(t *testing.T) {
 	content1 := "# Test\n\nContent"
-	content2 := "# Test\n\nContent" // Same as content1
+	content2 := "# Test\n\nContent"   // Same as content1
 	content3 := "# Test\n\nDifferent" // Different
 
 	hash1 := ComputeDocumentHash(content1)

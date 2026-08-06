@@ -21,8 +21,8 @@ type Model struct {
 	mode ViewMode
 
 	// File picker
-	filePicker       filepicker.Model
-	startedWithFile  bool // Track if file was provided directly vs picked
+	filePicker      filepicker.Model
+	startedWithFile bool // Track if file was provided directly vs picked
 
 	// Document state
 	doc              *comment.DocumentWithComments
@@ -1500,38 +1500,38 @@ func (m Model) viewReply() string {
 	threadContext.WriteString("\n\n")
 
 	// Root comment (selectedThread IS the root comment in v2.0)
-	threadContext.WriteString(fmt.Sprintf("┌ @%s · %s\n",
+	fmt.Fprintf(&threadContext, "┌ @%s · %s\n",
 		m.selectedThread.Author,
-		m.selectedThread.Timestamp.Format("2006-01-02 15:04")))
+		m.selectedThread.Timestamp.Format("2006-01-02 15:04"))
 
 	// Truncate root comment if too long
 	rootText := m.selectedThread.Text
 	if len(rootText) > 60 {
 		rootText = rootText[:57] + "..."
 	}
-	threadContext.WriteString(fmt.Sprintf("│ %s\n", rootText))
+	fmt.Fprintf(&threadContext, "│ %s\n", rootText)
 
 	// Show recent replies (last 2)
 	replyCount := len(m.selectedThread.Replies)
 	if replyCount > 0 {
 		startIdx := 0
 		if replyCount > 2 {
-			threadContext.WriteString(fmt.Sprintf("│ ... (%d earlier replies)\n", replyCount-2))
+			fmt.Fprintf(&threadContext, "│ ... (%d earlier replies)\n", replyCount-2)
 			startIdx = replyCount - 2
 		}
 
 		for i := startIdx; i < replyCount; i++ {
 			reply := m.selectedThread.Replies[i]
-			threadContext.WriteString(fmt.Sprintf("├ @%s · %s\n",
+			fmt.Fprintf(&threadContext, "├ @%s · %s\n",
 				reply.Author,
-				reply.Timestamp.Format("2006-01-02 15:04")))
+				reply.Timestamp.Format("2006-01-02 15:04"))
 
 			// Truncate reply if too long
 			replyText := reply.Text
 			if len(replyText) > 60 {
 				replyText = replyText[:57] + "..."
 			}
-			threadContext.WriteString(fmt.Sprintf("│ %s\n", replyText))
+			fmt.Fprintf(&threadContext, "│ %s\n", replyText)
 		}
 	}
 	threadContext.WriteString("└──────────────────────\n")
@@ -1803,9 +1803,9 @@ func (m Model) viewChooseTarget() string {
 		Render("Add comment to:")
 
 	var choices strings.Builder
-	choices.WriteString(fmt.Sprintf("  [s] 📍 Section: %s\n", sectionPath))
-	choices.WriteString(fmt.Sprintf("      (covers lines %d-%d)\n\n", section.StartLine, section.EndLine))
-	choices.WriteString(fmt.Sprintf("  [l] 💬 Line %d only (heading line)\n\n", m.selectedLine))
+	fmt.Fprintf(&choices, "  [s] 📍 Section: %s\n", sectionPath)
+	fmt.Fprintf(&choices, "      (covers lines %d-%d)\n\n", section.StartLine, section.EndLine)
+	fmt.Fprintf(&choices, "  [l] 💬 Line %d only (heading line)\n\n", m.selectedLine)
 
 	modalHelp := helpStyle.Render("s: section • l: line • Esc: cancel")
 
@@ -1872,8 +1872,8 @@ func (m Model) viewSelectSuggestionType() string {
 
 	var choices strings.Builder
 	choices.WriteString("  [r] Line range (manual selection)\n\n")
-	choices.WriteString(fmt.Sprintf("  [s] 📍 Section: %s\n", sectionPath))
-	choices.WriteString(fmt.Sprintf("      (lines %d-%d)\n\n", section.StartLine, section.EndLine))
+	fmt.Fprintf(&choices, "  [s] 📍 Section: %s\n", sectionPath)
+	fmt.Fprintf(&choices, "      (lines %d-%d)\n\n", section.StartLine, section.EndLine)
 
 	modalHelp := helpStyle.Render("r: range • s: section • Esc: cancel")
 

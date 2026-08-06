@@ -10,18 +10,18 @@ import (
 
 // CommentContext represents the context information for a comment
 type CommentContext struct {
-	SectionPath     string
-	SectionHeading  string
-	SectionRange    string
-	ContextLines    []ContextLine
-	OriginalText    string // For suggestions
-	ProposedText    string // For suggestions
+	SectionPath    string
+	SectionHeading string
+	SectionRange   string
+	ContextLines   []ContextLine
+	OriginalText   string // For suggestions
+	ProposedText   string // For suggestions
 }
 
 // ContextLine represents a single line with its number and text
 type ContextLine struct {
-	LineNum int
-	Text    string
+	LineNum  int
+	Text     string
 	IsTarget bool
 }
 
@@ -59,8 +59,8 @@ func getCommentContext(c *comment.Comment, docContent string) CommentContext {
 	for i := start; i <= end; i++ {
 		if i > 0 && i <= len(lines) {
 			ctx.ContextLines = append(ctx.ContextLines, ContextLine{
-				LineNum: i,
-				Text: lines[i-1],
+				LineNum:  i,
+				Text:     lines[i-1],
 				IsTarget: i == c.Line,
 			})
 		}
@@ -80,23 +80,23 @@ func formatCommentWithContext(c *comment.Comment, ctx CommentContext, includeRep
 	var output strings.Builder
 
 	// Header with ID and metadata
-	output.WriteString(fmt.Sprintf("━━━ Comment ID: %s ━━━\n", c.ID))
-	output.WriteString(fmt.Sprintf("Author: @%s\n", c.Author))
-	output.WriteString(fmt.Sprintf("Timestamp: %s\n", c.Timestamp.Format("2006-01-02 15:04:05")))
+	fmt.Fprintf(&output, "━━━ Comment ID: %s ━━━\n", c.ID)
+	fmt.Fprintf(&output, "Author: @%s\n", c.Author)
+	fmt.Fprintf(&output, "Timestamp: %s\n", c.Timestamp.Format("2006-01-02 15:04:05"))
 
 	// Location info
 	if ctx.SectionPath != "" {
-		output.WriteString(fmt.Sprintf("Location: 📍 %s (Line %d)\n", ctx.SectionPath, c.Line))
+		fmt.Fprintf(&output, "Location: 📍 %s (Line %d)\n", ctx.SectionPath, c.Line)
 		if ctx.SectionHeading != "" {
-			output.WriteString(fmt.Sprintf("Section: %s (%s)\n", ctx.SectionHeading, ctx.SectionRange))
+			fmt.Fprintf(&output, "Section: %s (%s)\n", ctx.SectionHeading, ctx.SectionRange)
 		}
 	} else {
-		output.WriteString(fmt.Sprintf("Location: 💬 Line %d\n", c.Line))
+		fmt.Fprintf(&output, "Location: 💬 Line %d\n", c.Line)
 	}
 
 	// Type and status
 	if c.Type != "" {
-		output.WriteString(fmt.Sprintf("Type: [%s]\n", c.Type))
+		fmt.Fprintf(&output, "Type: [%s]\n", c.Type)
 	}
 	if c.IsSuggestion {
 		status := "pending"
@@ -107,7 +107,7 @@ func formatCommentWithContext(c *comment.Comment, ctx CommentContext, includeRep
 				status = "rejected"
 			}
 		}
-		output.WriteString(fmt.Sprintf("Suggestion: %s\n", status))
+		fmt.Fprintf(&output, "Suggestion: %s\n", status)
 	}
 	if c.Resolved {
 		output.WriteString("Status: ✓ Resolved\n")
@@ -117,7 +117,7 @@ func formatCommentWithContext(c *comment.Comment, ctx CommentContext, includeRep
 
 	// Comment text
 	output.WriteString("Comment:\n")
-	output.WriteString(fmt.Sprintf("  %s\n", c.Text))
+	fmt.Fprintf(&output, "  %s\n", c.Text)
 	output.WriteString("\n")
 
 	// Context section
@@ -129,7 +129,7 @@ func formatCommentWithContext(c *comment.Comment, ctx CommentContext, includeRep
 			if line.IsTarget {
 				marker = "►"
 			}
-			output.WriteString(fmt.Sprintf("%s %4d │ %s\n", marker, line.LineNum, line.Text))
+			fmt.Fprintf(&output, "%s %4d │ %s\n", marker, line.LineNum, line.Text)
 		}
 		output.WriteString("\n")
 	}
@@ -138,12 +138,12 @@ func formatCommentWithContext(c *comment.Comment, ctx CommentContext, includeRep
 	if c.IsSuggestion {
 		output.WriteString("Suggestion Details:\n")
 		output.WriteString("───────────────────\n")
-		output.WriteString(fmt.Sprintf("Lines: %d-%d\n\n", c.StartLine, c.EndLine))
+		fmt.Fprintf(&output, "Lines: %d-%d\n\n", c.StartLine, c.EndLine)
 
 		if ctx.OriginalText != "" {
 			output.WriteString("Original:\n")
 			for _, line := range strings.Split(ctx.OriginalText, "\n") {
-				output.WriteString(fmt.Sprintf("  - %s\n", line))
+				fmt.Fprintf(&output, "  - %s\n", line)
 			}
 			output.WriteString("\n")
 		}
@@ -151,7 +151,7 @@ func formatCommentWithContext(c *comment.Comment, ctx CommentContext, includeRep
 		if ctx.ProposedText != "" {
 			output.WriteString("Proposed:\n")
 			for _, line := range strings.Split(ctx.ProposedText, "\n") {
-				output.WriteString(fmt.Sprintf("  + %s\n", line))
+				fmt.Fprintf(&output, "  + %s\n", line)
 			}
 			output.WriteString("\n")
 		}
@@ -159,11 +159,11 @@ func formatCommentWithContext(c *comment.Comment, ctx CommentContext, includeRep
 
 	// Replies
 	if includeReplies && len(c.Replies) > 0 {
-		output.WriteString(fmt.Sprintf("Replies (%d):\n", len(c.Replies)))
+		fmt.Fprintf(&output, "Replies (%d):\n", len(c.Replies))
 		output.WriteString("─────────\n")
 		for i, reply := range c.Replies {
-			output.WriteString(fmt.Sprintf("[%d] @%s · %s\n", i+1, reply.Author, reply.Timestamp.Format("2006-01-02 15:04")))
-			output.WriteString(fmt.Sprintf("    %s\n", reply.Text))
+			fmt.Fprintf(&output, "[%d] @%s · %s\n", i+1, reply.Author, reply.Timestamp.Format("2006-01-02 15:04"))
+			fmt.Fprintf(&output, "    %s\n", reply.Text)
 			if i < len(c.Replies)-1 {
 				output.WriteString("\n")
 			}
@@ -177,7 +177,7 @@ func formatCommentWithContext(c *comment.Comment, ctx CommentContext, includeRep
 func formatListWithContext(comments []*comment.Comment, docContent string) string {
 	var output strings.Builder
 
-	output.WriteString(fmt.Sprintf("Found %d comment thread(s) with context\n\n", len(comments)))
+	fmt.Fprintf(&output, "Found %d comment thread(s) with context\n\n", len(comments))
 
 	for i, c := range comments {
 		ctx := getCommentContext(c, docContent)

@@ -157,9 +157,9 @@ func TestNewCommentWithType(t *testing.T) {
 
 func TestNewReply(t *testing.T) {
 	parent := &Comment{
-		ID:   "c1",
-		Line: 5,
-		SectionID: "s1",
+		ID:          "c1",
+		Line:        5,
+		SectionID:   "s1",
 		SectionPath: "Intro > Overview",
 	}
 

@@ -267,7 +267,9 @@ func keyMsg(key string) tea.KeyMsg {
 func TestVerdictDialogFlow(t *testing.T) {
 	m := testModel([]*comment.Comment{{ID: "c1", Line: 5, Text: "open", Author: "rcliao"}})
 	m.filename = filepath.Join(t.TempDir(), "v.md")
-	os.WriteFile(m.filename, []byte(tuiTestDoc), 0644)
+	if err := os.WriteFile(m.filename, []byte(tuiTestDoc), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	// q from browse opens the verdict dialog
 	next, _ := m.handleBrowseKeys(keyMsg("q"))

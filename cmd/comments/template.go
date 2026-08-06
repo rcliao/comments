@@ -91,7 +91,7 @@ func validateCommand(filename string, args []string) {
 	fs := flag.NewFlagSet("validate", flag.ExitOnError)
 	templateName := fs.String("template", "", "Template name (defaults to template recorded in sidecar)")
 	jsonOut := fs.Bool("json", false, "Output violations as JSON")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	t, doc := loadTemplateForDoc(filename, *templateName)
 	violations := comment.ValidateTemplate(doc.Content, t)
@@ -125,7 +125,7 @@ func seedCommand(filename string, args []string) {
 	templateName := fs.String("template", "", "Template name (defaults to template recorded in sidecar)")
 	author := fs.String("author", "template", "Author for seeded threads")
 	markersOnly := fs.Bool("markers-only", false, "Seed only NEEDS CLARIFICATION markers, not generic criteria (agent posts specific callouts instead)")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	t, doc := loadTemplateForDoc(filename, *templateName)
 	added := comment.SeedTemplateThreads(doc, t, *author, *markersOnly)

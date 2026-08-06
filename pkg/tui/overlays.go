@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/rcliao/comments/pkg/comment"
 	"github.com/rcliao/comments/pkg/markdown"
@@ -70,7 +70,7 @@ func renderHelpOverlay() string {
 		b.WriteString(groupHeaderStyle.Render(g.title))
 		b.WriteString("\n")
 		for _, kv := range g.bindings {
-			b.WriteString(fmt.Sprintf("  %s  %s\n", keyStyle.Render(fmt.Sprintf("%-16s", kv[0])), kv[1]))
+			fmt.Fprintf(&b, "  %s  %s\n", keyStyle.Render(fmt.Sprintf("%-16s", kv[0])), kv[1])
 		}
 	}
 	b.WriteString("\n")

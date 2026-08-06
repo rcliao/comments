@@ -720,10 +720,10 @@ func (s *Server) handleBatchReply(ctx context.Context, req *mcp.CallToolRequest,
 
 	// Return success
 	result := map[string]any{
-		"success":      true,
-		"added_count":  successCount,
-		"total_count":  len(args.Replies),
-		"message":      fmt.Sprintf("Added %d replies out of %d", successCount, len(args.Replies)),
+		"success":     true,
+		"added_count": successCount,
+		"total_count": len(args.Replies),
+		"message":     fmt.Sprintf("Added %d replies out of %d", successCount, len(args.Replies)),
 	}
 
 	jsonData, err := json.Marshal(result)

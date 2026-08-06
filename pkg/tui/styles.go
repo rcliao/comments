@@ -77,9 +77,6 @@ var (
 	// Modal overlay
 	modalOverlayStyle lipgloss.Style
 
-	// Input field
-	inputStyle lipgloss.Style
-
 	// Markdown headings (whole-line; heading4Style covers H4-H6)
 	heading1Style lipgloss.Style
 	heading2Style lipgloss.Style
@@ -183,11 +180,6 @@ func applyTheme(t Theme) {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(t.Title).
 		Padding(1, 2)
-
-	inputStyle = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(t.Border).
-		Padding(0, 1)
 
 	heading1Style = lipgloss.NewStyle().Bold(true).Foreground(t.Heading1)
 	heading2Style = lipgloss.NewStyle().Bold(true).Foreground(t.Heading2)

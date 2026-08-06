@@ -84,19 +84,19 @@ func PreviewSuggestion(content string, suggestion *Comment) (string, error) {
 	var preview strings.Builder
 
 	preview.WriteString("=== Suggestion Preview ===\n\n")
-	preview.WriteString(fmt.Sprintf("Lines %d-%d\n\n", suggestion.StartLine, suggestion.EndLine))
+	fmt.Fprintf(&preview, "Lines %d-%d\n\n", suggestion.StartLine, suggestion.EndLine)
 
 	// Show original
 	preview.WriteString("--- Original\n")
 	for i := suggestion.StartLine - 1; i < suggestion.EndLine; i++ {
-		preview.WriteString(fmt.Sprintf("- %s\n", lines[i]))
+		fmt.Fprintf(&preview, "- %s\n", lines[i])
 	}
 
 	// Show proposed
 	preview.WriteString("\n+++ Proposed\n")
 	proposedLines := strings.Split(suggestion.ProposedText, "\n")
 	for _, line := range proposedLines {
-		preview.WriteString(fmt.Sprintf("+ %s\n", line))
+		fmt.Fprintf(&preview, "+ %s\n", line)
 	}
 
 	return preview.String(), nil

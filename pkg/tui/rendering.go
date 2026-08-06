@@ -165,7 +165,7 @@ func rootThreadsByLine(threads []*comment.Comment) map[int][]*comment.Comment {
 // isOpenThread reports whether a root thread still needs attention:
 // unresolved and, for suggestions, not yet decided
 func isOpenThread(t *comment.Comment) bool {
-	return !t.Resolved && !(t.IsSuggestion && t.Accepted != nil)
+	return !t.Resolved && (!t.IsSuggestion || t.Accepted == nil)
 }
 
 // lineMarker builds the gutter marker for a line's threads: unresolved blocking
@@ -259,10 +259,10 @@ func (m *Model) renderDocument() string {
 		for j, wrappedLine := range wrappedLines {
 			if j == 0 {
 				// First line: show line number, marker, and virtual-text summary
-				rendered.WriteString(fmt.Sprintf("%s %s %s%s\n", lineNumStr, marker, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum])))
+				fmt.Fprintf(&rendered, "%s %s %s%s\n", lineNumStr, marker, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
 			} else {
 				// Continuation lines: indent with spaces
-				rendered.WriteString(fmt.Sprintf("%s %s %s\n", strings.Repeat(" ", 4), "  ", wrappedLine))
+				fmt.Fprintf(&rendered, "%s %s %s\n", strings.Repeat(" ", 4), "  ", wrappedLine)
 			}
 		}
 	}
@@ -321,7 +321,7 @@ func (m *Model) renderDocumentWithCursor() string {
 					cursor = rangeMarkerStyle.Render("│")
 					wrappedLine = selectedLineStyle.Render(wrappedLine)
 				}
-				rendered.WriteString(fmt.Sprintf("%s %s %s %s%s\n", cursor, lineNumStr, marker, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum])))
+				fmt.Fprintf(&rendered, "%s %s %s %s%s\n", cursor, lineNumStr, marker, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
 			} else {
 				// Continuation lines: indent with spaces
 				displayCursor := "  "
@@ -332,7 +332,7 @@ func (m *Model) renderDocumentWithCursor() string {
 					displayCursor = rangeMarkerStyle.Render("│ ")
 					wrappedLine = selectedLineStyle.Render(wrappedLine)
 				}
-				rendered.WriteString(fmt.Sprintf("%s %s %s %s\n", displayCursor, strings.Repeat(" ", 4), "  ", wrappedLine))
+				fmt.Fprintf(&rendered, "%s %s %s %s\n", displayCursor, strings.Repeat(" ", 4), "  ", wrappedLine)
 			}
 		}
 	}
@@ -475,7 +475,7 @@ func (m *Model) renderComments() string {
 	since := lastSignoffTime(m.doc.Reviews)
 
 	var rendered strings.Builder
-	rendered.WriteString(fmt.Sprintf("Comments (%d %s)\n\n", len(visible), statusText))
+	fmt.Fprintf(&rendered, "Comments (%d %s)\n\n", len(visible), statusText)
 
 	for i := 0; i < len(visible); {
 		line := visible[i].Line
@@ -616,29 +616,29 @@ func (m *Model) renderThread() string {
 							Background(activeTheme.SelectionBg).
 							Foreground(activeTheme.SelectionFg).
 							Bold(true)
-						contextText.WriteString(fmt.Sprintf("%s %s │ %s\n",
+						fmt.Fprintf(&contextText, "%s %s │ %s\n",
 							marker,
 							lineNumStyle.Render(fmt.Sprintf("%4d", cl.LineNum)),
-							lineStyle.Render(wrappedLine)))
+							lineStyle.Render(wrappedLine))
 					} else {
 						// Continuation lines for highlighted line
-						contextText.WriteString(fmt.Sprintf("%s %s │ %s\n",
+						fmt.Fprintf(&contextText, "%s %s │ %s\n",
 							" ",
 							strings.Repeat(" ", 4),
-							lineStyle.Render(wrappedLine)))
+							lineStyle.Render(wrappedLine))
 					}
 				} else {
 					if i == 0 {
-						contextText.WriteString(fmt.Sprintf("%s %s │ %s\n",
+						fmt.Fprintf(&contextText, "%s %s │ %s\n",
 							marker,
 							lineNumStyle.Render(fmt.Sprintf("%4d", cl.LineNum)),
-							wrappedLine))
+							wrappedLine)
 					} else {
 						// Continuation lines for non-highlighted line
-						contextText.WriteString(fmt.Sprintf("%s %s │ %s\n",
+						fmt.Fprintf(&contextText, "%s %s │ %s\n",
 							" ",
 							strings.Repeat(" ", 4),
-							wrappedLine))
+							wrappedLine)
 					}
 				}
 			}
@@ -699,7 +699,7 @@ func (m *Model) renderThread() string {
 			Padding(0, 1).
 			Width(m.width - 8)
 
-		suggestionText := fmt.Sprintf("Suggestion Type: multi-line\n")
+		suggestionText := "Suggestion Type: multi-line\n"
 		suggestionText += fmt.Sprintf("Lines: %d-%d\n", m.selectedThread.StartLine, m.selectedThread.EndLine)
 
 		if m.selectedThread.OriginalText != "" {
@@ -873,7 +873,7 @@ func (m *Model) getSectionContext(lineNum int) string {
 		if i > 0 && i <= len(lines) {
 			lineText = lines[i-1]
 		}
-		
+
 		linePrefix := fmt.Sprintf("%4d │ ", i)
 		if i == lineNum {
 			// Highlight the target line

@@ -13,7 +13,7 @@ type Section struct {
 
 // DocumentStructure represents the hierarchical structure of a markdown document
 type DocumentStructure struct {
-	Sections       []*Section       // Top-level sections
+	Sections       []*Section          // Top-level sections
 	SectionsByID   map[string]*Section // Quick lookup by section ID
 	SectionsByLine map[int]*Section    // Quick lookup by line number (maps to closest section above)
 }

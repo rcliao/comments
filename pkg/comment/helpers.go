@@ -77,15 +77,15 @@ func NewCommentWithType(author string, line int, text string, commentType string
 // NewReply creates a reply to an existing comment
 func NewReply(author string, text string, parentComment *Comment) *Comment {
 	return &Comment{
-		ID:         generateID(),
-		Author:     author,
-		Timestamp:  time.Now(),
-		Text:       text,
-		Line:       parentComment.Line, // Inherit line from parent
-		SectionID:  parentComment.SectionID,
+		ID:          generateID(),
+		Author:      author,
+		Timestamp:   time.Now(),
+		Text:        text,
+		Line:        parentComment.Line, // Inherit line from parent
+		SectionID:   parentComment.SectionID,
 		SectionPath: parentComment.SectionPath,
-		Resolved:   false,
-		Replies:    []*Comment{},
+		Resolved:    false,
+		Replies:     []*Comment{},
 	}
 }
 

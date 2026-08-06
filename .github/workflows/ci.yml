@@ -7,13 +7,26 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt failures:"
+            echo "$unformatted"
+            exit 1
+          fi
 
       - name: Build
         run: go build ./...
@@ -22,7 +35,7 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test ./...
+        run: go test -race ./...
 
       - name: Review-flow smoke test
         run: |
@@ -36,9 +49,24 @@ jobs:
           ./comments seed /tmp/ci-doc.md --template design-doc
           # gate must fail (exit 10) while seeded blocking threads are open
           if ./comments gate /tmp/ci-doc.md; then echo "gate should have failed"; exit 1; fi
-          for id in $(./comments list /tmp/ci-doc.md --format json 2>/dev/null | python3 -c "import json,sys; print(' '.join(c['id'] for c in json.load(sys.stdin)))"); do
+          for id in $(./comments list /tmp/ci-doc.md --format json 2>/dev/null | jq -r '.[].id'); do
             ./comments resolve /tmp/ci-doc.md --thread "$id"
           done
           ./comments signoff /tmp/ci-doc.md --author ci
           # gate must now pass
           ./comments gate /tmp/ci-doc.md
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest

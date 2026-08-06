@@ -13,8 +13,8 @@ import (
 
 // BatchComment represents a comment to be added in batch mode
 type BatchComment struct {
-	Line    int    `json:"line,omitempty"`    // Line number (use either line or section)
-	Section string `json:"section,omitempty"` // Section path (use either line or section)
+	Line     int    `json:"line,omitempty"`    // Line number (use either line or section)
+	Section  string `json:"section,omitempty"` // Section path (use either line or section)
 	Author   string `json:"author"`
 	Text     string `json:"text"`
 	Type     string `json:"type,omitempty"`     // Q, S, B, T, E
@@ -34,7 +34,7 @@ func batchAddCommand(filename string, args []string) {
 	fs := flag.NewFlagSet("batch-add", flag.ExitOnError)
 	jsonInput := fs.String("json", "", "JSON file path (use '-' for stdin)")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	if *jsonInput == "" {
 		fmt.Println("Error: --json flag is required")

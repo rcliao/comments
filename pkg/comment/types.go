@@ -145,12 +145,12 @@ type ReviewRecord struct {
 
 // DocumentWithComments represents a parsed document with comment threads (v2.0)
 type DocumentWithComments struct {
-	Content      string     // Raw markdown content without comment markup
-	Threads      []*Comment // Root comment threads (each may contain nested replies)
-	DocumentHash string     // SHA-256 hash of content for staleness detection
-	LastValidated time.Time  // Last time sidecar was validated against document
-	Reviews      []ReviewRecord // Completed review passes (signoffs), newest last
-	Template     string         // Name of the doc template governing this document (set by seed)
+	Content       string         // Raw markdown content without comment markup
+	Threads       []*Comment     // Root comment threads (each may contain nested replies)
+	DocumentHash  string         // SHA-256 hash of content for staleness detection
+	LastValidated time.Time      // Last time sidecar was validated against document
+	Reviews       []ReviewRecord // Completed review passes (signoffs), newest last
+	Template      string         // Name of the doc template governing this document (set by seed)
 }
 
 // GetAllComments returns a flat list of all comments (roots + replies)

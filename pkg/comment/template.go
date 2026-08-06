@@ -39,13 +39,13 @@ type TemplateDocRules struct {
 }
 
 type TemplateSection struct {
-	Heading         string   `yaml:"heading"`          // matched against section title or path suffix
-	Required        bool     `yaml:"required"`
-	MaxWords        int      `yaml:"max_words"`        // 0 = unlimited
-	MinSubsections  int      `yaml:"min_subsections"`  // e.g. Options Considered needs >= 2
-	Zone            string   `yaml:"zone"`             // "human" or "agent" (default agent)
-	ReviewCriteria  []string `yaml:"review_criteria"`  // seeded as anchored threads
-	CriteriaBlocking *bool   `yaml:"criteria_blocking"` // nil = default true
+	Heading          string   `yaml:"heading"` // matched against section title or path suffix
+	Required         bool     `yaml:"required"`
+	MaxWords         int      `yaml:"max_words"`         // 0 = unlimited
+	MinSubsections   int      `yaml:"min_subsections"`   // e.g. Options Considered needs >= 2
+	Zone             string   `yaml:"zone"`              // "human" or "agent" (default agent)
+	ReviewCriteria   []string `yaml:"review_criteria"`   // seeded as anchored threads
+	CriteriaBlocking *bool    `yaml:"criteria_blocking"` // nil = default true
 }
 
 type TemplateMarkers struct {
@@ -54,7 +54,7 @@ type TemplateMarkers struct {
 
 // Violation is a single structural check failure
 type Violation struct {
-	Rule    string `json:"rule"`    // missing_section, section_order, over_length, min_subsections, unresolved_marker, doc_over_length
+	Rule    string `json:"rule"` // missing_section, section_order, over_length, min_subsections, unresolved_marker, doc_over_length
 	Section string `json:"section,omitempty"`
 	Line    int    `json:"line,omitempty"`
 	Message string `json:"message"`

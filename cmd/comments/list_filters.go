@@ -136,26 +136,26 @@ func outputJSON(threads []*comment.Comment, allThreads []*comment.Comment, docCo
 	}
 
 	type CommentOutput struct {
-		ID             string        `json:"id"`
-		Author         string        `json:"author"`
-		Line           int           `json:"line"`
-		Timestamp      string        `json:"timestamp"`
-		Text           string        `json:"text"`
-		Type           string        `json:"type,omitempty"`
-		Status           string      `json:"status"`
-		Priority         string      `json:"priority"`
-		Blocking         bool        `json:"blocking"`
-		Resolved         bool        `json:"resolved"`
-		ReplyCount       int         `json:"reply_count"`
-		SectionPath      string      `json:"section_path,omitempty"`
-		OrphanedReason   string      `json:"orphaned_reason,omitempty"`
-		AnchorConfidence string      `json:"anchor_confidence,omitempty"`
-		IsSuggestion     bool        `json:"is_suggestion,omitempty"`
+		ID               string `json:"id"`
+		Author           string `json:"author"`
+		Line             int    `json:"line"`
+		Timestamp        string `json:"timestamp"`
+		Text             string `json:"text"`
+		Type             string `json:"type,omitempty"`
+		Status           string `json:"status"`
+		Priority         string `json:"priority"`
+		Blocking         bool   `json:"blocking"`
+		Resolved         bool   `json:"resolved"`
+		ReplyCount       int    `json:"reply_count"`
+		SectionPath      string `json:"section_path,omitempty"`
+		OrphanedReason   string `json:"orphaned_reason,omitempty"`
+		AnchorConfidence string `json:"anchor_confidence,omitempty"`
+		IsSuggestion     bool   `json:"is_suggestion,omitempty"`
 		// Context fields (only included when --with-context is specified)
-		LineContent    string        `json:"line_content,omitempty"`
-		ContextBefore  string        `json:"context_before,omitempty"`
-		ContextAfter   string        `json:"context_after,omitempty"`
-		ContextLines   []ContextLine `json:"context_lines,omitempty"`
+		LineContent   string        `json:"line_content,omitempty"`
+		ContextBefore string        `json:"context_before,omitempty"`
+		ContextAfter  string        `json:"context_after,omitempty"`
+		ContextLines  []ContextLine `json:"context_lines,omitempty"`
 	}
 
 	lines := strings.Split(docContent, "\n")
@@ -163,18 +163,18 @@ func outputJSON(threads []*comment.Comment, allThreads []*comment.Comment, docCo
 	output := make([]CommentOutput, 0, len(threads))
 	for _, thread := range threads {
 		commentOut := CommentOutput{
-			ID:             thread.ID,
-			Author:         thread.Author,
-			Line:           thread.Line,
-			Timestamp:      thread.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
-			Text:           thread.Text,
-			Type:           thread.Type,
-			Status:         thread.GetStatus(),
-			Priority:       thread.GetPriority(),
-			Resolved:       thread.Resolved,
-			ReplyCount:     thread.CountReplies(),
-			SectionPath:    thread.SectionPath,
-			OrphanedReason: thread.OrphanedReason,
+			ID:               thread.ID,
+			Author:           thread.Author,
+			Line:             thread.Line,
+			Timestamp:        thread.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
+			Text:             thread.Text,
+			Type:             thread.Type,
+			Status:           thread.GetStatus(),
+			Priority:         thread.GetPriority(),
+			Resolved:         thread.Resolved,
+			ReplyCount:       thread.CountReplies(),
+			SectionPath:      thread.SectionPath,
+			OrphanedReason:   thread.OrphanedReason,
 			Blocking:         thread.Blocking,
 			AnchorConfidence: thread.AnchorConfidence,
 			IsSuggestion:     thread.IsSuggestion,

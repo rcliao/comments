@@ -107,7 +107,9 @@ func TestVerdictAppliesQueuedDecisionsAtomically(t *testing.T) {
 	after := &comment.Comment{ID: "c3", Line: 9, Text: "anchor after edit", Author: "rcliao"}
 	m := testModel([]*comment.Comment{accept, reject, after})
 	m.filename = filepath.Join(t.TempDir(), "doc.md")
-	os.WriteFile(m.filename, []byte(tuiTestDoc), 0644)
+	if err := os.WriteFile(m.filename, []byte(tuiTestDoc), 0644); err != nil {
+		t.Fatal(err)
+	}
 	m.verdictReturnMode = ModeBrowse
 	m.mode = ModeVerdict
 	m.queueDecision("s1", true)

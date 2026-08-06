@@ -28,14 +28,14 @@ type gateCommentJSON struct {
 }
 
 type gateFileJSON struct {
-	File               string                 `json:"file"`
-	Decision           string                 `json:"decision"`
-	Blocking           []gateCommentJSON      `json:"blocking"`
-	NonBlocking        []gateCommentJSON      `json:"non_blocking"`
-	PendingSuggestions []gateCommentJSON      `json:"pending_suggestions"`
-	Template           string                 `json:"template,omitempty"`
-	Violations         []comment.Violation    `json:"violations,omitempty"`
-	LastReview         *comment.ReviewRecord  `json:"last_review,omitempty"`
+	File               string                `json:"file"`
+	Decision           string                `json:"decision"`
+	Blocking           []gateCommentJSON     `json:"blocking"`
+	NonBlocking        []gateCommentJSON     `json:"non_blocking"`
+	PendingSuggestions []gateCommentJSON     `json:"pending_suggestions"`
+	Template           string                `json:"template,omitempty"`
+	Violations         []comment.Violation   `json:"violations,omitempty"`
+	LastReview         *comment.ReviewRecord `json:"last_review,omitempty"`
 }
 
 type gateOutputJSON struct {
@@ -58,7 +58,7 @@ func gateCommand(target string, args []string) {
 	strict := fs.Bool("strict", false, "Fail on any unresolved comment or pending suggestion, not just blocking ones")
 	contextSize := fs.Int("context", 2, "Lines of document context around each comment (0 to disable)")
 	templateName := fs.String("template", "", "Also validate structure against this template (defaults to template recorded in sidecar)")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	files, err := comment.FindGateTargets(target)
 	if err != nil {
@@ -139,7 +139,7 @@ func signoffCommand(filename string, args []string) {
 	decision := fs.String("decision", "", "Override decision: approved or changes_requested (default: derived from gate)")
 	note := fs.String("note", "", "Optional review note")
 	strict := fs.Bool("strict", false, "Derive decision using strict gate rules")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	if *author == "" {
 		fmt.Println("Error: --author is required (or set $USER)")

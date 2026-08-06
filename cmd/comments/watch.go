@@ -18,7 +18,7 @@ func watchCommand(target string, args []string) {
 	fs := flag.NewFlagSet("watch", flag.ExitOnError)
 	interval := fs.Duration("interval", time.Second, "Poll interval")
 	until := fs.String("until", "", "Exit 0 after emitting an event matching this comma-separated list of event types (e.g. signoff,gate_changed)")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	encoder := json.NewEncoder(os.Stdout)
 

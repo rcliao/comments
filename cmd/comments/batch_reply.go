@@ -22,7 +22,7 @@ func batchReplyCommand(filename string, args []string) {
 	fs := flag.NewFlagSet("batch-reply", flag.ExitOnError)
 	jsonInput := fs.String("json", "", "JSON file path (use '-' for stdin)")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	if *jsonInput == "" {
 		fmt.Println("Error: --json flag is required")

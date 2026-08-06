@@ -14,11 +14,11 @@ const StorageVersion = "2.0"
 
 // StorageFormat represents the JSON sidecar file structure (v2.0)
 type StorageFormat struct {
-	Version       string         `json:"version"`        // Format version ("2.0")
-	DocumentHash  string         `json:"documentHash"`   // SHA-256 hash for staleness detection
-	LastValidated time.Time      `json:"lastValidated"`  // Last validation timestamp
-	Threads       []*Comment     `json:"threads"`        // Root comment threads with nested replies
-	Reviews       []ReviewRecord `json:"reviews,omitempty"` // Completed review passes (signoffs)
+	Version       string         `json:"version"`            // Format version ("2.0")
+	DocumentHash  string         `json:"documentHash"`       // SHA-256 hash for staleness detection
+	LastValidated time.Time      `json:"lastValidated"`      // Last validation timestamp
+	Threads       []*Comment     `json:"threads"`            // Root comment threads with nested replies
+	Reviews       []ReviewRecord `json:"reviews,omitempty"`  // Completed review passes (signoffs)
 	Template      string         `json:"template,omitempty"` // Doc template governing this document
 }
 
@@ -200,4 +200,3 @@ func ListSidecars(dir string) ([]string, error) {
 
 	return sidecars, nil
 }
-

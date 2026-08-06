@@ -23,8 +23,8 @@ func ParseDocument(content string) *DocumentStructure {
 			title := strings.TrimSpace(matches[2])
 
 			headings = append(headings, headingInfo{
-				level:     level,
-				title:     title,
+				level:      level,
+				title:      title,
 				lineNumber: i + 1, // Line numbers are 1-indexed
 			})
 		}

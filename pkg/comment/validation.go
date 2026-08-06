@@ -10,8 +10,8 @@ import (
 
 // ValidationIssue represents a single validation problem
 type ValidationIssue struct {
-	Severity string // "error", "warning"
-	Message  string
+	Severity  string // "error", "warning"
+	Message   string
 	CommentID string // Optional: which comment has the issue
 }
 
@@ -152,12 +152,12 @@ func FormatValidationIssues(issues []ValidationIssue) string {
 	}
 
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("Found %d validation issue(s):\n\n", len(issues)))
+	fmt.Fprintf(&result, "Found %d validation issue(s):\n\n", len(issues))
 
 	for i, issue := range issues {
-		result.WriteString(fmt.Sprintf("%d. [%s] %s", i+1, strings.ToUpper(issue.Severity), issue.Message))
+		fmt.Fprintf(&result, "%d. [%s] %s", i+1, strings.ToUpper(issue.Severity), issue.Message)
 		if issue.CommentID != "" {
-			result.WriteString(fmt.Sprintf(" (Comment: %s)", issue.CommentID))
+			fmt.Fprintf(&result, " (Comment: %s)", issue.CommentID)
 		}
 		result.WriteString("\n")
 	}

@@ -149,12 +149,12 @@ func viewCommand(args []string) {
 	// Parse flags; the filename is positional and may come before the flags
 	fs := flag.NewFlagSet("view", flag.ExitOnError)
 	themeFlag := fs.String("theme", "", "Color theme: nord (default), dracula, gruvbox, ansi")
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	filename := ""
 	if rest := fs.Args(); len(rest) > 0 {
 		filename = rest[0]
-		fs.Parse(rest[1:]) // allow `view <file> --theme <name>` ordering
+		_ = fs.Parse(rest[1:]) // allow `view <file> --theme <name>` ordering
 	}
 
 	// Theme selection: --theme flag wins over COMMENTS_THEME env var
@@ -219,7 +219,7 @@ func listCommand(filename string, args []string) {
 	format := fs.String("format", "text", "Output format: text, json, table")
 	withContext := fs.Bool("with-context", false, "Include document context for each comment")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	// Load document
 	doc, err := comment.LoadFromSidecar(filename)
@@ -383,18 +383,19 @@ func listCommand(filename string, args []string) {
 			priorityIndicator = " [HIGH]"
 		case "low":
 			priorityIndicator = " [LOW]"
-		// medium is default, no indicator needed
+			// medium is default, no indicator needed
 		}
 
 		// Status indicator
 		statusIndicator := ""
 		status := thread.GetStatus()
-		if status == "orphaned" {
+		switch status {
+		case "orphaned":
 			statusIndicator = " ⚠️  ORPHANED"
 			if thread.OrphanedReason != "" {
 				statusIndicator += fmt.Sprintf(" (%s)", thread.OrphanedReason)
 			}
-		} else if status == "completed" {
+		case "completed":
 			statusIndicator = " ✓ COMPLETED"
 		}
 
@@ -420,7 +421,7 @@ func getCommand(filename string, args []string) {
 	threadID := fs.String("thread", "", "Thread ID to get (required)")
 	withReplies := fs.Bool("with-replies", true, "Include replies in output (default: true)")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	if *threadID == "" {
 		fmt.Println("Error: --thread flag is required")
@@ -498,7 +499,7 @@ func addCommand(filename string, args []string) {
 	priority := fs.String("priority", "medium", "Priority: low, medium, high (default: medium)")
 	blocking := fs.Bool("blocking", false, "Mark comment as blocking (must be resolved before gate passes)")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	if *text == "" {
 		fmt.Println("Error: --text flag is required")
@@ -606,7 +607,7 @@ func replyCommand(filename string, args []string) {
 	thread := fs.String("thread", "", "Thread ID (required)")
 	author := fs.String("author", "", "Author name (required)")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	if *text == "" {
 		fmt.Println("Error: --text flag is required")
@@ -664,7 +665,7 @@ func resolveCommand(filename string, args []string) {
 	fs := flag.NewFlagSet("resolve", flag.ExitOnError)
 	thread := fs.String("thread", "", "Thread ID (required)")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	if *thread == "" {
 		fmt.Println("Error: --thread flag is required")
@@ -709,7 +710,7 @@ func suggestCommand(filename string, args []string) {
 	original := fs.String("original", "", "Original text to replace")
 	proposed := fs.String("proposed", "", "Proposed replacement text (required)")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	// Validate required flags
 	if *author == "" {
@@ -829,7 +830,7 @@ func acceptCommand(filename string, args []string) {
 	suggestionID := fs.String("suggestion", "", "Suggestion ID (required)")
 	preview := fs.Bool("preview", false, "Preview changes without applying")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	if *suggestionID == "" {
 		fmt.Println("Error: --suggestion flag is required")
@@ -910,7 +911,7 @@ func rejectCommand(filename string, args []string) {
 	fs := flag.NewFlagSet("reject", flag.ExitOnError)
 	suggestionID := fs.String("suggestion", "", "Suggestion ID (required)")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	if *suggestionID == "" {
 		fmt.Println("Error: --suggestion flag is required")
