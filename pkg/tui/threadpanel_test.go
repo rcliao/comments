@@ -6,6 +6,7 @@ package tui
 // cursor intact, and reply/resolve round-trip through the panel.
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -242,4 +243,58 @@ func TestThreadPanelResolveRoundTrip(t *testing.T) {
 	if !m.doc.Threads[0].Resolved {
 		t.Error("y should resolve the thread through the panel flow")
 	}
+}
+
+// Sidebar->doc sync (live-review request): navigating threads in the sidebar
+// highlights the focused thread's line in the document pane, and the open
+// panel highlights its anchor line.
+func TestSidebarFocusHighlightsDocLine(t *testing.T) {
+	m := testModel([]*comment.Comment{
+		{ID: "c1", Line: 3, Text: "first", Author: "a"},
+		{ID: "c2", Line: 5, Text: "second", Author: "b"},
+	})
+	m.width, m.height = 120, 40
+	m.handleResize()
+	m.mode = ModeBrowse
+	m.selectedComment = 0
+	m.refreshDocumentPane()
+
+	frame1 := m.renderDocument()
+	if !lineHasFocusBg(frame1, 3) || lineHasFocusBg(frame1, 5) {
+		t.Errorf("focus should sit on line 3 only:\n%s", frame1)
+	}
+
+	// j moves sidebar selection to the second thread -> focus moves to line 5
+	next, _ := m.handleBrowseKeys(keyMsg("j"))
+	nm := next.(Model)
+	frame2 := nm.renderDocument()
+	if lineHasFocusBg(frame2, 3) || !lineHasFocusBg(frame2, 5) {
+		t.Errorf("after j, focus should move to line 5:\n%s", frame2)
+	}
+
+	// opening the panel keeps the anchor line highlighted
+	opened, _ := nm.handleBrowseKeys(keyMsg("enter"))
+	om := opened.(Model)
+	if om.mode != ModeThreadView {
+		t.Fatal("enter should open the thread panel")
+	}
+	if !lineHasFocusBg(om.renderDocument(), 5) {
+		t.Errorf("panel open should highlight its anchor line 5")
+	}
+}
+
+// lineHasFocusBg reports whether the rendered doc line numbered n carries the
+// cursor/focus background style
+func lineHasFocusBg(frame string, n int) bool {
+	for _, row := range strings.Split(frame, "\n") {
+		plain := stripANSI(row)
+		trimmed := strings.TrimSpace(plain)
+		if strings.HasPrefix(trimmed, fmt.Sprintf("%d ", n)) || strings.HasPrefix(trimmed, fmt.Sprintf("%d", n)) {
+			num := strings.Fields(trimmed)
+			if len(num) > 0 && num[0] == fmt.Sprintf("%d", n) {
+				return strings.Contains(row, "\x1b[48;") || strings.Contains(row, ";48;")
+			}
+		}
+	}
+	return false
 }

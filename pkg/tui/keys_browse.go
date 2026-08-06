@@ -65,8 +65,10 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selectedComment < len(visibleComments)-1 {
 			m.selectedComment++
 			m.commentViewport.SetContent(m.renderComments())
-			// Scroll document to center the selected comment
+			// Scroll document to center the selected comment and move the
+			// focus-line highlight with it (sidebar->doc sync)
 			m.scrollToComment(visibleComments[m.selectedComment])
+			m.refreshDocumentPane()
 		}
 		return m, nil
 
@@ -75,8 +77,10 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selectedComment > 0 {
 			m.selectedComment--
 			m.commentViewport.SetContent(m.renderComments())
-			// Scroll document to center the selected comment
+			// Scroll document to center the selected comment and move the
+			// focus-line highlight with it (sidebar->doc sync)
 			m.scrollToComment(visibleComments[m.selectedComment])
+			m.refreshDocumentPane()
 		}
 		return m, nil
 
@@ -90,6 +94,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Scroll document to center the thread's comment, then size the
 			// thread panel against that scroll position (keys_threadpanel.go)
 			m.scrollToComment(selectedThread)
+			m.refreshDocumentPane()
 			m.applyThreadPanel()
 			return m, nil
 		}

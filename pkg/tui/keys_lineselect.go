@@ -169,6 +169,9 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.selectedThread = thread
 			m.returnToLineSelect = true
 			m.mode = ModeThreadView
+			// Panel base view is cursorless; re-render so the anchor line
+			// carries the focus highlight (sidebar->doc sync)
+			m.refreshDocumentPane()
 			m.applyThreadPanel()
 		}
 		return m, nil

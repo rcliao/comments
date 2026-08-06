@@ -303,6 +303,18 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 	// Group root threads by line (replies share the root's line)
 	commentsByLine := rootThreadsByLine(m.doc.Threads)
 
+	// Sidebar→doc sync: without a cursor, highlight the line the sidebar (or
+	// the open thread panel) is focused on, so navigating threads visibly
+	// moves the reader's eye in the document pane
+	docFocus := 0
+	if !withCursor {
+		if m.mode == ModeThreadView && m.selectedThread != nil {
+			docFocus = m.selectedThread.Line
+		} else {
+			docFocus = m.focusLine()
+		}
+	}
+
 	for i, line := range lines {
 		lineNum := i + 1
 		lineNumStr := m.styles.lineNumber.Render(fmt.Sprintf("%d", lineNum))
@@ -310,23 +322,24 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 		marker := m.styles.lineMarker(commentsByLine[lineNum])
 
 		isSelected := withCursor && lineNum == m.selectedLine
+		isFocused := !withCursor && lineNum == docFocus
 		inRange := withCursor && m.rangeActive && lineNum >= m.rangeStartLine && lineNum <= m.rangeEndLine
 
-		// Syntax styling stays off on the cursor line (subtle bg composes with
-		// spans poorly, so the cursor line keeps raw text but a gentle
-		// background; range keeps raw too)
+		// Syntax styling stays off on the cursor/focus line (subtle bg
+		// composes with spans poorly, so these lines keep raw text but a
+		// gentle background; range keeps raw too)
 		styledLine := line
-		if !isSelected && !inRange {
+		if !isSelected && !isFocused && !inRange {
 			styledLine = m.styleDocLine(line, lineNum)
 		}
-		if isSelected {
+		if isSelected || isFocused {
 			lineNumStr = m.styles.cursorLineNum.Render(fmt.Sprintf("%d", lineNum))
 		}
 
 		// Wrap long lines
 		wrappedLines := strings.Split(wordwrap.String(styledLine, availableWidth), "\n")
 		for j, wrappedLine := range wrappedLines {
-			if isSelected {
+			if isSelected || isFocused {
 				wrappedLine = m.styles.cursor.Render(wrappedLine)
 			} else if inRange {
 				wrappedLine = m.styles.selectedLine.Render(wrappedLine)

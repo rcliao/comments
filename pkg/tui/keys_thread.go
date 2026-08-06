@@ -31,6 +31,9 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.mode = ModeBrowse
 		m.selectedThread = nil
+		// Drop the panel's anchor highlight; browse focus falls back to the
+		// sidebar selection
+		m.refreshDocumentPane()
 		return m, nil
 
 	case "c":
