@@ -17,5 +17,6 @@
     "human-in-the-loop",
     "mcp",
     "agent-tools"
-  ]
+  ],
+  "license": "MIT"
 }
