@@ -585,7 +585,16 @@ func (m *Model) renderComments() string {
 }
 
 // renderThread renders an expanded thread view
-func (m *Model) renderThread() string {
+// renderThread renders the expanded thread at the full terminal width (the
+// legacy full-screen thread layout).
+func (m *Model) renderThread() string { return m.renderThreadWidth(m.width) }
+
+// renderThreadWidth renders the expanded thread as if the screen were `width`
+// columns wide — the same content at any width, so the thread-shape prototypes
+// (keys_threadshapes.go) can reuse this renderer inside narrower panes. The
+// widest inner box renders at width-8 content + 2 border columns, i.e.
+// width-6 total (see threadRenderPad).
+func (m *Model) renderThreadWidth(width int) string {
 	if m.selectedThread == nil {
 		return "No thread selected"
 	}
@@ -612,11 +621,11 @@ func (m *Model) renderThread() string {
 			Border(lipgloss.NormalBorder()).
 			BorderForeground(theme.Border.Color()).
 			Padding(0, 1).
-			Width(m.width - 8)
+			Width(width - 8)
 
 		// Calculate width for context text wrapping
 		// Account for borders, padding, line numbers, markers
-		contextWidth := max(m.width-22, 40)
+		contextWidth := max(width-22, 20)
 
 		var contextText strings.Builder
 		contextText.WriteString(lipgloss.NewStyle().
@@ -684,11 +693,11 @@ func (m *Model) renderThread() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(theme.GroupHeader.Color()).
 		Padding(1).
-		Width(m.width - 8)
+		Width(width - 8)
 
 	// Wrap root comment text to fit within the box
 	// Account for border, padding, and margins
-	rootTextWidth := max(m.width-16, 40)
+	rootTextWidth := max(width-16, 20)
 	wrappedRootText := wordwrap.String(m.selectedThread.Text, rootTextWidth)
 
 	rootText := fmt.Sprintf("@%s · %s\n\n%s",
@@ -726,7 +735,7 @@ func (m *Model) renderThread() string {
 			Border(lipgloss.NormalBorder()).
 			BorderForeground(theme.Warning.Color()).
 			Padding(0, 1).
-			Width(m.width - 8)
+			Width(width - 8)
 
 		suggestionText := "Suggestion Type: multi-line\n"
 		suggestionText += fmt.Sprintf("Lines: %d-%d\n", m.selectedThread.StartLine, m.selectedThread.EndLine)
@@ -754,7 +763,7 @@ func (m *Model) renderThread() string {
 		authorStyle := lipgloss.NewStyle().Foreground(theme.MetaText.Color())
 
 		// Calculate available width for reply text: width - padding - border characters
-		replyWidth := max(m.width-12, 40)
+		replyWidth := max(width-12, 20)
 
 		for _, reply := range m.selectedThread.Replies {
 			// Reply header with styled border and author
