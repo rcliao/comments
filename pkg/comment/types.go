@@ -2,6 +2,30 @@ package comment
 
 import "time"
 
+// Status is the lifecycle state of a comment. It is an alias for string (not a
+// distinct type) so the JSON wire format and all existing string-based callers
+// stay unchanged; use the Status* constants instead of raw literals.
+type Status = string
+
+// Comment status values (JSON wire values — do not change).
+const (
+	StatusActive    Status = "active"
+	StatusOrphaned  Status = "orphaned"
+	StatusResolved  Status = "resolved"
+	StatusCompleted Status = "completed"
+)
+
+// Priority is the priority level of a comment. Alias for string for the same
+// wire/API-compatibility reasons as Status.
+type Priority = string
+
+// Comment priority values (JSON wire values — do not change).
+const (
+	PriorityLow    Priority = "low"
+	PriorityMedium Priority = "medium"
+	PriorityHigh   Priority = "high"
+)
+
 // Comment represents a single comment or suggestion in a document (v2.0)
 // Simplified structure with nested thread support
 type Comment struct {
@@ -48,18 +72,6 @@ type Comment struct {
 	Accepted     *bool  // nil=pending, true=accepted, false=rejected (nil if not a suggestion)
 }
 
-// IsRoot returns true if this is a root comment (has no parent)
-// In v2.0, all top-level comments in the threads array are roots
-func (c *Comment) IsRoot() bool {
-	return true // In v2.0, we only store root comments in threads array
-}
-
-// IsReply returns true if this is a reply to another comment
-// In v2.0, replies are found in the Replies array
-func (c *Comment) IsReply() bool {
-	return false // This method is context-dependent; caller knows based on array location
-}
-
 // IsPending returns true if this suggestion is awaiting review
 func (c *Comment) IsPending() bool {
 	return c.IsSuggestion && c.Accepted == nil
@@ -98,41 +110,30 @@ func (c *Comment) LatestTimestamp() time.Time {
 
 // Status management methods
 
-// IsActive returns true if the comment is active (attached to valid position)
-func (c *Comment) IsActive() bool {
-	status := c.GetStatus()
-	return status == "active"
-}
-
 // IsOrphaned returns true if the comment's position is no longer valid
 func (c *Comment) IsOrphaned() bool {
-	return c.Status == "orphaned"
+	return c.Status == StatusOrphaned
 }
 
 // IsCompleted returns true if the comment/task has been marked as completed
 func (c *Comment) IsCompleted() bool {
-	return c.Status == "completed"
+	return c.Status == StatusCompleted
 }
 
 // GetStatus returns the comment status with default "active" for backward compatibility
-func (c *Comment) GetStatus() string {
+func (c *Comment) GetStatus() Status {
 	if c.Status == "" {
-		return "active"
+		return StatusActive
 	}
 	return c.Status
 }
 
 // GetPriority returns the comment priority with default "medium"
-func (c *Comment) GetPriority() string {
+func (c *Comment) GetPriority() Priority {
 	if c.Priority == "" {
-		return "medium"
+		return PriorityMedium
 	}
 	return c.Priority
-}
-
-// Position represents the location of a comment in a document (v2.0 simplified)
-type Position struct {
-	Line int // Current line number (may change as doc is edited)
 }
 
 // ReviewRecord captures a completed human review pass over a document
@@ -184,67 +185,10 @@ func (d *DocumentWithComments) FindThreadByID(id string) *Comment {
 	return nil
 }
 
-// FindCommentByID finds any comment by ID (root or reply)
+// FindCommentByID finds any comment by ID (root or reply). It shares the
+// single recursive traversal in findCommentByID (helpers.go).
 func (d *DocumentWithComments) FindCommentByID(id string) *Comment {
-	for _, thread := range d.Threads {
-		if thread.ID == id {
-			return thread
-		}
-		if found := findInReplies(thread.Replies, id); found != nil {
-			return found
-		}
-	}
-	return nil
-}
-
-// findInReplies recursively searches for a comment in replies
-func findInReplies(replies []*Comment, id string) *Comment {
-	for _, reply := range replies {
-		if reply.ID == id {
-			return reply
-		}
-		if found := findInReplies(reply.Replies, id); found != nil {
-			return found
-		}
-	}
-	return nil
-}
-
-// GetActiveComments returns all comments with status "active"
-func (d *DocumentWithComments) GetActiveComments() []*Comment {
-	return d.GetCommentsByStatus("active")
-}
-
-// GetOrphanedComments returns all comments with status "orphaned"
-func (d *DocumentWithComments) GetOrphanedComments() []*Comment {
-	return d.GetCommentsByStatus("orphaned")
-}
-
-// GetCompletedComments returns all comments with status "completed"
-func (d *DocumentWithComments) GetCompletedComments() []*Comment {
-	return d.GetCommentsByStatus("completed")
-}
-
-// GetCommentsByStatus returns all comments (roots + replies) with the given status
-func (d *DocumentWithComments) GetCommentsByStatus(status string) []*Comment {
-	filtered := []*Comment{}
-	for _, comment := range d.GetAllComments() {
-		if comment.GetStatus() == status {
-			filtered = append(filtered, comment)
-		}
-	}
-	return filtered
-}
-
-// GetCommentsByPriority returns all comments with the given priority
-func (d *DocumentWithComments) GetCommentsByPriority(priority string) []*Comment {
-	filtered := []*Comment{}
-	for _, comment := range d.GetAllComments() {
-		if comment.GetPriority() == priority {
-			filtered = append(filtered, comment)
-		}
-	}
-	return filtered
+	return findCommentByID(d.Threads, id)
 }
 
 // Migration helpers for upgrading old sidecars to new format
@@ -254,12 +198,12 @@ func (d *DocumentWithComments) GetCommentsByPriority(priority string) []*Comment
 func MigrateComment(c *Comment) {
 	// Set default status if empty
 	if c.Status == "" {
-		c.Status = "active"
+		c.Status = StatusActive
 	}
 
 	// Set default priority if empty
 	if c.Priority == "" {
-		c.Priority = "medium"
+		c.Priority = PriorityMedium
 	}
 
 	// Preserve original line position

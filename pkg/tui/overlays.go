@@ -60,21 +60,21 @@ func helpGroups() []helpGroup {
 }
 
 // renderHelpOverlay renders the grouped keybinding reference as plain text
-func renderHelpOverlay() string {
+func (st *styleSet) renderHelpOverlay() string {
 	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(activeTheme.Title).Render("Keybindings"))
+	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(st.theme.Title).Render("Keybindings"))
 	b.WriteString("\n")
-	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(activeTheme.Accent)
+	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(st.theme.Accent)
 	for _, g := range helpGroups() {
 		b.WriteString("\n")
-		b.WriteString(groupHeaderStyle.Render(g.title))
+		b.WriteString(st.groupHeader.Render(g.title))
 		b.WriteString("\n")
 		for _, kv := range g.bindings {
 			fmt.Fprintf(&b, "  %s  %s\n", keyStyle.Render(fmt.Sprintf("%-16s", kv[0])), kv[1])
 		}
 	}
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("press any key to close · themes: view --theme nord|dracula|gruvbox|ansi (or COMMENTS_THEME)"))
+	b.WriteString(st.help.Render("press any key to close · themes: view --theme nord|dracula|gruvbox|ansi (or COMMENTS_THEME)"))
 	return b.String()
 }
 
@@ -86,7 +86,7 @@ func (m Model) handleHelpKeys(_ tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // viewHelp renders the full-screen help overlay
 func (m Model) viewHelp() string {
-	box := modalOverlayStyle.Render(renderHelpOverlay())
+	box := m.styles.modalOverlay.Render(m.styles.renderHelpOverlay())
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }
 
@@ -126,17 +126,17 @@ func buildTOC(ds *markdown.DocumentStructure, threads []*comment.Comment) []tocE
 }
 
 // renderTOC renders the TOC rows with the selected row highlighted
-func renderTOC(entries []tocEntry, selected int) string {
+func (st *styleSet) renderTOC(entries []tocEntry, selected int) string {
 	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(activeTheme.Title).Render("Table of Contents"))
+	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(st.theme.Title).Render("Table of Contents"))
 	b.WriteString("\n\n")
-	openStyle := lipgloss.NewStyle().Foreground(activeTheme.Marker)
+	openStyle := lipgloss.NewStyle().Foreground(st.theme.Marker)
 	for i, e := range entries {
 		cursor := "  "
 		style := lipgloss.NewStyle()
 		if i == selected {
-			cursor = cursorStyle.Render("▶") + " "
-			style = selectedCommentStyle
+			cursor = st.cursor.Render("▶") + " "
+			style = st.selectedComment
 		}
 		row := fmt.Sprintf("%s (line %d)", e.path, e.line)
 		b.WriteString(cursor + style.Render(row))
@@ -146,7 +146,7 @@ func renderTOC(entries []tocEntry, selected int) string {
 		b.WriteString("\n")
 	}
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("j/k: move • Enter: jump • Esc: close"))
+	b.WriteString(st.help.Render("j/k: move • Enter: jump • Esc: close"))
 	return b.String()
 }
 
@@ -185,9 +185,7 @@ func (m Model) handleTOCKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.selectedLine = entry.line
 		m.mode = ModeLineSelect
 		m.documentViewport = viewport.New(m.docPaneWidth(), m.height-2)
-		m.documentViewport.SetContent(m.renderDocumentWithCursor())
-		m.scrollToLine(m.selectedLine)
-		m.refreshSidebar()
+		m.refreshCursorView()
 		return m, nil
 
 	case "esc", "q", "t":
@@ -199,6 +197,6 @@ func (m Model) handleTOCKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // viewTOC renders the TOC overlay
 func (m Model) viewTOC() string {
-	box := modalOverlayStyle.Render(renderTOC(m.tocEntries, m.tocSelected))
+	box := m.styles.modalOverlay.Render(m.styles.renderTOC(m.tocEntries, m.tocSelected))
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }

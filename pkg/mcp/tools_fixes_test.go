@@ -2,9 +2,65 @@ package mcp
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// TestListSectionFilterTreeInclusive pins the comments_list section-filter
+// semantics: an exact section path matches the section and all its descendant
+// sub-sections (tree-inclusive), but NOT a sibling section whose title merely
+// shares a string prefix. This matches the CLI (comment.GetCommentsInSection).
+func TestListSectionFilterTreeInclusive(t *testing.T) {
+	session := startTestSession(t)
+	dir := t.TempDir()
+	doc := filepath.Join(dir, "doc.md")
+	content := "# Doc\n\n## Problem\n\nProblem body.\n\n### Symptoms\n\nSymptom body.\n\n## Problem Details\n\nDetails body.\n"
+	if err := os.WriteFile(doc, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	callTool(t, session, "comments_add", map[string]any{
+		"filepath": doc, "author": "eric", "text": "in problem", "line": 5,
+	})
+	callTool(t, session, "comments_add", map[string]any{
+		"filepath": doc, "author": "eric", "text": "in symptoms", "line": 9,
+	})
+	callTool(t, session, "comments_add", map[string]any{
+		"filepath": doc, "author": "eric", "text": "in details", "line": 13,
+	})
+
+	// Exact path: section itself + nested descendants, sibling excluded
+	listed := callTool(t, session, "comments_list", map[string]any{
+		"filepath": doc, "section": "Doc > Problem",
+	})
+	texts := map[string]bool{}
+	for _, raw := range listed["comments"].([]any) {
+		texts[raw.(map[string]any)["text"].(string)] = true
+	}
+	if listed["total"] != float64(2) || !texts["in problem"] || !texts["in symptoms"] {
+		t.Errorf("expected section + descendant comments, got %v", texts)
+	}
+	if texts["in details"] {
+		t.Error("sibling section 'Problem Details' must not match filter 'Doc > Problem'")
+	}
+
+	// Root section includes the whole tree
+	listed = callTool(t, session, "comments_list", map[string]any{
+		"filepath": doc, "section": "Doc",
+	})
+	if listed["total"] != float64(3) {
+		t.Errorf("expected all 3 comments under root section, got %v", listed["total"])
+	}
+
+	// Nonexistent section: empty result, not an error
+	listed = callTool(t, session, "comments_list", map[string]any{
+		"filepath": doc, "section": "Doc > Missing",
+	})
+	if listed["total"] != float64(0) {
+		t.Errorf("expected 0 comments for unknown section, got %v", listed["total"])
+	}
+}
 
 // TestBatchReplyAtomicOnBadThreadID verifies the CLI batch-reply contract over
 // MCP: if any thread ID is missing, the whole batch is rejected before any

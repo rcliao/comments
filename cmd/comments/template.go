@@ -169,7 +169,7 @@ func loadTemplateForDoc(filename, templateName string) (*comment.Template, *comm
 	if name == "" {
 		return nil, nil, failf("Error: no template specified (--template <name>) and none recorded in sidecar\nList templates with: comments template list")
 	}
-	t, err := comment.LoadTemplate(name)
+	t, err := comment.LoadTemplateForDoc(name, filename)
 	if err != nil {
 		return nil, nil, failf("Error: %v", err)
 	}

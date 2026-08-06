@@ -550,79 +550,128 @@ func TestApplyAllSuggestionsBottomUpStillWorks(t *testing.T) {
 	}
 }
 
-func TestPreviewSuggestion(t *testing.T) {
-	content := `Line 1
-Line 2
-Line 3
-Line 4`
-
-	suggestion := &Comment{
-		ID:           "s1",
-		IsSuggestion: true,
-		StartLine:    2,
-		EndLine:      3,
-		OriginalText: "Line 2\nLine 3",
-		ProposedText: "Modified Line 2\nModified Line 3",
+func TestApplyAndAcceptSuggestion(t *testing.T) {
+	doc := &DocumentWithComments{
+		Content: "Line 1\nLine 2\nLine 3\nLine 4",
+		Threads: []*Comment{
+			{ID: "s1", IsSuggestion: true, Line: 2, StartLine: 2, EndLine: 3,
+				OriginalText: "Line 2\nLine 3", ProposedText: "New 2\nNew 2b\nNew 3"},
+			{ID: "c1", Line: 4},
+		},
 	}
 
-	preview, err := PreviewSuggestion(content, suggestion)
+	changed, err := ApplyAndAcceptSuggestion(doc, "s1")
 	if err != nil {
-		t.Fatalf("PreviewSuggestion failed: %v", err)
+		t.Fatalf("ApplyAndAcceptSuggestion failed: %v", err)
+	}
+	if !changed {
+		t.Error("changed = false, want true")
 	}
 
-	// Check that preview contains key elements
-	if !strings.Contains(preview, "=== Suggestion Preview ===") {
-		t.Error("Preview should contain header")
+	expected := "Line 1\nNew 2\nNew 2b\nNew 3\nLine 4"
+	if doc.Content != expected {
+		t.Errorf("content mismatch.\nExpected:\n%s\nGot:\n%s", expected, doc.Content)
 	}
-
-	if !strings.Contains(preview, "Lines 2-3") {
-		t.Error("Preview should contain line range")
+	s1 := doc.FindCommentByID("s1")
+	if !s1.IsAccepted() {
+		t.Error("suggestion not marked accepted")
 	}
-
-	if !strings.Contains(preview, "--- Original") {
-		t.Error("Preview should contain original section")
-	}
-
-	if !strings.Contains(preview, "+++ Proposed") {
-		t.Error("Preview should contain proposed section")
-	}
-
-	if !strings.Contains(preview, "- Line 2") {
-		t.Error("Preview should contain original line 2")
-	}
-
-	if !strings.Contains(preview, "+ Modified Line 2") {
-		t.Error("Preview should contain proposed line 2")
+	// Comment below the edit shifts by the net delta (+1)
+	if c1 := doc.FindCommentByID("c1"); c1.Line != 5 {
+		t.Errorf("comment below edit at line %d, want 5", c1.Line)
 	}
 }
 
-func TestPreviewSuggestionInvalidRange(t *testing.T) {
-	content := "Line 1\nLine 2"
-
-	suggestion := &Comment{
-		ID:           "s1",
-		IsSuggestion: true,
-		StartLine:    10,
-		EndLine:      10,
-		ProposedText: "X",
+func TestApplyAndAcceptSuggestionStackedShift(t *testing.T) {
+	doc := &DocumentWithComments{
+		Content: "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6",
+		Threads: []*Comment{
+			{ID: "top", IsSuggestion: true, Line: 2, StartLine: 2, EndLine: 2,
+				OriginalText: "Line 2", ProposedText: "Two A\nTwo B"}, // grows doc by 1
+			{ID: "bottom", IsSuggestion: true, Line: 5, StartLine: 5, EndLine: 5,
+				OriginalText: "Line 5", ProposedText: "FIVE"},
+		},
 	}
 
-	_, err := PreviewSuggestion(content, suggestion)
-	if err == nil {
-		t.Error("Expected error for invalid range")
+	// Accept the top suggestion first: the bottom one's range must shift down
+	if _, err := ApplyAndAcceptSuggestion(doc, "top"); err != nil {
+		t.Fatalf("accepting top failed: %v", err)
+	}
+	bottom := doc.FindCommentByID("bottom")
+	if bottom.StartLine != 6 || bottom.EndLine != 6 {
+		t.Fatalf("bottom range = %d-%d after top accept, want 6-6", bottom.StartLine, bottom.EndLine)
+	}
+
+	// The shifted range must still target the right text (OriginalText verifies)
+	if _, err := ApplyAndAcceptSuggestion(doc, "bottom"); err != nil {
+		t.Fatalf("accepting bottom failed: %v", err)
+	}
+
+	expected := "Line 1\nTwo A\nTwo B\nLine 3\nLine 4\nFIVE\nLine 6"
+	if doc.Content != expected {
+		t.Errorf("content mismatch.\nExpected:\n%s\nGot:\n%s", expected, doc.Content)
 	}
 }
 
-func TestPreviewSuggestionNonSuggestion(t *testing.T) {
-	content := "Line 1\nLine 2"
-
-	comment := &Comment{
-		ID:           "c1",
-		IsSuggestion: false,
+func TestApplyAndAcceptSuggestionIdempotent(t *testing.T) {
+	doc := &DocumentWithComments{
+		Content: "Line 1\nLine 2",
+		Threads: []*Comment{
+			{ID: "s1", IsSuggestion: true, Line: 2, StartLine: 2, EndLine: 2,
+				OriginalText: "Line 2", ProposedText: "Changed"},
+		},
 	}
 
-	_, err := PreviewSuggestion(content, comment)
-	if err == nil {
-		t.Error("Expected error for non-suggestion")
+	if _, err := ApplyAndAcceptSuggestion(doc, "s1"); err != nil {
+		t.Fatalf("first accept failed: %v", err)
+	}
+	after := doc.Content
+
+	changed, err := ApplyAndAcceptSuggestion(doc, "s1")
+	if err != nil {
+		t.Fatalf("second accept errored: %v", err)
+	}
+	if changed {
+		t.Error("second accept reported changed = true, want no-op")
+	}
+	if doc.Content != after {
+		t.Error("second accept modified content")
+	}
+}
+
+func TestApplyAndAcceptSuggestionErrors(t *testing.T) {
+	rejected := false
+	doc := &DocumentWithComments{
+		Content: "Line 1\nLine 2",
+		Threads: []*Comment{
+			{ID: "c1", Line: 1, Text: "not a suggestion"},
+			{ID: "s1", IsSuggestion: true, Line: 2, StartLine: 2, EndLine: 2,
+				OriginalText: "WRONG", ProposedText: "X"},
+			{ID: "s2", IsSuggestion: true, Line: 2, StartLine: 2, EndLine: 2,
+				ProposedText: "X", Accepted: &rejected},
+		},
+	}
+	original := doc.Content
+
+	cases := []struct{ id, wantErr string }{
+		{"nope", "not found"},
+		{"c1", "not a suggestion"},
+		{"s1", "original text mismatch"},
+		{"s2", "already rejected"},
+	}
+	for _, tc := range cases {
+		changed, err := ApplyAndAcceptSuggestion(doc, tc.id)
+		if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+			t.Errorf("accept(%s): err = %v, want containing %q", tc.id, err, tc.wantErr)
+		}
+		if changed {
+			t.Errorf("accept(%s) reported changed = true", tc.id)
+		}
+	}
+	if doc.Content != original {
+		t.Error("failed accepts modified content")
+	}
+	if s1 := doc.FindCommentByID("s1"); s1.Accepted != nil {
+		t.Error("failed accept marked suggestion decided")
 	}
 }

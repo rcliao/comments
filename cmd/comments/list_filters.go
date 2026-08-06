@@ -79,6 +79,11 @@ func sortComments(comments []*comment.Comment, sortBy string) {
 		sort.Slice(comments, func(i, j int) bool {
 			return comments[i].Author < comments[j].Author
 		})
+	case "priority":
+		rank := map[string]int{"high": 0, "medium": 1, "low": 2}
+		sort.Slice(comments, func(i, j int) bool {
+			return rank[comments[i].GetPriority()] < rank[comments[j].GetPriority()]
+		})
 	}
 }
 
@@ -94,10 +99,7 @@ func outputTable(threads []*comment.Comment, allThreads []*comment.Comment) {
 		replyCount := thread.CountReplies()
 
 		// Create preview (truncate if too long)
-		preview := thread.Text
-		if len(preview) > 40 {
-			preview = preview[:37] + "..."
-		}
+		preview := truncateString(thread.Text, 40)
 
 		resolvedMarker := ""
 		if thread.Resolved {

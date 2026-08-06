@@ -26,7 +26,7 @@ func MatchesUntil(eventName, untilSpec string) bool {
 	if untilSpec == "" {
 		return false
 	}
-	for _, want := range strings.Split(untilSpec, ",") {
+	for want := range strings.SplitSeq(untilSpec, ",") {
 		if strings.TrimSpace(want) == eventName {
 			return true
 		}

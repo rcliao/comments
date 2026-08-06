@@ -2,6 +2,7 @@ package comment
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/rcliao/comments/pkg/markdown"
 )
@@ -57,12 +58,8 @@ func ResolveSectionToLines(docContent string, sectionPath string, includeChildre
 		maxEnd := sections[0].EndLine
 
 		for _, s := range sections {
-			if s.StartLine < minStart {
-				minStart = s.StartLine
-			}
-			if s.EndLine > maxEnd {
-				maxEnd = s.EndLine
-			}
+			minStart = min(minStart, s.StartLine)
+			maxEnd = max(maxEnd, s.EndLine)
 		}
 
 		return minStart, maxEnd, nil
@@ -104,12 +101,6 @@ func GetCommentsInSection(doc *DocumentWithComments, sectionPath string) []*Comm
 	return result
 }
 
-// ListAvailableSections returns all section paths in the document
-func ListAvailableSections(docContent string) []string {
-	docStructure := markdown.ParseDocument(docContent)
-	return docStructure.ListAllPaths()
-}
-
 // ValidateSectionPath checks if a section path exists in the document
 func ValidateSectionPath(docContent string, sectionPath string) error {
 	docStructure := markdown.ParseDocument(docContent)
@@ -128,20 +119,7 @@ func ValidateSectionPath(docContent string, sectionPath string) error {
 
 // joinPaths joins section paths with newline and indent
 func joinPaths(paths []string) string {
-	if len(paths) == 0 {
-		return ""
-	}
-	result := paths[0]
-	for i := 1; i < len(paths); i++ {
-		result += "\n  - " + paths[i]
-	}
-	return result
-}
-
-// GetSectionForLine returns the section path for a specific line number
-func GetSectionForLine(docContent string, line int) string {
-	docStructure := markdown.ParseDocument(docContent)
-	return docStructure.GetSectionPath(line)
+	return strings.Join(paths, "\n  - ")
 }
 
 // UpdateCommentSection updates section metadata for a single comment.

@@ -114,3 +114,61 @@ func TestReviewsAndBlockingRoundTrip(t *testing.T) {
 		t.Errorf("Reviews lost in round-trip: %v", loaded.Reviews)
 	}
 }
+
+func TestFindGateTargetsSingleFile(t *testing.T) {
+	tmp := t.TempDir()
+	md := filepath.Join(tmp, "doc.md")
+	if err := os.WriteFile(md, []byte("# Doc\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// A single file is always included, even without a sidecar
+	targets, err := FindGateTargets(md)
+	if err != nil {
+		t.Fatalf("FindGateTargets failed: %v", err)
+	}
+	if len(targets) != 1 || targets[0] != md {
+		t.Errorf("targets = %v, want [%s]", targets, md)
+	}
+}
+
+func TestFindGateTargetsDirectory(t *testing.T) {
+	tmp := t.TempDir()
+	write := func(rel, content string) string {
+		path := filepath.Join(tmp, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	withSidecar := write("a.md", "# A\n")
+	write("a.md.comments.json", `{"version":"2.0","threads":[]}`)
+	write("b.md", "# B\n") // no sidecar: skipped
+	write("notes.txt", "not markdown")
+	write("notes.txt.comments.json", `{"version":"2.0","threads":[]}`) // non-md: skipped
+	nested := write("sub/c.md", "# C\n")
+	write("sub/c.md.comments.json", `{"version":"2.0","threads":[]}`)
+
+	targets, err := FindGateTargets(tmp)
+	if err != nil {
+		t.Fatalf("FindGateTargets failed: %v", err)
+	}
+
+	got := map[string]bool{}
+	for _, target := range targets {
+		got[target] = true
+	}
+	if len(targets) != 2 || !got[withSidecar] || !got[nested] {
+		t.Errorf("targets = %v, want exactly [%s %s]", targets, withSidecar, nested)
+	}
+}
+
+func TestFindGateTargetsMissingPath(t *testing.T) {
+	if _, err := FindGateTargets(filepath.Join(t.TempDir(), "nope")); err == nil {
+		t.Error("expected error for missing path")
+	}
+}

@@ -2,7 +2,7 @@
 
 All findings verified against code by reviewers. Full reports in session; this is the merged priority order.
 
-**Progress**: Wave 1 (P0 #1-6) done — commit 41b98e7, 2026-08-06. P3 #14 (gofmt/lint/CI) done — a8b5c8a. Wave 2 in flight.
+**Progress**: all waves done (2026-08-06). Wave 1 (P0 #1-6) — 41b98e7. P3 #14 — a8b5c8a. Wave 2 (P1 #7-9) — 613937f. Wave 3 (P2 #10-13 + P3 #15-17) — see final commit. Remaining nits: time.Now injection (#16, skipped — low value vs churn); CLI usage text audit was mostly done in the earlier trim session.
 
 ## P0 — Correctness bugs (fix first)
 

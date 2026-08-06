@@ -1,6 +1,8 @@
 package comment
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -282,5 +284,66 @@ func TestSeedMarkersOnly(t *testing.T) {
 
 	if len(targets) != 1 || targets[0].Type != "Q" {
 		t.Errorf("markers-only should seed only the marker Q thread, got %v", targets)
+	}
+}
+
+func TestLoadTemplateForDocFindsProjectTemplates(t *testing.T) {
+	// Project layout: <tmp>/proj/.comments/templates/proj-tmpl.yaml with the
+	// document nested two levels down. Discovery must walk up from the doc's
+	// directory, independent of the process cwd.
+	tmp := t.TempDir()
+	tmplDir := filepath.Join(tmp, "proj", ".comments", "templates")
+	if err := os.MkdirAll(tmplDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	yaml := "template: proj-tmpl\nversion: 1\ndescription: project-local\n"
+	if err := os.WriteFile(filepath.Join(tmplDir, "proj-tmpl.yaml"), []byte(yaml), 0644); err != nil {
+		t.Fatal(err)
+	}
+	docDir := filepath.Join(tmp, "proj", "specs", "001-feature")
+	if err := os.MkdirAll(docDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	docPath := filepath.Join(docDir, "spec.md")
+
+	tmpl, err := LoadTemplateForDoc("proj-tmpl", docPath)
+	if err != nil {
+		t.Fatalf("LoadTemplateForDoc failed: %v", err)
+	}
+	if tmpl.Name != "proj-tmpl" || tmpl.Description != "project-local" {
+		t.Errorf("wrong template loaded: %+v", tmpl)
+	}
+
+	// Built-ins still resolve for the same document
+	if _, err := LoadTemplateForDoc("design-doc", docPath); err != nil {
+		t.Errorf("built-in fallback failed: %v", err)
+	}
+
+	// Unknown names list both project and built-in templates
+	_, err = LoadTemplateForDoc("nope", docPath)
+	if err == nil || !strings.Contains(err.Error(), "proj-tmpl") {
+		t.Errorf("error should list project template, got: %v", err)
+	}
+
+	names, err := ListTemplatesForDoc(docPath)
+	if err != nil {
+		t.Fatalf("ListTemplatesForDoc failed: %v", err)
+	}
+	if names["proj-tmpl"] != "project" {
+		t.Errorf("proj-tmpl source = %q, want project", names["proj-tmpl"])
+	}
+	if names["design-doc"] != "built-in" {
+		t.Errorf("design-doc source = %q, want built-in", names["design-doc"])
+	}
+}
+
+func TestLoadTemplateForDocNoProjectDir(t *testing.T) {
+	// A document outside any project: only built-ins resolve
+	docPath := filepath.Join(t.TempDir(), "doc.md")
+	if _, err := LoadTemplateForDoc("design-doc", docPath); err != nil {
+		t.Errorf("built-in load failed without project dir: %v", err)
+	}
+	if _, err := LoadTemplateForDoc("proj-tmpl", docPath); err == nil {
+		t.Error("expected error for unknown template outside a project")
 	}
 }

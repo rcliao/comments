@@ -64,44 +64,6 @@ func ApplySuggestion(content string, suggestion *Comment) (string, error) {
 	return strings.Join(result, "\n"), nil
 }
 
-// PreviewSuggestion shows what the suggestion would change without applying it
-// Returns a simple diff-like output
-func PreviewSuggestion(content string, suggestion *Comment) (string, error) {
-	if !suggestion.IsSuggestion {
-		return "", fmt.Errorf("comment is not a suggestion")
-	}
-
-	lines := strings.Split(content, "\n")
-
-	if suggestion.StartLine < 1 || suggestion.StartLine > len(lines) {
-		return "", fmt.Errorf("invalid line range")
-	}
-
-	if suggestion.EndLine > len(lines) {
-		return "", fmt.Errorf("invalid line range")
-	}
-
-	var preview strings.Builder
-
-	preview.WriteString("=== Suggestion Preview ===\n\n")
-	fmt.Fprintf(&preview, "Lines %d-%d\n\n", suggestion.StartLine, suggestion.EndLine)
-
-	// Show original
-	preview.WriteString("--- Original\n")
-	for i := suggestion.StartLine - 1; i < suggestion.EndLine; i++ {
-		fmt.Fprintf(&preview, "- %s\n", lines[i])
-	}
-
-	// Show proposed
-	preview.WriteString("\n+++ Proposed\n")
-	proposedLines := strings.Split(suggestion.ProposedText, "\n")
-	for _, line := range proposedLines {
-		fmt.Fprintf(&preview, "+ %s\n", line)
-	}
-
-	return preview.String(), nil
-}
-
 // SuggestionLinesAdded returns the number of lines the suggestion's proposed
 // text inserts in place of [StartLine, EndLine]. An empty ProposedText is a
 // pure deletion and inserts 0 lines. Use this as the linesAdded argument to
@@ -111,6 +73,47 @@ func SuggestionLinesAdded(suggestion *Comment) int {
 		return 0
 	}
 	return len(strings.Split(suggestion.ProposedText, "\n"))
+}
+
+// ApplyAndAcceptSuggestion is the single accept implementation shared by the
+// CLI, TUI, and MCP server. It finds the pending suggestion by ID, applies it
+// to doc.Content, marks it accepted, shifts every comment and pending
+// suggestion below the edited range via RecalculateCommentLines, and refreshes
+// section metadata for the changed content.
+//
+// Returns (true, nil) when the document was modified. Accepting an
+// already-accepted suggestion is an idempotent no-op: (false, nil). A missing
+// ID, a non-suggestion comment, a previously rejected suggestion, or an
+// OriginalText mismatch returns (false, err) with doc untouched.
+func ApplyAndAcceptSuggestion(doc *DocumentWithComments, suggestionID string) (bool, error) {
+	suggestion := doc.FindCommentByID(suggestionID)
+	if suggestion == nil {
+		return false, fmt.Errorf("suggestion not found: %s", suggestionID)
+	}
+	if !suggestion.IsSuggestion {
+		return false, fmt.Errorf("comment is not a suggestion: %s", suggestionID)
+	}
+	if suggestion.IsAccepted() {
+		return false, nil // already applied; keep accepts idempotent
+	}
+	if suggestion.IsRejected() {
+		return false, fmt.Errorf("suggestion already rejected: %s", suggestionID)
+	}
+
+	newContent, err := ApplySuggestion(doc.Content, suggestion)
+	if err != nil {
+		return false, err
+	}
+
+	if err := AcceptSuggestion(doc.Threads, suggestionID); err != nil {
+		return false, err
+	}
+
+	doc.Content = newContent
+	RecalculateCommentLines(doc.Threads, suggestion.StartLine, suggestion.EndLine,
+		SuggestionLinesAdded(suggestion))
+	ComputeSectionsForComments(doc)
+	return true, nil
 }
 
 // ApplyAllSuggestions applies multiple suggestions to the document in the

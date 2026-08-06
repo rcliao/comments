@@ -2,15 +2,18 @@ package tui
 
 import (
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/rcliao/comments/pkg/comment"
 )
 
-// resetTheme restores the default theme after a test mutates package styles.
+// resetTheme restores the default startup theme after a test calls SetTheme.
 func resetTheme(t *testing.T) {
 	t.Helper()
-	t.Cleanup(func() { applyTheme(themes[DefaultThemeName]) })
+	t.Cleanup(func() { SetTheme(DefaultThemeName) })
 }
 
 func TestThemeByNameLookup(t *testing.T) {
@@ -38,53 +41,57 @@ func TestThemeByNameUnknownFallsBackToDefault(t *testing.T) {
 func TestSetThemeUnknownAppliesDefaultAndReportsFalse(t *testing.T) {
 	resetTheme(t)
 	SetTheme("dracula")
-	if !reflect.DeepEqual(activeTheme, themes["dracula"]) {
-		t.Fatal("SetTheme(dracula) should make dracula active")
+	if !reflect.DeepEqual(currentStartupTheme(), themes["dracula"]) {
+		t.Fatal("SetTheme(dracula) should make dracula the startup theme")
 	}
 	if SetTheme("no-such-theme") {
 		t.Error("SetTheme with unknown name should return false")
 	}
-	if !reflect.DeepEqual(activeTheme, themes[DefaultThemeName]) {
+	if !reflect.DeepEqual(currentStartupTheme(), themes[DefaultThemeName]) {
 		t.Error("SetTheme with unknown name should apply the default theme")
 	}
 }
 
-func TestApplyThemeRecolorsStyles(t *testing.T) {
+func TestSetThemeStylesNewModels(t *testing.T) {
 	resetTheme(t)
-
-	applyTheme(themes["ansi"])
-	if got := titleStyle.GetForeground(); got != lipgloss.Color("170") {
-		t.Errorf("ansi titleStyle foreground = %v, want 170", got)
-	}
-	if got := blockingMarkerStyle.GetForeground(); got != lipgloss.Color("196") {
-		t.Errorf("ansi blockingMarkerStyle foreground = %v, want 196", got)
-	}
-
-	applyTheme(themes["nord"])
-	if got := titleStyle.GetForeground(); got != lipgloss.Color("#B48EAD") {
-		t.Errorf("nord titleStyle foreground = %v, want #B48EAD", got)
-	}
-	if got := blockingMarkerStyle.GetForeground(); got != lipgloss.Color("#BF616A") {
-		t.Errorf("nord blockingMarkerStyle foreground = %v, want #BF616A", got)
-	}
-	if got := cursorStyle.GetBackground(); got != lipgloss.Color("#3B4252") {
-		t.Errorf("nord cursorStyle background = %v, want #3B4252", got)
-	}
-
-	// Non-color attributes survive reassignment
-	if w := lineNumberStyle.GetWidth(); w != 4 {
-		t.Errorf("lineNumberStyle width = %d, want 4", w)
+	SetTheme("gruvbox")
+	m := NewModelWithFile(&comment.DocumentWithComments{Content: "# x\n"}, "x.md")
+	if !reflect.DeepEqual(m.styles.theme, themes["gruvbox"]) {
+		t.Error("models constructed after SetTheme should carry that theme")
 	}
 }
 
-func TestApplyThemeSetsActiveThemeForTypeColors(t *testing.T) {
-	resetTheme(t)
-	applyTheme(themes["gruvbox"])
-	if got := getCommentTypeColor("[B] broken"); got != "#FB4934" {
+func TestNewStyleSetRecolorsStyles(t *testing.T) {
+	ansi := newStyleSet(themes["ansi"])
+	if got := ansi.title.GetForeground(); got != lipgloss.Color("170") {
+		t.Errorf("ansi title foreground = %v, want 170", got)
+	}
+	if got := ansi.blockingMarker.GetForeground(); got != lipgloss.Color("196") {
+		t.Errorf("ansi blockingMarker foreground = %v, want 196", got)
+	}
+
+	nord := newStyleSet(themes["nord"])
+	if got := nord.title.GetForeground(); got != lipgloss.Color("#B48EAD") {
+		t.Errorf("nord title foreground = %v, want #B48EAD", got)
+	}
+	if got := nord.blockingMarker.GetForeground(); got != lipgloss.Color("#BF616A") {
+		t.Errorf("nord blockingMarker foreground = %v, want #BF616A", got)
+	}
+	if got := nord.cursor.GetBackground(); got != lipgloss.Color("#3B4252") {
+		t.Errorf("nord cursor background = %v, want #3B4252", got)
+	}
+
+	// Non-color attributes carry over into every set
+	if w := nord.lineNumber.GetWidth(); w != 4 {
+		t.Errorf("lineNumber width = %d, want 4", w)
+	}
+}
+
+func TestStyleSetThemeDrivesTypeColors(t *testing.T) {
+	if got := newStyleSet(themes["gruvbox"]).getCommentTypeColor("[B] broken"); got != "#FB4934" {
 		t.Errorf("gruvbox [B] color = %q, want #FB4934", got)
 	}
-	applyTheme(themes["ansi"])
-	if got := getCommentTypeColor("[Q] question"); got != "220" {
+	if got := newStyleSet(themes["ansi"]).getCommentTypeColor("[Q] question"); got != "220" {
 		t.Errorf("ansi [Q] color = %q, want 220", got)
 	}
 }
@@ -108,4 +115,31 @@ func TestDefaultThemeIsNord(t *testing.T) {
 	if DefaultThemeName != "nord" {
 		t.Errorf("default theme = %q, want nord", DefaultThemeName)
 	}
+}
+
+// TestSetThemeConcurrentWithRendering pins the t.Parallel readiness contract:
+// SetTheme only touches the mutex-guarded startup theme, and models render
+// from their own immutable styleSet, so theme switching in one goroutine can
+// never race construction or rendering in another (verified under -race).
+func TestSetThemeConcurrentWithRendering(t *testing.T) {
+	resetTheme(t)
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			SetTheme("dracula")
+		}()
+		go func() {
+			defer wg.Done()
+			m := NewModelWithFile(&comment.DocumentWithComments{
+				Content: "# x\n\nbody\n",
+				Threads: []*comment.Comment{{ID: "c1", Line: 3, Text: "note", Author: "a"}},
+			}, "x.md")
+			_ = m.renderDocument()
+			_ = m.renderComments()
+			_ = m.styles.renderHelpOverlay()
+		}()
+	}
+	wg.Wait()
 }

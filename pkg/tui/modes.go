@@ -82,13 +82,3 @@ func (m ViewMode) String() string {
 		return "UNKNOWN"
 	}
 }
-
-// IsModal returns true if the mode represents a modal dialog
-func (m ViewMode) IsModal() bool {
-	return m == ModeAddComment || m == ModeReply || m == ModeResolve || m == ModeAddSuggestion || m == ModeChooseTarget || m == ModeSelectSuggestionType
-}
-
-// IsInteractive returns true if the mode requires user input
-func (m ViewMode) IsInteractive() bool {
-	return m == ModeAddComment || m == ModeReply || m == ModeLineSelect || m == ModeFilePicker || m == ModeAddSuggestion
-}

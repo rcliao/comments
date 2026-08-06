@@ -777,23 +777,10 @@ func acceptCommand(filename string, args []string) error {
 		return nil
 	}
 
-	// Apply suggestion
-	newContent, err := comment.ApplySuggestion(doc.Content, suggestion)
-	if err != nil {
-		return failf("Error applying suggestion: %v", err)
+	// Apply, mark accepted, and shift displaced comment/suggestion lines
+	if _, err := comment.ApplyAndAcceptSuggestion(doc, *suggestionID); err != nil {
+		return failf("Error accepting suggestion: %v", err)
 	}
-
-	// Update document content
-	doc.Content = newContent
-
-	// Mark suggestion as accepted using helper
-	if err := comment.AcceptSuggestion(doc.Threads, *suggestionID); err != nil {
-		return failf("Error marking suggestion as accepted: %v", err)
-	}
-
-	// Recalculate comment line numbers (line-only tracking)
-	linesAdded := len(strings.Split(suggestion.ProposedText, "\n"))
-	comment.RecalculateCommentLines(doc.Threads, suggestion.StartLine, suggestion.EndLine, linesAdded)
 
 	// Save
 	if err := comment.SaveToSidecar(filename, doc); err != nil {

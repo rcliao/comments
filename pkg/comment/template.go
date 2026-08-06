@@ -14,8 +14,35 @@ import (
 //go:embed templates/*.yaml
 var builtinTemplates embed.FS
 
-// ProjectTemplateDir is where project-specific templates live, relative to cwd
+// ProjectTemplateDir is where project-specific templates live, relative to the
+// project root. The project root is discovered by walking up from a start
+// directory (the document's directory, or cwd) until a .comments/templates
+// directory is found — like git repo discovery — so template resolution does
+// not depend on the process cwd (the MCP server may be launched from anywhere).
 const ProjectTemplateDir = ".comments/templates"
+
+// findProjectTemplateDir walks up from startDir to the filesystem root looking
+// for a .comments/templates directory. Returns "" when none exists.
+func findProjectTemplateDir(startDir string) string {
+	if startDir == "" {
+		startDir = "."
+	}
+	dir, err := filepath.Abs(startDir)
+	if err != nil {
+		return ""
+	}
+	for {
+		candidate := filepath.Join(dir, ProjectTemplateDir)
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
 
 // Zone ownership values for template sections
 const (
@@ -75,8 +102,17 @@ func (t *Template) markerPrefix() string {
 	return "[NEEDS CLARIFICATION"
 }
 
-// ListTemplates returns built-in and project template names (project wins on conflict)
+// ListTemplates returns built-in and project template names (project wins on
+// conflict). Project templates are discovered by walking up from cwd; use
+// ListTemplatesForDoc when a document path is available.
 func ListTemplates() (map[string]string, error) {
+	return ListTemplatesForDoc("")
+}
+
+// ListTemplatesForDoc returns built-in and project template names, discovering
+// the project template dir by walking up from the document's directory (or cwd
+// when docPath is empty). Project templates win on name conflict.
+func ListTemplatesForDoc(docPath string) (map[string]string, error) {
 	names := map[string]string{} // name -> source
 	entries, err := builtinTemplates.ReadDir("templates")
 	if err != nil {
@@ -85,30 +121,53 @@ func ListTemplates() (map[string]string, error) {
 	for _, e := range entries {
 		names[strings.TrimSuffix(e.Name(), ".yaml")] = "built-in"
 	}
-	if projEntries, err := os.ReadDir(ProjectTemplateDir); err == nil {
-		for _, e := range projEntries {
-			if strings.HasSuffix(e.Name(), ".yaml") || strings.HasSuffix(e.Name(), ".yml") {
-				base := strings.TrimSuffix(strings.TrimSuffix(e.Name(), ".yaml"), ".yml")
-				names[base] = "project"
+	if projDir := findProjectTemplateDir(startDirForDoc(docPath)); projDir != "" {
+		if projEntries, err := os.ReadDir(projDir); err == nil {
+			for _, e := range projEntries {
+				if strings.HasSuffix(e.Name(), ".yaml") || strings.HasSuffix(e.Name(), ".yml") {
+					base := strings.TrimSuffix(strings.TrimSuffix(e.Name(), ".yaml"), ".yml")
+					names[base] = "project"
+				}
 			}
 		}
 	}
 	return names, nil
 }
 
-// LoadTemplate loads a template by name, preferring project templates over built-ins
+// startDirForDoc maps a document path to the directory template discovery
+// starts from: the document's directory, or cwd when no path is given.
+func startDirForDoc(docPath string) string {
+	if docPath == "" {
+		return "."
+	}
+	return filepath.Dir(docPath)
+}
+
+// LoadTemplate loads a template by name, preferring project templates over
+// built-ins. The project template dir is discovered by walking up from cwd;
+// use LoadTemplateForDoc when a document path is available so resolution works
+// regardless of the process cwd.
 func LoadTemplate(name string) (*Template, error) {
-	for _, candidate := range []string{
-		filepath.Join(ProjectTemplateDir, name+".yaml"),
-		filepath.Join(ProjectTemplateDir, name+".yml"),
-	} {
-		if data, err := os.ReadFile(candidate); err == nil {
-			return parseTemplate(data)
+	return LoadTemplateForDoc(name, "")
+}
+
+// LoadTemplateForDoc loads a template by name for a specific document,
+// discovering project templates by walking up from the document's directory
+// (or cwd when docPath is empty), then falling back to built-ins.
+func LoadTemplateForDoc(name, docPath string) (*Template, error) {
+	if projDir := findProjectTemplateDir(startDirForDoc(docPath)); projDir != "" {
+		for _, candidate := range []string{
+			filepath.Join(projDir, name+".yaml"),
+			filepath.Join(projDir, name+".yml"),
+		} {
+			if data, err := os.ReadFile(candidate); err == nil {
+				return parseTemplate(data)
+			}
 		}
 	}
 	data, err := builtinTemplates.ReadFile("templates/" + name + ".yaml")
 	if err != nil {
-		available, _ := ListTemplates()
+		available, _ := ListTemplatesForDoc(docPath)
 		names := make([]string, 0, len(available))
 		for n := range available {
 			names = append(names, n)
@@ -330,7 +389,7 @@ func SeedTemplateThreads(doc *DocumentWithComments, t *Template, author string, 
 		}
 		c := NewCommentWithType(author, target.Line, text, target.Type)
 		c.Blocking = target.Blocking
-		c.Status = "active"
+		c.Status = StatusActive
 		UpdateCommentSection(c, doc.Content)
 		doc.Threads = append(doc.Threads, c)
 		added = append(added, c)

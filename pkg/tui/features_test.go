@@ -46,7 +46,7 @@ func TestHelpOverlayOpensAndAnyKeyCloses(t *testing.T) {
 }
 
 func TestHelpOverlayGroupsByActivity(t *testing.T) {
-	out := renderHelpOverlay()
+	out := testStyles().renderHelpOverlay()
 	for _, group := range []string{"Move", "Threads", "Compose", "Review", "Exit"} {
 		if !strings.Contains(out, group) {
 			t.Errorf("help overlay missing %q group", group)
@@ -208,14 +208,15 @@ func TestSidebarDensityCycle(t *testing.T) {
 // --- Virtual-text line summaries -------------------------------------------
 
 func TestLineSummaryPure(t *testing.T) {
-	if got := lineSummary(nil, time.Time{}); got != "" {
+	st := testStyles()
+	if got := st.lineSummary(nil, time.Time{}); got != "" {
 		t.Errorf("no threads should yield empty summary, got %q", got)
 	}
 	threads := []*comment.Comment{
 		{Author: "rcliao", Text: "open one"},
 		{Author: "claude", Text: "done", Resolved: true},
 	}
-	got := lineSummary(threads, time.Time{})
+	got := st.lineSummary(threads, time.Time{})
 	if !strings.Contains(got, "@rcliao") || !strings.Contains(got, "×2") || !strings.Contains(got, "1 open") {
 		t.Errorf("summary should read like `· @rcliao ×2 1 open`, got %q", got)
 	}
@@ -301,7 +302,7 @@ func TestTOCOverlayNavigateAndJump(t *testing.T) {
 		t.Errorf("esc should close TOC back to browse, got %v", closed.(Model).mode)
 	}
 
-	rendered := renderTOC(nm.tocEntries, 0)
+	rendered := nm.styles.renderTOC(nm.tocEntries, 0)
 	if !strings.Contains(rendered, "Title > Alpha") || !strings.Contains(rendered, "1 open") {
 		t.Errorf("TOC render should show paths and open counts, got:\n%s", rendered)
 	}

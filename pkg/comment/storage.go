@@ -218,43 +218,9 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 	return nil
 }
 
-// DeleteSidecar removes the sidecar JSON file if it exists
-func DeleteSidecar(mdPath string) error {
-	sidecarPath := GetSidecarPath(mdPath)
-	if _, err := os.Stat(sidecarPath); os.IsNotExist(err) {
-		return nil // Nothing to delete
-	}
-	return os.Remove(sidecarPath)
-}
-
 // SidecarExists checks if a sidecar file exists for the given markdown file
 func SidecarExists(mdPath string) bool {
 	sidecarPath := GetSidecarPath(mdPath)
 	_, err := os.Stat(sidecarPath)
 	return err == nil
-}
-
-// ListSidecars finds all sidecar files in a directory
-func ListSidecars(dir string) ([]string, error) {
-	var sidecars []string
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read directory: %w", err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if filepath.Ext(name) == ".json" && len(name) > len(".comments.json") {
-			// Check if it ends with .comments.json
-			if name[len(name)-len(".comments.json"):] == ".comments.json" {
-				sidecars = append(sidecars, filepath.Join(dir, name))
-			}
-		}
-	}
-
-	return sidecars, nil
 }

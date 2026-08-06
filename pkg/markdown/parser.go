@@ -154,7 +154,7 @@ func buildSectionHierarchy(headings []headingInfo, totalLines int) []*Section {
 	}
 
 	// Calculate end lines: each section ends at the line before the next same-or-higher level heading
-	for i := 0; i < len(sections); i++ {
+	for i := range sections {
 		for j := i + 1; j < len(sections); j++ {
 			if sections[j].Level <= sections[i].Level {
 				sections[i].EndLine = sections[j].StartLine - 1

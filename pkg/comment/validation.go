@@ -86,7 +86,7 @@ func ValidateAndUpdateCommentStatus(doc *DocumentWithComments) (int, []Validatio
 		// Mark comment as orphaned if validation failed
 		if orphanReason != "" {
 			now := time.Now()
-			comment.Status = "orphaned"
+			comment.Status = StatusOrphaned
 			comment.OrphanedReason = orphanReason
 			comment.OrphanedAt = &now
 			if comment.OriginalLine == 0 {
@@ -105,7 +105,7 @@ func ValidateAndUpdateCommentStatus(doc *DocumentWithComments) (int, []Validatio
 	if movedCount > 0 {
 		// Moved comments' section metadata may be stale; recompute from new positions.
 		// One summary line instead of per-comment spam (dogfood feedback).
-		RecomputeAllSections(doc)
+		ComputeSectionsForComments(doc)
 		issues = append(issues, ValidationIssue{
 			Severity: "info",
 			Message:  fmt.Sprintf("%d comment(s) re-anchored after document changes", movedCount),
@@ -113,36 +113,6 @@ func ValidateAndUpdateCommentStatus(doc *DocumentWithComments) (int, []Validatio
 	}
 
 	return orphanedCount, issues
-}
-
-// RecomputeAllSections recomputes section metadata for all comments in the document
-// This should be called when the markdown structure changes
-func RecomputeAllSections(doc *DocumentWithComments) {
-	if doc == nil || len(doc.Threads) == 0 {
-		return
-	}
-
-	// Parse document structure
-	docStructure := markdown.ParseDocument(doc.Content)
-
-	// Update all comments (roots and replies)
-	allComments := doc.GetAllComments()
-	for _, comment := range allComments {
-		if comment.Line <= 0 {
-			continue
-		}
-
-		// Find section for this line
-		section, exists := docStructure.SectionsByLine[comment.Line]
-		if exists {
-			comment.SectionID = section.ID
-			comment.SectionPath = section.GetFullPath(docStructure.SectionsByID)
-		} else {
-			// Line is not within any section
-			comment.SectionID = ""
-			comment.SectionPath = ""
-		}
-	}
 }
 
 // FormatValidationIssues formats validation issues as a human-readable string

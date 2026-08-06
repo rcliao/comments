@@ -105,15 +105,9 @@ func pickCandidate(lines []string, candidates []int, a *Anchor, oldLine int) int
 		if line < len(lines) && normalize(lines[line]) == normalize(a.ContextAfter) {
 			score += 2
 		}
-		dist := line - oldLine
-		if dist < 0 {
-			dist = -dist
-		}
+		dist := max(line-oldLine, oldLine-line)
 		// proximity as tiebreak: closer is better, bounded contribution
-		proximity := 1000 - dist
-		if proximity < 0 {
-			proximity = 0
-		}
+		proximity := max(1000-dist, 0)
 		total := score*10000 + proximity
 		if total > bestScore {
 			bestScore, best = total, line

@@ -8,7 +8,6 @@ package tui
 import (
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/rcliao/comments/pkg/comment"
 )
@@ -67,20 +66,11 @@ func (m *Model) applySuggestionQueue() error {
 	// Bottom-up so each apply leaves the lines above it untouched
 	sort.Slice(accepts, func(i, j int) bool { return accepts[i].StartLine > accepts[j].StartLine })
 
-	content := m.doc.Content
 	for _, s := range accepts {
-		newContent, err := comment.ApplySuggestion(content, s)
-		if err != nil {
-			return fmt.Errorf("applying %s: %w", s.ID, err)
-		}
-		content = newContent
-		if err := comment.AcceptSuggestion(m.doc.Threads, s.ID); err != nil {
+		if _, err := comment.ApplyAndAcceptSuggestion(m.doc, s.ID); err != nil {
 			return fmt.Errorf("accepting %s: %w", s.ID, err)
 		}
-		linesAdded := len(strings.Split(s.ProposedText, "\n"))
-		comment.RecalculateCommentLines(m.doc.Threads, s.StartLine, s.EndLine, linesAdded)
 	}
-	m.doc.Content = content
 	m.suggestionQueue = map[string]bool{}
 	return nil
 }

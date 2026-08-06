@@ -84,7 +84,7 @@ func gateCommand(target string, args []string) error {
 			tName = doc.Template
 		}
 		if tName != "" {
-			t, err := comment.LoadTemplate(tName)
+			t, err := comment.LoadTemplateForDoc(tName, file)
 			if err != nil {
 				return failf("Error: %v", err)
 			}

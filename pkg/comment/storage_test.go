@@ -3,6 +3,7 @@ package comment
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -224,85 +225,6 @@ func TestSidecarExists(t *testing.T) {
 	// Should exist now
 	if !SidecarExists(mdPath) {
 		t.Error("SidecarExists returned false for existing sidecar")
-	}
-}
-
-func TestDeleteSidecar(t *testing.T) {
-	tmpDir := t.TempDir()
-	mdPath := filepath.Join(tmpDir, "test.md")
-
-	// Create sidecar
-	doc := &DocumentWithComments{
-		Content: "test",
-		Threads: []*Comment{},
-	}
-	if err := SaveToSidecar(mdPath, doc); err != nil {
-		t.Fatalf("SaveToSidecar failed: %v", err)
-	}
-
-	// Verify it exists
-	if !SidecarExists(mdPath) {
-		t.Fatal("Sidecar was not created")
-	}
-
-	// Delete
-	if err := DeleteSidecar(mdPath); err != nil {
-		t.Fatalf("DeleteSidecar failed: %v", err)
-	}
-
-	// Verify it's gone
-	if SidecarExists(mdPath) {
-		t.Error("Sidecar still exists after deletion")
-	}
-
-	// Delete again should not error
-	if err := DeleteSidecar(mdPath); err != nil {
-		t.Errorf("DeleteSidecar on non-existent file returned error: %v", err)
-	}
-}
-
-func TestListSidecars(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create multiple markdown files with sidecars
-	files := []string{"doc1.md", "doc2.md", "doc3.md"}
-	for _, file := range files {
-		mdPath := filepath.Join(tmpDir, file)
-		doc := &DocumentWithComments{
-			Content: "content",
-			Threads: []*Comment{},
-		}
-		if err := SaveToSidecar(mdPath, doc); err != nil {
-			t.Fatalf("SaveToSidecar failed for %s: %v", file, err)
-		}
-	}
-
-	// Create a non-sidecar JSON file (should be ignored)
-	otherJSON := filepath.Join(tmpDir, "other.json")
-	if err := os.WriteFile(otherJSON, []byte("{}"), 0644); err != nil {
-		t.Fatalf("Failed to create other.json: %v", err)
-	}
-
-	// List sidecars
-	sidecars, err := ListSidecars(tmpDir)
-	if err != nil {
-		t.Fatalf("ListSidecars failed: %v", err)
-	}
-
-	// Should find exactly 3 sidecar files
-	if len(sidecars) != 3 {
-		t.Errorf("Expected 3 sidecars, got %d: %v", len(sidecars), sidecars)
-	}
-
-	// Verify they all end with .comments.json
-	for _, sidecar := range sidecars {
-		if filepath.Ext(sidecar) != ".json" {
-			t.Errorf("Sidecar has wrong extension: %s", sidecar)
-		}
-		name := filepath.Base(sidecar)
-		if len(name) <= len(".comments.json") || name[len(name)-len(".comments.json"):] != ".comments.json" {
-			t.Errorf("Sidecar doesn't end with .comments.json: %s", sidecar)
-		}
 	}
 }
 
@@ -563,5 +485,54 @@ func TestSaveSkipsUnchangedMarkdown(t *testing.T) {
 	}
 	if string(written) != doc.Content {
 		t.Errorf("markdown not updated on content change: %q", string(written))
+	}
+}
+
+func TestLoadFromSidecarMissingMarkdown(t *testing.T) {
+	_, _, err := LoadFromSidecar(filepath.Join(t.TempDir(), "nope.md"))
+	if err == nil {
+		t.Fatal("expected error for missing markdown file")
+	}
+	if !strings.Contains(err.Error(), "failed to read markdown file") {
+		t.Errorf("wrong error: %v", err)
+	}
+}
+
+func TestLoadFromSidecarCorruptJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	mdPath := filepath.Join(tmpDir, "doc.md")
+	if err := os.WriteFile(mdPath, []byte("# Doc\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(GetSidecarPath(mdPath), []byte("{not valid json"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := LoadFromSidecar(mdPath)
+	if err == nil {
+		t.Fatal("expected error for corrupt sidecar JSON")
+	}
+	if !strings.Contains(err.Error(), "failed to parse sidecar JSON") {
+		t.Errorf("wrong error: %v", err)
+	}
+}
+
+func TestLoadFromSidecarVersionMismatch(t *testing.T) {
+	tmpDir := t.TempDir()
+	mdPath := filepath.Join(tmpDir, "doc.md")
+	if err := os.WriteFile(mdPath, []byte("# Doc\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	sidecar := `{"version":"1.0","documentHash":"x","threads":[]}`
+	if err := os.WriteFile(GetSidecarPath(mdPath), []byte(sidecar), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := LoadFromSidecar(mdPath)
+	if err == nil {
+		t.Fatal("expected error for version mismatch")
+	}
+	if !strings.Contains(err.Error(), "unsupported storage version: 1.0") {
+		t.Errorf("wrong error: %v", err)
 	}
 }

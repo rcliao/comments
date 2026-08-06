@@ -1,12 +1,14 @@
 package tui
 
 // Color themes: every color the TUI renders is a named role on Theme, and
-// styles.go builds all package-level styles from the active theme via
-// applyTheme. Selection: `comments view --theme <name>` or COMMENTS_THEME
-// (flag wins); unknown names fall back to the default (nord).
+// styles.go builds a styleSet from a theme via newStyleSet. Models capture
+// their styleSet at construction from the mutex-guarded startup theme, so
+// SetTheme never races a render. Selection: `comments view --theme <name>` or
+// COMMENTS_THEME (flag wins); unknown names fall back to the default (nord).
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -121,12 +123,20 @@ var themes = map[string]Theme{
 	},
 }
 
-// activeTheme is the theme currently applied to the package-level styles.
-// Read it for one-off local styles; never write it directly (use applyTheme).
-var activeTheme Theme
+// startupTheme is the theme new models are built with (SetTheme changes it
+// before the model is constructed). Guarded by startupMu: it is the only
+// mutable theme state in the package, read exactly once per model at
+// construction — rendering never touches it.
+var (
+	startupMu    sync.RWMutex
+	startupTheme = themes[DefaultThemeName]
+)
 
-func init() {
-	applyTheme(themes[DefaultThemeName])
+// currentStartupTheme returns the theme new models should be built with.
+func currentStartupTheme() Theme {
+	startupMu.RLock()
+	defer startupMu.RUnlock()
+	return startupTheme
 }
 
 // ThemeByName looks a theme up by name. Unknown names return the default
@@ -148,10 +158,14 @@ func ThemeNames() []string {
 	return names
 }
 
-// SetTheme applies the named theme to all TUI styles. Unknown names apply
-// the default (nord) and return false so the caller can warn.
+// SetTheme selects the theme models constructed afterwards will use.
+// Unknown names apply the default (nord) and return false so the caller can
+// warn. Call it before NewModel/NewModelWithFile; it does not restyle models
+// that already exist.
 func SetTheme(name string) bool {
 	t, ok := ThemeByName(name)
-	applyTheme(t)
+	startupMu.Lock()
+	startupTheme = t
+	startupMu.Unlock()
 	return ok
 }

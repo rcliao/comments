@@ -127,26 +127,6 @@ func GetVisibleComments(threads []*Comment, showResolved bool) []*Comment {
 	return visible
 }
 
-// GroupCommentsByLine groups comments by their line number for display
-// In v2.0, this flattens all comments (roots + replies) and groups by line
-func GroupCommentsByLine(threads []*Comment) map[int][]*Comment {
-	grouped := make(map[int][]*Comment)
-
-	// Get all comments (roots and replies)
-	allComments := []*Comment{}
-	for _, thread := range threads {
-		allComments = append(allComments, thread)
-		allComments = append(allComments, flattenReplies(thread.Replies)...)
-	}
-
-	// Group by line
-	for _, comment := range allComments {
-		grouped[comment.Line] = append(grouped[comment.Line], comment)
-	}
-
-	return grouped
-}
-
 // AddReplyToThread adds a reply to a thread
 // Returns error if thread not found
 func AddReplyToThread(threads []*Comment, threadID, author, text string) error {
@@ -212,20 +192,6 @@ func GetPendingSuggestions(threads []*Comment) []*Comment {
 	return suggestions
 }
 
-// GetSuggestionsByAuthor returns all pending suggestions by a specific author
-func GetSuggestionsByAuthor(threads []*Comment, author string) []*Comment {
-	suggestions := GetPendingSuggestions(threads)
-
-	filtered := []*Comment{}
-	for _, s := range suggestions {
-		if s.Author == author {
-			filtered = append(filtered, s)
-		}
-	}
-
-	return filtered
-}
-
 // AcceptSuggestion marks a suggestion as accepted
 func AcceptSuggestion(threads []*Comment, suggestionID string) error {
 	suggestion := findCommentByID(threads, suggestionID)
@@ -258,26 +224,15 @@ func RejectSuggestion(threads []*Comment, suggestionID string) error {
 	return nil
 }
 
-// findCommentByID recursively finds a comment by ID in threads
+// findCommentByID recursively finds a comment by ID in threads (roots and
+// nested replies). This is the single traversal behind both the package-level
+// suggestion helpers and DocumentWithComments.FindCommentByID.
 func findCommentByID(threads []*Comment, id string) *Comment {
 	for _, thread := range threads {
 		if thread.ID == id {
 			return thread
 		}
-		if found := findInRepliesHelper(thread.Replies, id); found != nil {
-			return found
-		}
-	}
-	return nil
-}
-
-// findInRepliesHelper recursively searches replies
-func findInRepliesHelper(replies []*Comment, id string) *Comment {
-	for _, reply := range replies {
-		if reply.ID == id {
-			return reply
-		}
-		if found := findInRepliesHelper(reply.Replies, id); found != nil {
+		if found := findCommentByID(thread.Replies, id); found != nil {
 			return found
 		}
 	}

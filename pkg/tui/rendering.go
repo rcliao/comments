@@ -81,7 +81,7 @@ func findInlineSpans(line string) []inlineSpan {
 // styleInlineSpans renders bold/italic/inline-code spans in place: content
 // styled, syntax glyphs dimmed but kept, so the ANSI-stripped text is
 // byte-identical to the input (no reflow, anchors untouched)
-func styleInlineSpans(s string) string {
+func (st *styleSet) styleInlineSpans(s string) string {
 	spans := findInlineSpans(s)
 	if len(spans) == 0 {
 		return s
@@ -93,16 +93,16 @@ func styleInlineSpans(s string) string {
 		open := s[sp.start : sp.start+sp.markerLen]
 		content := s[sp.start+sp.markerLen : sp.end-sp.markerLen]
 		close := s[sp.end-sp.markerLen : sp.end]
-		b.WriteString(syntaxGlyphStyle.Render(open))
+		b.WriteString(st.syntaxGlyph.Render(open))
 		switch sp.kind {
 		case spanCode:
-			b.WriteString(codeSpanStyle.Render(content))
+			b.WriteString(st.codeSpan.Render(content))
 		case spanBold:
-			b.WriteString(boldSpanStyle.Render(content))
+			b.WriteString(st.boldSpan.Render(content))
 		case spanItalic:
-			b.WriteString(italicSpanStyle.Render(content))
+			b.WriteString(st.italicSpan.Render(content))
 		}
-		b.WriteString(syntaxGlyphStyle.Render(close))
+		b.WriteString(st.syntaxGlyph.Render(close))
 		last = sp.end
 	}
 	b.WriteString(s[last:])
@@ -112,18 +112,18 @@ func styleInlineSpans(s string) string {
 // styleLinePrefix colors blockquote > bars and list bullets (-/*/+/numbered)
 // without changing any characters. Returns the styled prefix and the rest of
 // the line (a blockquote's content may itself carry a list bullet).
-func styleLinePrefix(line string) (string, string) {
+func (st *styleSet) styleLinePrefix(line string) (string, string) {
 	prefix := ""
 	rest := line
 	if m := quotePrefixPattern.FindStringSubmatch(rest); m != nil {
-		prefix += m[1] + quoteBarStyle.Render(m[2]) + m[3]
+		prefix += m[1] + st.quoteBar.Render(m[2]) + m[3]
 		rest = rest[len(m[0]):]
 	}
 	if m := bulletPrefixPattern.FindStringSubmatch(rest); m != nil {
-		prefix += m[1] + bulletStyle.Render(m[2]) + m[3]
+		prefix += m[1] + st.bullet.Render(m[2]) + m[3]
 		rest = rest[len(m[0]):]
 	} else if m := numberedPrefixPattern.FindStringSubmatch(rest); m != nil {
-		prefix += m[1] + bulletStyle.Render(m[2]) + m[3]
+		prefix += m[1] + st.bullet.Render(m[2]) + m[3]
 		rest = rest[len(m[0]):]
 	}
 	return prefix, rest
@@ -134,23 +134,23 @@ func styleLinePrefix(line string) (string, string) {
 // syntax glyphs dimmed (never removed), list bullets and blockquote bars
 // colored. The ANSI-stripped result always equals the input — line widths
 // and anchors are untouched.
-func styleMarkdownLine(line string) string {
+func (st *styleSet) styleMarkdownLine(line string) string {
 	// Headers - color them for better scannability
 	if strings.HasPrefix(line, "# ") {
-		return heading1Style.Render(line)
+		return st.heading1.Render(line)
 	}
 	if strings.HasPrefix(line, "## ") {
-		return heading2Style.Render(line)
+		return st.heading2.Render(line)
 	}
 	if strings.HasPrefix(line, "### ") {
-		return heading3Style.Render(line)
+		return st.heading3.Render(line)
 	}
 	if strings.HasPrefix(line, "#### ") || strings.HasPrefix(line, "##### ") || strings.HasPrefix(line, "###### ") {
-		return heading4Style.Render(line)
+		return st.heading4.Render(line)
 	}
 
-	prefix, rest := styleLinePrefix(line)
-	return prefix + styleInlineSpans(rest)
+	prefix, rest := st.styleLinePrefix(line)
+	return prefix + st.styleInlineSpans(rest)
 }
 
 // rootThreadsByLine groups root threads (not replies) by their anchor line
@@ -170,7 +170,7 @@ func isOpenThread(t *comment.Comment) bool {
 
 // lineMarker builds the gutter marker for a line's threads: unresolved blocking
 // stands out, plain unresolved shows a count, fully-resolved lines get a quiet check
-func lineMarker(threads []*comment.Comment) string {
+func (st *styleSet) lineMarker(threads []*comment.Comment) string {
 	if len(threads) == 0 {
 		return "  "
 	}
@@ -185,11 +185,11 @@ func lineMarker(threads []*comment.Comment) string {
 	}
 	switch {
 	case blocking:
-		return blockingMarkerStyle.Render(fmt.Sprintf("⛔%d", unresolved))
+		return st.blockingMarker.Render(fmt.Sprintf("⛔%d", unresolved))
 	case unresolved > 0:
-		return commentMarkerStyle.Render(fmt.Sprintf("💬%d", unresolved))
+		return st.commentMarker.Render(fmt.Sprintf("💬%d", unresolved))
 	default:
-		return resolvedMarkerStyle.Render("✓ ")
+		return st.resolvedMarker.Render("✓ ")
 	}
 }
 
@@ -197,7 +197,7 @@ func lineMarker(threads []*comment.Comment) string {
 // first thread's author, thread count, open count (`· @rcliao ×2 1 open`),
 // plus a NEW badge when any thread has activity newer than the last signoff
 // (`since`). Returns "" for uncommented lines.
-func lineSummary(threads []*comment.Comment, since time.Time) string {
+func (st *styleSet) lineSummary(threads []*comment.Comment, since time.Time) string {
 	if len(threads) == 0 {
 		return ""
 	}
@@ -207,9 +207,9 @@ func lineSummary(threads []*comment.Comment, since time.Time) string {
 			open++
 		}
 	}
-	summary := virtualTextStyle.Render(fmt.Sprintf("· @%s ×%d %d open", threads[0].Author, len(threads), open))
+	summary := st.virtualText.Render(fmt.Sprintf("· @%s ×%d %d open", threads[0].Author, len(threads), open))
 	if anyNewActivity(threads, since) {
-		summary += " " + newBadgeStyle.Render("NEW")
+		summary += " " + st.newBadge.Render("NEW")
 	}
 	return summary
 }
@@ -220,15 +220,39 @@ func (m *Model) lineSummarySuffix(threads []*comment.Comment) string {
 	if !m.showLineSummaries {
 		return ""
 	}
-	summary := lineSummary(threads, lastSignoffTime(m.doc.Reviews))
+	summary := m.styles.lineSummary(threads, lastSignoffTime(m.doc.Reviews))
 	if summary == "" {
 		return ""
 	}
 	return " " + summary
 }
 
-// renderDocument renders the document with line numbers and comment markers
+// docWrapWidth is the text wrap width for the document pane, shared by both
+// document renders and the scroll math. One constant for both layouts: the
+// widest gutter is the cursor view's — cursor (2) + space + line number (4) +
+// space + marker (up to 3) + space = 12. Browse mode's gutter is 2 narrower,
+// but sharing the cursor width keeps wrap points (and therefore scroll rows)
+// identical across modes, so entering/leaving line-select never reflows the
+// document under a saved scroll offset.
+func (m *Model) docWrapWidth() int {
+	return max(m.documentViewport.Width-12, 40)
+}
+
+// renderDocument renders the document pane without a cursor (browse mode)
 func (m *Model) renderDocument() string {
+	return m.renderDocumentView(false)
+}
+
+// renderDocumentWithCursor renders the document pane with the line-select
+// cursor and any active range highlight
+func (m *Model) renderDocumentWithCursor() string {
+	return m.renderDocumentView(true)
+}
+
+// renderDocumentView renders the document with line numbers, gutter markers,
+// and virtual-text summaries. With withCursor it adds the line-select cursor
+// column and range highlighting. Both layouts wrap at docWrapWidth.
+func (m *Model) renderDocumentView(withCursor bool) string {
 	if m.doc == nil {
 		return "No document loaded"
 	}
@@ -236,101 +260,67 @@ func (m *Model) renderDocument() string {
 	lines := strings.Split(m.doc.Content, "\n")
 	var rendered strings.Builder
 
-	// Calculate available width for text: viewport width - line number (4) - marker (3) - spacing (3)
-	availableWidth := m.documentViewport.Width - 10
-	if availableWidth < 40 {
-		availableWidth = 40 // Minimum width
-	}
+	availableWidth := m.docWrapWidth()
 
 	// Group root threads by line (replies share the root's line)
 	commentsByLine := rootThreadsByLine(m.doc.Threads)
 
 	for i, line := range lines {
 		lineNum := i + 1
-		lineNumStr := lineNumberStyle.Render(fmt.Sprintf("%d", lineNum))
+		lineNumStr := m.styles.lineNumber.Render(fmt.Sprintf("%d", lineNum))
 
-		marker := lineMarker(commentsByLine[lineNum])
+		marker := m.styles.lineMarker(commentsByLine[lineNum])
 
-		// Apply markdown syntax highlighting
-		styledLine := styleMarkdownLine(line)
+		isSelected := withCursor && lineNum == m.selectedLine
+		inRange := withCursor && m.rangeActive && lineNum >= m.rangeStartLine && lineNum <= m.rangeEndLine
 
-		// Wrap long lines
-		wrappedLines := strings.Split(wordwrap.String(styledLine, availableWidth), "\n")
-		for j, wrappedLine := range wrappedLines {
-			if j == 0 {
-				// First line: show line number, marker, and virtual-text summary
-				fmt.Fprintf(&rendered, "%s %s %s%s\n", lineNumStr, marker, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
-			} else {
-				// Continuation lines: indent with spaces
-				fmt.Fprintf(&rendered, "%s %s %s\n", strings.Repeat(" ", 4), "  ", wrappedLine)
-			}
-		}
-	}
-
-	return rendered.String()
-}
-
-// renderDocumentWithCursor renders the document with a cursor for line selection
-func (m *Model) renderDocumentWithCursor() string {
-	if m.doc == nil {
-		return "No document loaded"
-	}
-
-	lines := strings.Split(m.doc.Content, "\n")
-	var rendered strings.Builder
-
-	// Calculate available width for text: viewport width - cursor (2) - line number (4) - marker (3) - spacing (3)
-	availableWidth := m.documentViewport.Width - 12
-	if availableWidth < 40 {
-		availableWidth = 40 // Minimum width
-	}
-
-	// Group root threads by line
-	commentsByLine := rootThreadsByLine(m.doc.Threads)
-
-	for i, line := range lines {
-		lineNum := i + 1
-		lineNumStr := lineNumberStyle.Render(fmt.Sprintf("%d", lineNum))
-
-		marker := lineMarker(commentsByLine[lineNum])
-
-		// Highlight cursor line
-		cursor := "  "
-		isSelected := lineNum == m.selectedLine
-		inRange := m.rangeActive && lineNum >= m.rangeStartLine && lineNum <= m.rangeEndLine
-
-		// Syntax styling stays on for the cursor line (subtle bg composes with spans poorly,
-		// so the cursor line keeps raw text but a gentle background; range keeps raw too)
+		// Syntax styling stays off on the cursor line (subtle bg composes with
+		// spans poorly, so the cursor line keeps raw text but a gentle
+		// background; range keeps raw too)
 		styledLine := line
 		if !isSelected && !inRange {
-			styledLine = styleMarkdownLine(line)
+			styledLine = m.styles.styleMarkdownLine(line)
 		}
 		if isSelected {
-			lineNumStr = cursorLineNumStyle.Render(fmt.Sprintf("%d", lineNum))
+			lineNumStr = m.styles.cursorLineNum.Render(fmt.Sprintf("%d", lineNum))
 		}
 
 		// Wrap long lines
 		wrappedLines := strings.Split(wordwrap.String(styledLine, availableWidth), "\n")
 		for j, wrappedLine := range wrappedLines {
+			if isSelected {
+				wrappedLine = m.styles.cursor.Render(wrappedLine)
+			} else if inRange {
+				wrappedLine = m.styles.selectedLine.Render(wrappedLine)
+			}
+
+			if !withCursor {
+				if j == 0 {
+					// First line: show line number, marker, and virtual-text summary
+					fmt.Fprintf(&rendered, "%s %s %s%s\n", lineNumStr, marker, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
+				} else {
+					// Continuation lines: indent with spaces
+					fmt.Fprintf(&rendered, "%s %s %s\n", strings.Repeat(" ", 4), "  ", wrappedLine)
+				}
+				continue
+			}
+
 			if j == 0 {
 				// First line: show cursor, line number and marker
+				cursor := "  "
 				if isSelected {
-					cursor = cursorAccentStyle.Render("▶ ")
-					wrappedLine = cursorStyle.Render(wrappedLine)
+					cursor = m.styles.cursorAccent.Render("▶ ")
 				} else if inRange {
-					cursor = rangeMarkerStyle.Render("│")
-					wrappedLine = selectedLineStyle.Render(wrappedLine)
+					cursor = m.styles.rangeMarker.Render("│")
 				}
 				fmt.Fprintf(&rendered, "%s %s %s %s%s\n", cursor, lineNumStr, marker, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
 			} else {
 				// Continuation lines: indent with spaces
 				displayCursor := "  "
 				if isSelected {
-					displayCursor = cursorAccentStyle.Render("▶ ")
-					wrappedLine = cursorStyle.Render(wrappedLine)
+					displayCursor = m.styles.cursorAccent.Render("▶ ")
 				} else if inRange {
-					displayCursor = rangeMarkerStyle.Render("│ ")
-					wrappedLine = selectedLineStyle.Render(wrappedLine)
+					displayCursor = m.styles.rangeMarker.Render("│ ")
 				}
 				fmt.Fprintf(&rendered, "%s %s %s %s\n", displayCursor, strings.Repeat(" ", 4), "  ", wrappedLine)
 			}
@@ -344,37 +334,33 @@ func (m *Model) renderDocumentWithCursor() string {
 // appending ellipsis when it doesn't fit (the ellipsis counts toward max).
 // Byte slicing (s[:n]) splits multi-byte runes (CJK, emoji) into mojibake —
 // always use this helper for display truncation.
-func truncate(s string, max int, ellipsis string) string {
+func truncate(s string, maxRunes int, ellipsis string) string {
 	runes := []rune(s)
-	if len(runes) <= max {
+	if len(runes) <= maxRunes {
 		return s
 	}
-	keep := max - len([]rune(ellipsis))
-	if keep < 0 {
-		keep = 0
-	}
+	keep := max(maxRunes-len([]rune(ellipsis)), 0)
 	return string(runes[:keep]) + ellipsis
 }
 
 // getCommentTypeColor returns the color for a comment based on its type prefix
-func getCommentTypeColor(text string) string {
+func (st *styleSet) getCommentTypeColor(text string) string {
 	switch {
 	case strings.HasPrefix(text, "[B]"): // Blocker
-		return string(activeTheme.TypeB)
+		return string(st.theme.TypeB)
 	case strings.HasPrefix(text, "[Q]"): // Question
-		return string(activeTheme.TypeQ)
+		return string(st.theme.TypeQ)
 	case strings.HasPrefix(text, "[S]"): // Suggestion
-		return string(activeTheme.TypeS)
+		return string(st.theme.TypeS)
 	case strings.HasPrefix(text, "[T]"): // Technical
-		return string(activeTheme.TypeT)
+		return string(st.theme.TypeT)
 	case strings.HasPrefix(text, "[E]"): // Editorial
-		return string(activeTheme.TypeE)
+		return string(st.theme.TypeE)
 	default:
 		return ""
 	}
 }
 
-// renderComments renders the comment panel
 // visibleComments returns the sidebar's thread list, ordered by document line
 // so the sidebar reads top-to-bottom with the document (focus-follows-cursor, G3)
 func (m *Model) visibleComments() []*comment.Comment {
@@ -444,19 +430,19 @@ func indentWrap(text string, width int, indent string) string {
 // timeline: rounds are partitioned by signoff timestamps, see roundNumber).
 // currentRound carries the round of the previously rendered comment through
 // the recursion, starting at the root's round.
-func renderReplies(b *strings.Builder, replies []*comment.Comment, width, depth int, reviews []comment.ReviewRecord, currentRound *int) {
+func (st *styleSet) renderReplies(b *strings.Builder, replies []*comment.Comment, width, depth int, reviews []comment.ReviewRecord, currentRound *int) {
 	indent := strings.Repeat("  ", depth+1)
 	for _, r := range replies {
 		if round := roundNumber(r.Timestamp, reviews); round != *currentRound {
-			b.WriteString(roundSeparatorStyle.Render(fmt.Sprintf("%s── round %d ──", indent, round)))
+			b.WriteString(st.roundSeparator.Render(fmt.Sprintf("%s── round %d ──", indent, round)))
 			b.WriteString("\n")
 			*currentRound = round
 		}
-		b.WriteString(replyMetaStyle.Render(fmt.Sprintf("%s└─ @%s · %s", indent, r.Author, r.Timestamp.Format("01-02 15:04"))))
+		b.WriteString(st.replyMeta.Render(fmt.Sprintf("%s└─ @%s · %s", indent, r.Author, r.Timestamp.Format("01-02 15:04"))))
 		b.WriteString("\n")
 		b.WriteString(indentWrap(r.Text, width, indent+"   "))
 		b.WriteString("\n")
-		renderReplies(b, r.Replies, width, depth+1, reviews, currentRound)
+		st.renderReplies(b, r.Replies, width, depth+1, reviews, currentRound)
 	}
 }
 
@@ -513,15 +499,15 @@ func (m *Model) renderComments() string {
 		} else {
 			header = "▸ " + header
 		}
-		rendered.WriteString(groupHeaderStyle.Render(header))
+		rendered.WriteString(m.styles.groupHeader.Render(header))
 		rendered.WriteString("\n")
 
 		for gi, c := range group {
 			idx := groupStart + gi
 			style := lipgloss.NewStyle()
 			if idx == m.selectedComment {
-				style = selectedCommentStyle
-			} else if typeColor := getCommentTypeColor(c.Text); typeColor != "" {
+				style = m.styles.selectedComment
+			} else if typeColor := m.styles.getCommentTypeColor(c.Text); typeColor != "" {
 				style = style.Foreground(lipgloss.Color(typeColor))
 			}
 
@@ -533,7 +519,7 @@ func (m *Model) renderComments() string {
 			// NEW badge: this thread has activity newer than the last signoff
 			newBadge := ""
 			if threadHasNewActivity(c, since) {
-				newBadge = " " + newBadgeStyle.Render("NEW")
+				newBadge = " " + m.styles.newBadge.Render("NEW")
 			}
 
 			if expanded {
@@ -545,7 +531,7 @@ func (m *Model) renderComments() string {
 				rendered.WriteString(style.Render(text))
 				rendered.WriteString("\n")
 				rootRound := roundNumber(c.Timestamp, m.doc.Reviews)
-				renderReplies(&rendered, c.Replies, wrapWidth, 1, m.doc.Reviews, &rootRound)
+				m.styles.renderReplies(&rendered, c.Replies, wrapWidth, 1, m.doc.Reviews, &rootRound)
 				continue
 			}
 
@@ -566,6 +552,7 @@ func (m *Model) renderThread() string {
 		return "No thread selected"
 	}
 
+	theme := m.styles.theme
 	var rendered strings.Builder
 
 	// Thread header with section context
@@ -585,29 +572,27 @@ func (m *Model) renderThread() string {
 	if len(contextLines) > 0 {
 		contextStyle := lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(activeTheme.Border).
+			BorderForeground(theme.Border).
 			Padding(0, 1).
 			Width(m.width - 8)
 
 		// Calculate width for context text wrapping
-		contextWidth := m.width - 22 // Account for borders, padding, line numbers, markers
-		if contextWidth < 40 {
-			contextWidth = 40
-		}
+		// Account for borders, padding, line numbers, markers
+		contextWidth := max(m.width-22, 40)
 
 		var contextText strings.Builder
 		contextText.WriteString(lipgloss.NewStyle().
-			Foreground(activeTheme.DimSyntax).
+			Foreground(theme.DimSyntax).
 			Render("Document Context:"))
 		contextText.WriteString("\n\n")
 
 		for _, cl := range contextLines {
 			marker := " "
-			lineNumStyle := lipgloss.NewStyle().Foreground(activeTheme.LineNumber)
+			lineNumStyle := lipgloss.NewStyle().Foreground(theme.LineNumber)
 			lineStyle := lipgloss.NewStyle()
 
 			// Apply markdown syntax highlighting to context lines
-			styledText := styleMarkdownLine(cl.Text)
+			styledText := m.styles.styleMarkdownLine(cl.Text)
 
 			// Wrap the line text
 			wrappedLines := strings.Split(wordwrap.String(styledText, contextWidth), "\n")
@@ -616,13 +601,13 @@ func (m *Model) renderThread() string {
 				if cl.LineNum == m.selectedThread.Line {
 					if i == 0 {
 						marker = lipgloss.NewStyle().
-							Foreground(activeTheme.Title).
+							Foreground(theme.Title).
 							Bold(true).
 							Render("►")
-						lineNumStyle = lineNumStyle.Bold(true).Foreground(activeTheme.Title)
+						lineNumStyle = lineNumStyle.Bold(true).Foreground(theme.Title)
 						lineStyle = lineStyle.
-							Background(activeTheme.SelectionBg).
-							Foreground(activeTheme.SelectionFg).
+							Background(theme.SelectionBg).
+							Foreground(theme.SelectionFg).
 							Bold(true)
 						fmt.Fprintf(&contextText, "%s %s │ %s\n",
 							marker,
@@ -659,15 +644,13 @@ func (m *Model) renderThread() string {
 	// Root comment
 	rootStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(activeTheme.GroupHeader).
+		BorderForeground(theme.GroupHeader).
 		Padding(1).
 		Width(m.width - 8)
 
 	// Wrap root comment text to fit within the box
-	rootTextWidth := m.width - 16 // Account for border, padding, and margins
-	if rootTextWidth < 40 {
-		rootTextWidth = 40
-	}
+	// Account for border, padding, and margins
+	rootTextWidth := max(m.width-16, 40)
 	wrappedRootText := wordwrap.String(m.selectedThread.Text, rootTextWidth)
 
 	rootText := fmt.Sprintf("@%s · %s\n\n%s",
@@ -703,7 +686,7 @@ func (m *Model) renderThread() string {
 	if m.selectedThread.IsSuggestion {
 		suggestionStyle := lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(activeTheme.Warning).
+			BorderForeground(theme.Warning).
 			Padding(0, 1).
 			Width(m.width - 8)
 
@@ -729,14 +712,11 @@ func (m *Model) renderThread() string {
 			fmt.Sprintf("Replies (%d):", len(m.selectedThread.Replies))))
 		rendered.WriteString("\n\n")
 
-		borderStyle := lipgloss.NewStyle().Foreground(activeTheme.Border)
-		authorStyle := lipgloss.NewStyle().Foreground(activeTheme.MetaText)
+		borderStyle := lipgloss.NewStyle().Foreground(theme.Border)
+		authorStyle := lipgloss.NewStyle().Foreground(theme.MetaText)
 
 		// Calculate available width for reply text: width - padding - border characters
-		replyWidth := m.width - 12
-		if replyWidth < 40 {
-			replyWidth = 40
-		}
+		replyWidth := max(m.width-12, 40)
 
 		for _, reply := range m.selectedThread.Replies {
 			// Reply header with styled border and author
@@ -747,11 +727,9 @@ func (m *Model) renderThread() string {
 			rendered.WriteString("\n")
 
 			// Wrap and render reply text
-			lines := strings.Split(reply.Text, "\n")
-			for _, line := range lines {
+			for line := range strings.SplitSeq(reply.Text, "\n") {
 				// Wrap each line if it's too long
-				wrappedLines := strings.Split(wordwrap.String(line, replyWidth), "\n")
-				for _, wrappedLine := range wrappedLines {
+				for wrappedLine := range strings.SplitSeq(wordwrap.String(line, replyWidth), "\n") {
 					rendered.WriteString(borderStyle.Render("│ "))
 					rendered.WriteString(wrappedLine)
 					rendered.WriteString("\n")
@@ -760,7 +738,7 @@ func (m *Model) renderThread() string {
 			rendered.WriteString("\n")
 		}
 	} else {
-		rendered.WriteString(helpStyle.Render("No replies yet\n\nPress 'r' to add a reply"))
+		rendered.WriteString(m.styles.help.Render("No replies yet\n\nPress 'r' to add a reply"))
 	}
 
 	return rendered.String()
@@ -781,16 +759,9 @@ func (m *Model) getContextLines(lineNum int, contextSize int) []ContextLine {
 	lines := strings.Split(m.doc.Content, "\n")
 	var result []ContextLine
 
-	// Calculate range
-	start := lineNum - contextSize - 1 // -1 for 0-based indexing
-	if start < 0 {
-		start = 0
-	}
-
-	end := lineNum + contextSize // inclusive
-	if end > len(lines) {
-		end = len(lines)
-	}
+	// Calculate range (-1 for 0-based indexing; end inclusive)
+	start := max(lineNum-contextSize-1, 0)
+	end := min(lineNum+contextSize, len(lines))
 
 	// Extract lines
 	for i := start; i < end; i++ {
@@ -809,6 +780,7 @@ func (m *Model) getSectionContext(lineNum int) string {
 		return ""
 	}
 
+	theme := m.styles.theme
 	var contextText strings.Builder
 	lines := strings.Split(m.doc.Content, "\n")
 
@@ -821,23 +793,23 @@ func (m *Model) getSectionContext(lineNum int) string {
 
 	// Styles
 	sectionStyle := lipgloss.NewStyle().
-		Foreground(activeTheme.Accent).
+		Foreground(theme.Accent).
 		Bold(true)
 
 	headingStyle := lipgloss.NewStyle().
-		Foreground(activeTheme.Title).
+		Foreground(theme.Title).
 		Bold(true)
 
 	lineNumStyle := lipgloss.NewStyle().
-		Foreground(activeTheme.LineNumber)
+		Foreground(theme.LineNumber)
 
 	highlightStyle := lipgloss.NewStyle().
-		Background(activeTheme.SelectionBg).
-		Foreground(activeTheme.SelectionFg).
+		Background(theme.SelectionBg).
+		Foreground(theme.SelectionFg).
 		Bold(true)
 
 	dimStyle := lipgloss.NewStyle().
-		Foreground(activeTheme.MetaText)
+		Foreground(theme.MetaText)
 
 	// Show section path
 	sectionPath := m.getSectionPath(section)
@@ -857,14 +829,8 @@ func (m *Model) getSectionContext(lineNum int) string {
 	// Show context around target line within section
 	// Show a few lines before and after the target, but stay within section bounds
 	contextSize := 2
-	start := lineNum - contextSize
-	if start < section.StartLine {
-		start = section.StartLine
-	}
-	end := lineNum + contextSize
-	if end > section.EndLine {
-		end = section.EndLine
-	}
+	start := max(lineNum-contextSize, section.StartLine)
+	end := min(lineNum+contextSize, section.EndLine)
 
 	// Skip heading line if we're showing section content
 	if start == section.StartLine && lineNum != section.StartLine {

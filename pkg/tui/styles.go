@@ -2,187 +2,193 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-// All package-level styles are built from the active theme by applyTheme
-// (called from theme.go's init and SetTheme). Call sites keep using these
-// vars; only the colors change per theme.
-var (
+// styleSet bundles every style the TUI renders, built once from a Theme by
+// newStyleSet. The Model holds a *styleSet captured at construction, so
+// rendering never reads mutable package state — SetTheme in one test cannot
+// race renders in another (t.Parallel-safe). A styleSet is immutable after
+// construction; share it freely.
+type styleSet struct {
+	// theme keeps the source colors for one-off local styles
+	theme Theme
+
 	// Title and headers
-	titleStyle lipgloss.Style
+	title lipgloss.Style
 
 	// Comment markers
-	commentMarkerStyle lipgloss.Style
+	commentMarker lipgloss.Style
 
 	// Line numbers
-	lineNumberStyle lipgloss.Style
+	lineNumber lipgloss.Style
 
 	// Help text
-	helpStyle lipgloss.Style
+	help lipgloss.Style
 
 	// Comment panel
-	commentPanelStyle lipgloss.Style
+	commentPanel lipgloss.Style
 
 	// Selected comment
-	selectedCommentStyle lipgloss.Style
+	selectedComment lipgloss.Style
 
 	// Sidebar group header (line + thread count badge)
-	groupHeaderStyle lipgloss.Style
+	groupHeader lipgloss.Style
 
 	// Gutter marker: unresolved blocking threads on this line
-	blockingMarkerStyle lipgloss.Style
+	blockingMarker lipgloss.Style
 
 	// Gutter marker: all threads on this line resolved
-	resolvedMarkerStyle lipgloss.Style
+	resolvedMarker lipgloss.Style
 
 	// Reply author/timestamp line in expanded sidebar threads
-	replyMetaStyle lipgloss.Style
+	replyMeta lipgloss.Style
 
 	// Cursor (for line selection): subtle cursorline background, text left readable
-	cursorStyle lipgloss.Style
+	cursor lipgloss.Style
 
 	// Cursor arrow + line number accent on the focused line
-	cursorAccentStyle lipgloss.Style
+	cursorAccent lipgloss.Style
 
-	// Accented line number, same 4-cell right-aligned box as lineNumberStyle
-	cursorLineNumStyle lipgloss.Style
+	// Accented line number, same 4-cell right-aligned box as lineNumber
+	cursorLineNum lipgloss.Style
 
 	// Range selection
-	rangeMarkerStyle  lipgloss.Style
-	selectedLineStyle lipgloss.Style
+	rangeMarker  lipgloss.Style
+	selectedLine lipgloss.Style
 
 	// Virtual-text line summaries (dimmed end-of-line thread digest)
-	virtualTextStyle lipgloss.Style
+	virtualText lipgloss.Style
 
 	// NEW-activity badge: thread has replies newer than the last signoff
-	newBadgeStyle lipgloss.Style
+	newBadge lipgloss.Style
 
 	// Dimmed round separators between replies that straddle a signoff
-	roundSeparatorStyle lipgloss.Style
+	roundSeparator lipgloss.Style
 
 	// In-place markdown span styling: syntax glyphs stay visible but dimmed
-	syntaxGlyphStyle lipgloss.Style
+	syntaxGlyph lipgloss.Style
 
-	// Bold/italic span content (glyphs excluded, handled by syntaxGlyphStyle)
-	boldSpanStyle   lipgloss.Style
-	italicSpanStyle lipgloss.Style
+	// Bold/italic span content (glyphs excluded, handled by syntaxGlyph)
+	boldSpan   lipgloss.Style
+	italicSpan lipgloss.Style
 
 	// Inline code span content
-	codeSpanStyle lipgloss.Style
+	codeSpan lipgloss.Style
 
 	// List bullets (-, *, +, numbered)
-	bulletStyle lipgloss.Style
+	bullet lipgloss.Style
 
 	// Blockquote > bars
-	quoteBarStyle lipgloss.Style
+	quoteBar lipgloss.Style
 
 	// Modal overlay
-	modalOverlayStyle lipgloss.Style
+	modalOverlay lipgloss.Style
 
-	// Markdown headings (whole-line; heading4Style covers H4-H6)
-	heading1Style lipgloss.Style
-	heading2Style lipgloss.Style
-	heading3Style lipgloss.Style
-	heading4Style lipgloss.Style
-)
+	// Markdown headings (whole-line; heading4 covers H4-H6)
+	heading1 lipgloss.Style
+	heading2 lipgloss.Style
+	heading3 lipgloss.Style
+	heading4 lipgloss.Style
+}
 
-// applyTheme rebuilds every package-level style from the given theme and
-// records it as the active theme.
-func applyTheme(t Theme) {
-	activeTheme = t
+// newStyleSet builds every style from the given theme.
+func newStyleSet(t Theme) *styleSet {
+	return &styleSet{
+		theme: t,
 
-	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(t.Title)
+		title: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(t.Title),
 
-	commentMarkerStyle = lipgloss.NewStyle().
-		Foreground(t.Marker).
-		Bold(true)
+		commentMarker: lipgloss.NewStyle().
+			Foreground(t.Marker).
+			Bold(true),
 
-	lineNumberStyle = lipgloss.NewStyle().
-		Foreground(t.LineNumber).
-		Width(4).
-		Align(lipgloss.Right)
+		lineNumber: lipgloss.NewStyle().
+			Foreground(t.LineNumber).
+			Width(4).
+			Align(lipgloss.Right),
 
-	helpStyle = lipgloss.NewStyle().
-		Foreground(t.HelpText)
+		help: lipgloss.NewStyle().
+			Foreground(t.HelpText),
 
-	commentPanelStyle = lipgloss.NewStyle().
-		BorderLeft(true).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(t.GroupHeader).
-		Padding(0, 1)
+		commentPanel: lipgloss.NewStyle().
+			BorderLeft(true).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(t.GroupHeader).
+			Padding(0, 1),
 
-	selectedCommentStyle = lipgloss.NewStyle().
-		Background(t.CursorLineBg)
+		selectedComment: lipgloss.NewStyle().
+			Background(t.CursorLineBg),
 
-	groupHeaderStyle = lipgloss.NewStyle().
-		Foreground(t.GroupHeader).
-		Bold(true)
+		groupHeader: lipgloss.NewStyle().
+			Foreground(t.GroupHeader).
+			Bold(true),
 
-	blockingMarkerStyle = lipgloss.NewStyle().
-		Foreground(t.Blocking).
-		Bold(true)
+		blockingMarker: lipgloss.NewStyle().
+			Foreground(t.Blocking).
+			Bold(true),
 
-	resolvedMarkerStyle = lipgloss.NewStyle().
-		Foreground(t.Resolved)
+		resolvedMarker: lipgloss.NewStyle().
+			Foreground(t.Resolved),
 
-	replyMetaStyle = lipgloss.NewStyle().
-		Foreground(t.ReplyMeta)
+		replyMeta: lipgloss.NewStyle().
+			Foreground(t.ReplyMeta),
 
-	cursorStyle = lipgloss.NewStyle().
-		Background(t.CursorLineBg)
+		cursor: lipgloss.NewStyle().
+			Background(t.CursorLineBg),
 
-	cursorAccentStyle = lipgloss.NewStyle().
-		Foreground(t.CursorAccent).
-		Bold(true)
+		cursorAccent: lipgloss.NewStyle().
+			Foreground(t.CursorAccent).
+			Bold(true),
 
-	cursorLineNumStyle = lipgloss.NewStyle().
-		Foreground(t.CursorAccent).
-		Bold(true).
-		Width(4).
-		Align(lipgloss.Right)
+		cursorLineNum: lipgloss.NewStyle().
+			Foreground(t.CursorAccent).
+			Bold(true).
+			Width(4).
+			Align(lipgloss.Right),
 
-	rangeMarkerStyle = lipgloss.NewStyle().
-		Foreground(t.Accent).
-		Bold(true)
+		rangeMarker: lipgloss.NewStyle().
+			Foreground(t.Accent).
+			Bold(true),
 
-	selectedLineStyle = lipgloss.NewStyle().
-		Background(t.SelectionBg)
+		selectedLine: lipgloss.NewStyle().
+			Background(t.SelectionBg),
 
-	virtualTextStyle = lipgloss.NewStyle().
-		Foreground(t.VirtualText).
-		Italic(true)
+		virtualText: lipgloss.NewStyle().
+			Foreground(t.VirtualText).
+			Italic(true),
 
-	newBadgeStyle = lipgloss.NewStyle().
-		Foreground(t.New).
-		Bold(true)
+		newBadge: lipgloss.NewStyle().
+			Foreground(t.New).
+			Bold(true),
 
-	roundSeparatorStyle = lipgloss.NewStyle().
-		Foreground(t.DimSyntax)
+		roundSeparator: lipgloss.NewStyle().
+			Foreground(t.DimSyntax),
 
-	syntaxGlyphStyle = lipgloss.NewStyle().
-		Foreground(t.DimSyntax)
+		syntaxGlyph: lipgloss.NewStyle().
+			Foreground(t.DimSyntax),
 
-	boldSpanStyle = lipgloss.NewStyle().Bold(true)
-	italicSpanStyle = lipgloss.NewStyle().Italic(true)
+		boldSpan:   lipgloss.NewStyle().Bold(true),
+		italicSpan: lipgloss.NewStyle().Italic(true),
 
-	codeSpanStyle = lipgloss.NewStyle().
-		Foreground(t.Code)
+		codeSpan: lipgloss.NewStyle().
+			Foreground(t.Code),
 
-	bulletStyle = lipgloss.NewStyle().
-		Foreground(t.Bullet).
-		Bold(true)
+		bullet: lipgloss.NewStyle().
+			Foreground(t.Bullet).
+			Bold(true),
 
-	quoteBarStyle = lipgloss.NewStyle().
-		Foreground(t.Quote).
-		Bold(true)
+		quoteBar: lipgloss.NewStyle().
+			Foreground(t.Quote).
+			Bold(true),
 
-	modalOverlayStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(t.Title).
-		Padding(1, 2)
+		modalOverlay: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(t.Title).
+			Padding(1, 2),
 
-	heading1Style = lipgloss.NewStyle().Bold(true).Foreground(t.Heading1)
-	heading2Style = lipgloss.NewStyle().Bold(true).Foreground(t.Heading2)
-	heading3Style = lipgloss.NewStyle().Bold(true).Foreground(t.Heading3)
-	heading4Style = lipgloss.NewStyle().Bold(true).Foreground(t.Heading4)
+		heading1: lipgloss.NewStyle().Bold(true).Foreground(t.Heading1),
+		heading2: lipgloss.NewStyle().Bold(true).Foreground(t.Heading2),
+		heading3: lipgloss.NewStyle().Bold(true).Foreground(t.Heading3),
+		heading4: lipgloss.NewStyle().Bold(true).Foreground(t.Heading4),
+	}
 }

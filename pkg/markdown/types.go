@@ -18,12 +18,6 @@ type DocumentStructure struct {
 	SectionsByLine map[int]*Section    // Quick lookup by line number (maps to closest section above)
 }
 
-// GetPath returns the hierarchical path of a section (e.g., "Introduction > Overview > Key Points")
-func (s *Section) GetPath() string {
-	// This will be implemented to traverse up the parent chain
-	return ""
-}
-
 // GetFullPath returns the hierarchical path including the current section
 func (s *Section) GetFullPath(sections map[string]*Section) string {
 	if s.ParentID == "" {

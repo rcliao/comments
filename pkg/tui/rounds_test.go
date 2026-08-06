@@ -121,10 +121,11 @@ func TestLineSummaryNewBadge(t *testing.T) {
 		{Author: "rcliao", Text: "note", Timestamp: rt(5),
 			Replies: []*comment.Comment{{Author: "claude", Text: "late reply", Timestamp: rt(15)}}},
 	}
-	if got := lineSummary(threads, rt(10)); !strings.Contains(got, "NEW") {
+	st := testStyles()
+	if got := st.lineSummary(threads, rt(10)); !strings.Contains(got, "NEW") {
 		t.Errorf("summary should carry NEW badge for post-signoff reply, got %q", got)
 	}
-	if got := lineSummary(threads, rt(20)); strings.Contains(got, "NEW") {
+	if got := st.lineSummary(threads, rt(20)); strings.Contains(got, "NEW") {
 		t.Errorf("summary must not carry NEW when everything is seen, got %q", got)
 	}
 }
@@ -255,7 +256,7 @@ func TestNewActivityMotionsZeroSignoffFallback(t *testing.T) {
 }
 
 func TestHelpAndHintBarMentionNewMotions(t *testing.T) {
-	if out := renderHelpOverlay(); !strings.Contains(out, "n / N") {
+	if out := testStyles().renderHelpOverlay(); !strings.Contains(out, "n / N") {
 		t.Error("help overlay should document the  n/N  motions")
 	}
 	m := testModel(nil)

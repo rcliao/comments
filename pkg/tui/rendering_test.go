@@ -32,6 +32,9 @@ func testModel(threads []*comment.Comment) *Model {
 	return &m
 }
 
+// testStyles returns a default-theme styleSet for tests of pure render helpers
+func testStyles() *styleSet { return newStyleSet(themes[DefaultThemeName]) }
+
 func TestLineMarkerVariants(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -45,8 +48,9 @@ func TestLineMarkerVariants(t *testing.T) {
 		{"resolved blocking ignored", []*comment.Comment{{Text: "a", Blocking: true, Resolved: true}}, "✓"},
 		{"all resolved", []*comment.Comment{{Text: "a", Resolved: true}}, "✓"},
 	}
+	st := testStyles()
 	for _, tc := range cases {
-		got := lineMarker(tc.threads)
+		got := st.lineMarker(tc.threads)
 		if !strings.Contains(got, tc.want) {
 			t.Errorf("%s: marker %q does not contain %q", tc.name, got, tc.want)
 		}
@@ -96,8 +100,7 @@ func TestSidebarFocusFollowsCursor(t *testing.T) {
 	m.selectedLine = 9
 
 	out := m.renderComments()
-	lines := strings.Split(out, "\n")
-	for _, l := range lines {
+	for l := range strings.SplitSeq(out, "\n") {
 		if strings.Contains(l, "▼") && !strings.Contains(l, "Line 9") {
 			t.Errorf("expanded group should be the cursor line (9), got: %s", l)
 		}
@@ -163,7 +166,7 @@ func TestExpandedThreadWrapsLongText(t *testing.T) {
 	m.selectedLine = 5
 
 	out := m.renderComments()
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if len(line) > 120 { // generous bound: styled + indented but wrapped
 			t.Errorf("expanded thread line not wrapped (%d chars): %.60s…", len(line), line)
 		}
@@ -332,8 +335,9 @@ func TestStyleMarkdownLinePreservesWidth(t *testing.T) {
 		"a * b times * c spaced stars",
 		"",
 	}
+	st := testStyles()
 	for _, line := range lines {
-		styled := styleMarkdownLine(line)
+		styled := st.styleMarkdownLine(line)
 		if got := stripANSI(styled); got != line {
 			t.Errorf("ANSI-stripped output must equal input.\n in: %q\nout: %q", line, got)
 		}
@@ -343,9 +347,8 @@ func TestStyleMarkdownLinePreservesWidth(t *testing.T) {
 func TestStyleMarkdownLineStylesSpansWithDimmedGlyphs(t *testing.T) {
 	withANSIProfile(t)
 	// Pin the legacy palette: this test asserts exact 256-color codes
-	resetTheme(t)
-	applyTheme(themes["ansi"])
-	out := styleMarkdownLine("mix of **bold**, *ital*, and `code` spans")
+	st := newStyleSet(themes["ansi"])
+	out := st.styleMarkdownLine("mix of **bold**, *ital*, and `code` spans")
 
 	if !strings.Contains(out, "\x1b[") {
 		t.Fatal("expected ANSI styling in output")
@@ -371,8 +374,9 @@ func TestStyleMarkdownLineStylesSpansWithDimmedGlyphs(t *testing.T) {
 
 func TestStyleMarkdownLineColorsBulletsAndQuoteBars(t *testing.T) {
 	withANSIProfile(t)
+	st := testStyles()
 	for _, line := range []string{"- item", "* item", "+ item", "3. item", "> quote"} {
-		out := styleMarkdownLine(line)
+		out := st.styleMarkdownLine(line)
 		if out == line {
 			t.Errorf("prefix of %q should be styled, got unstyled output", line)
 		}
@@ -382,7 +386,7 @@ func TestStyleMarkdownLineColorsBulletsAndQuoteBars(t *testing.T) {
 	}
 	// The prose after the bullet is NOT swallowed by the bullet style:
 	// only the bullet glyph itself is wrapped
-	out := styleMarkdownLine("- item")
+	out := st.styleMarkdownLine("- item")
 	if !strings.Contains(out, "m-\x1b[0m item") {
 		t.Errorf("only the bullet glyph should be styled, got %q", out)
 	}

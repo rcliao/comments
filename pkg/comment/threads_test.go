@@ -245,44 +245,6 @@ func TestLatestTimestamp(t *testing.T) {
 	}
 }
 
-func TestGroupCommentsByLine(t *testing.T) {
-	threads := []*Comment{
-		{
-			ID:   "c1",
-			Line: 5,
-			Replies: []*Comment{
-				{ID: "c2", Line: 5},
-			},
-		},
-		{
-			ID:      "c3",
-			Line:    5,
-			Replies: []*Comment{},
-		},
-		{
-			ID:      "c4",
-			Line:    10,
-			Replies: []*Comment{},
-		},
-	}
-
-	byLine := GroupCommentsByLine(threads)
-
-	if len(byLine) != 2 {
-		t.Errorf("GroupCommentsByLine length = %d, want 2", len(byLine))
-	}
-
-	// Line 5 should have 3 comments (c1, c2, c3)
-	if len(byLine[5]) != 3 {
-		t.Errorf("Line 5 comments = %d, want 3", len(byLine[5]))
-	}
-
-	// Line 10 should have 1 comment
-	if len(byLine[10]) != 1 {
-		t.Errorf("Line 10 comments = %d, want 1", len(byLine[10]))
-	}
-}
-
 func TestGetPendingSuggestions(t *testing.T) {
 	accepted := true
 	rejected := false
@@ -321,44 +283,6 @@ func TestGetPendingSuggestions(t *testing.T) {
 
 	if pending[0].ID != "s1" {
 		t.Errorf("Pending suggestion ID = %s, want s1", pending[0].ID)
-	}
-}
-
-func TestGetSuggestionsByAuthor(t *testing.T) {
-	threads := []*Comment{
-		{
-			ID:           "s1",
-			Author:       "claude",
-			IsSuggestion: true,
-			Accepted:     nil,
-			Replies:      []*Comment{},
-		},
-		{
-			ID:           "s2",
-			Author:       "alice",
-			IsSuggestion: true,
-			Accepted:     nil,
-			Replies:      []*Comment{},
-		},
-		{
-			ID:           "s3",
-			Author:       "claude",
-			IsSuggestion: true,
-			Accepted:     nil,
-			Replies:      []*Comment{},
-		},
-	}
-
-	claudeSuggestions := GetSuggestionsByAuthor(threads, "claude")
-
-	if len(claudeSuggestions) != 2 {
-		t.Errorf("GetSuggestionsByAuthor(claude) = %d, want 2", len(claudeSuggestions))
-	}
-
-	aliceSuggestions := GetSuggestionsByAuthor(threads, "alice")
-
-	if len(aliceSuggestions) != 1 {
-		t.Errorf("GetSuggestionsByAuthor(alice) = %d, want 1", len(aliceSuggestions))
 	}
 }
 
