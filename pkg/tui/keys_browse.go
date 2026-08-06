@@ -7,9 +7,8 @@ package tui
 import (
 	"fmt"
 
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 	"github.com/rcliao/comments/pkg/comment"
 )
 
@@ -39,8 +38,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.selectedLine = max(m.selectedLine, 1)
 
 		// Completely reset the viewport to fix scroll offset issues
-		m.documentViewport = viewport.New(m.docPaneWidth(), m.height-2)
-		m.documentViewport.YOffset = 0
+		m.documentViewport = newViewport(m.docPaneWidth(), m.height-2)
 		m.refreshCursorView()
 		return m, nil
 
@@ -123,7 +121,7 @@ func (m *Model) scrollToComment(c *comment.Comment) {
 	displayRow := m.calculateDisplayRow(targetLine - 1)
 
 	// Center the line in the viewport, clamped to the start
-	m.documentViewport.YOffset = max(displayRow-m.documentViewport.Height/2, 0)
+	m.documentViewport.SetYOffset(max(displayRow-m.documentViewport.Height()/2, 0))
 }
 
 // viewBrowse renders the browse/line-select view

@@ -3,8 +3,8 @@ package tui
 // File-picker mode: choose a markdown file to review.
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 )
 
 // handleFilePickerKeys handles keys in file picker mode

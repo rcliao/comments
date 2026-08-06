@@ -7,59 +7,71 @@ package tui
 // COMMENTS_THEME (flag wins); unknown names fall back to the default (nord).
 
 import (
+	"image/color"
 	"sort"
 	"sync"
 
-	"github.com/charmbracelet/lipgloss"
+	lipgloss "charm.land/lipgloss/v2"
 )
+
+// ThemeColor is a color role value as written in a theme: a hex string
+// ("#88C0D0") or an ANSI-256 index ("240"). Lipgloss v2 dropped its string
+// color type (v1 lipgloss.Color) in favor of the color.Color interface;
+// keeping roles as strings keeps theme literals readable and lets tests
+// reflect over them. Call Color() at style-construction time.
+type ThemeColor string
+
+// Color resolves the role value to a concrete color (hex → RGB,
+// numeric → ANSI-256 indexed), preserving indexed output for the ansi theme.
+func (c ThemeColor) Color() color.Color { return lipgloss.Color(string(c)) }
 
 // Theme maps every color role the TUI uses to a concrete color.
 // Roles, not widgets: several widgets may share one role.
 type Theme struct {
 	// Markdown headings (whole-line, by level; Heading4 covers H4-H6)
-	Heading1 lipgloss.Color
-	Heading2 lipgloss.Color
-	Heading3 lipgloss.Color
-	Heading4 lipgloss.Color
+	Heading1 ThemeColor
+	Heading2 ThemeColor
+	Heading3 ThemeColor
+	Heading4 ThemeColor
 
 	// Chrome
-	Title      lipgloss.Color // titles, modal headers, modal borders, focus arrow
-	DimSyntax  lipgloss.Color // dimmed markdown glyphs, round separators, dim labels
-	LineNumber lipgloss.Color // gutter line numbers
-	HelpText   lipgloss.Color // hint bars and modal help lines
-	MetaText   lipgloss.Color // author/timestamp meta, context labels
-	ReplyMeta  lipgloss.Color // reply author/timestamp rows in the sidebar
-	Border     lipgloss.Color // plain borders (input fields, context boxes)
+	Title      ThemeColor // titles, modal headers, modal borders, focus arrow
+	DimSyntax  ThemeColor // dimmed markdown glyphs, round separators, dim labels
+	LineNumber ThemeColor // gutter line numbers
+	HelpText   ThemeColor // hint bars and modal help lines
+	MetaText   ThemeColor // author/timestamp meta, context labels
+	ReplyMeta  ThemeColor // reply author/timestamp rows in the sidebar
+	Border     ThemeColor // plain borders (input fields, context boxes)
 
 	// Cursor and selection
-	CursorAccent lipgloss.Color // cursor arrow + focused line number
-	CursorLineBg lipgloss.Color // cursorline background
-	SelectionBg  lipgloss.Color // range selection / highlighted-line background
-	SelectionFg  lipgloss.Color // foreground on highlighted lines
-	Accent       lipgloss.Color // range markers, key hints, section labels
+	CursorAccent ThemeColor // cursor arrow + focused line number
+	CursorLineBg ThemeColor // cursorline background
+	SelectionBg  ThemeColor // range selection / highlighted-line background
+	SelectionFg  ThemeColor // foreground on highlighted lines
+	Accent       ThemeColor // range markers, key hints, section labels
 
 	// Gutter markers and badges
-	Blocking    lipgloss.Color // unresolved blocking threads
-	Marker      lipgloss.Color // unresolved thread marker + open counts
-	Resolved    lipgloss.Color // resolved checkmark
-	VirtualText lipgloss.Color // end-of-line thread summaries
-	GroupHeader lipgloss.Color // sidebar group headers, panel/thread borders
-	New         lipgloss.Color // NEW-activity badge
+	Blocking    ThemeColor // unresolved blocking threads
+	Marker      ThemeColor // unresolved thread marker + open counts
+	Resolved    ThemeColor // resolved checkmark
+	VirtualText ThemeColor // end-of-line thread summaries
+	GroupHeader ThemeColor // sidebar group headers, panel/thread borders
+	New         ThemeColor // NEW-activity badge
 
 	// Inline markdown spans
-	Code   lipgloss.Color // inline code spans
-	Bullet lipgloss.Color // list bullets
-	Quote  lipgloss.Color // blockquote bars
+	Code   ThemeColor // inline code spans
+	Bullet ThemeColor // list bullets
+	Quote  ThemeColor // blockquote bars
 
 	// Alerts
-	Warning lipgloss.Color // suggestion form accents
+	Warning ThemeColor // suggestion form accents
 
 	// Comment type prefixes
-	TypeQ lipgloss.Color // [Q] Question
-	TypeS lipgloss.Color // [S] Suggestion
-	TypeB lipgloss.Color // [B] Blocker/Bug
-	TypeT lipgloss.Color // [T] Technical/TODO
-	TypeE lipgloss.Color // [E] Editorial/Enhancement
+	TypeQ ThemeColor // [Q] Question
+	TypeS ThemeColor // [S] Suggestion
+	TypeB ThemeColor // [B] Blocker/Bug
+	TypeT ThemeColor // [T] Technical/TODO
+	TypeE ThemeColor // [E] Editorial/Enhancement
 }
 
 // DefaultThemeName is applied at startup and on unknown theme names.

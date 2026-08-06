@@ -56,7 +56,6 @@ func TestRefMapBuiltAtLoad(t *testing.T) {
 }
 
 func TestResolvedRefsGetLinkStyling(t *testing.T) {
-	withANSIProfile(t)
 	m, _ := refTestModel(t)
 
 	styled := m.styleDocLine("Per research.md:5 the finding holds.", 3)

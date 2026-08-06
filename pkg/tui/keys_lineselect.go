@@ -9,10 +9,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textarea"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 	"github.com/muesli/reflow/wordwrap"
 	"github.com/rcliao/comments/pkg/comment"
 	"github.com/rcliao/comments/pkg/markdown"
@@ -29,10 +28,9 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = ModeBrowse
 
 		// Reset the viewport to fix any scroll offset issues
-		m.documentViewport = viewport.New(m.docPaneWidth(), m.height-2)
-		m.documentViewport.YOffset = 0
+		m.documentViewport = newViewport(m.docPaneWidth(), m.height-2)
 		m.documentViewport.SetContent(m.renderDocument())
-		m.documentViewport.YOffset = 0
+		m.documentViewport.SetYOffset(0)
 		return m, nil
 
 	case "?":
@@ -74,14 +72,14 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "ctrl+d":
 		// Page down (half page)
-		pageSize := m.documentViewport.Height / 2
+		pageSize := m.documentViewport.Height() / 2
 		m.selectedLine = min(m.selectedLine+pageSize, totalLines)
 		m.refreshCursorView()
 		return m, nil
 
 	case "ctrl+u":
 		// Page up (half page)
-		pageSize := m.documentViewport.Height / 2
+		pageSize := m.documentViewport.Height() / 2
 		m.selectedLine = max(m.selectedLine-pageSize, 1)
 		m.refreshCursorView()
 		return m, nil
@@ -368,21 +366,18 @@ func (m *Model) scrollToLine(lineNum int) {
 	displayRow := m.calculateDisplayRow(lineNum - 1) // -1 because we want the start of this line
 
 	// Calculate visible range
-	topRow := m.documentViewport.YOffset
-	bottomRow := topRow + m.documentViewport.Height - 1
+	topRow := m.documentViewport.YOffset()
+	bottomRow := topRow + m.documentViewport.Height() - 1
 
 	// Scroll if line is out of view
 	if displayRow < topRow {
 		// Line is above visible area - scroll up
-		m.documentViewport.YOffset = displayRow
+		m.documentViewport.SetYOffset(displayRow)
 	} else if displayRow > bottomRow {
 		// Line is below visible area - scroll down
 		// Position it near the bottom of the viewport
-		m.documentViewport.YOffset = displayRow - m.documentViewport.Height + 5
+		m.documentViewport.SetYOffset(max(displayRow-m.documentViewport.Height()+5, 0))
 	}
-
-	// Ensure we don't scroll past the end
-	m.documentViewport.YOffset = max(m.documentViewport.YOffset, 0)
 }
 
 // threadIndicesAtLine returns indices into visibleComments() of threads on a line
@@ -428,8 +423,8 @@ func (m *Model) refreshSidebar() {
 	for i, line := range lines {
 		if strings.Contains(line, "▼ ") {
 			offset := max(i-2, 0)
-			maxOffset := max(len(lines)-m.commentViewport.Height, 0)
-			m.commentViewport.YOffset = min(offset, maxOffset)
+			maxOffset := max(len(lines)-m.commentViewport.Height(), 0)
+			m.commentViewport.SetYOffset(min(offset, maxOffset))
 			return
 		}
 	}
@@ -487,7 +482,7 @@ func (m Model) viewChooseTarget() string {
 	// Build choice modal
 	modalTitle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(m.styles.theme.Title).
+		Foreground(m.styles.theme.Title.Color()).
 		Render("Add comment to:")
 
 	var choices strings.Builder
@@ -555,7 +550,7 @@ func (m Model) viewSelectSuggestionType() string {
 	// Build choice modal
 	modalTitle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(m.styles.theme.Title).
+		Foreground(m.styles.theme.Title.Color()).
 		Render("Create suggestion for:")
 
 	var choices strings.Builder

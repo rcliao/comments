@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	lipgloss "charm.land/lipgloss/v2"
 	"github.com/muesli/reflow/wordwrap"
 	"github.com/rcliao/comments/pkg/comment"
 )
@@ -273,7 +273,7 @@ func (m *Model) lineSummarySuffix(threads []*comment.Comment) string {
 // identical across modes, so entering/leaving line-select never reflows the
 // document under a saved scroll offset.
 func (m *Model) docWrapWidth() int {
-	return max(m.documentViewport.Width-12, 40)
+	return max(m.documentViewport.Width()-12, 40)
 }
 
 // renderDocument renders the document pane without a cursor (browse mode)
@@ -446,7 +446,7 @@ func threadMarkers(c *comment.Comment) string {
 
 // sidebarWrapWidth is the text width for expanded threads in the comment sidebar
 func (m *Model) sidebarWrapWidth() int {
-	width := m.commentViewport.Width - 4
+	width := m.commentViewport.Width() - 4
 	if width < 30 {
 		width = 40 // uninitialized viewport (tests) or very narrow terminal
 	}
@@ -610,7 +610,7 @@ func (m *Model) renderThread() string {
 	if len(contextLines) > 0 {
 		contextStyle := lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(theme.Border).
+			BorderForeground(theme.Border.Color()).
 			Padding(0, 1).
 			Width(m.width - 8)
 
@@ -620,13 +620,13 @@ func (m *Model) renderThread() string {
 
 		var contextText strings.Builder
 		contextText.WriteString(lipgloss.NewStyle().
-			Foreground(theme.DimSyntax).
+			Foreground(theme.DimSyntax.Color()).
 			Render("Document Context:"))
 		contextText.WriteString("\n\n")
 
 		for _, cl := range contextLines {
 			marker := " "
-			lineNumStyle := lipgloss.NewStyle().Foreground(theme.LineNumber)
+			lineNumStyle := lipgloss.NewStyle().Foreground(theme.LineNumber.Color())
 			lineStyle := lipgloss.NewStyle()
 
 			// Apply markdown syntax highlighting to context lines
@@ -639,13 +639,13 @@ func (m *Model) renderThread() string {
 				if cl.LineNum == m.selectedThread.Line {
 					if i == 0 {
 						marker = lipgloss.NewStyle().
-							Foreground(theme.Title).
+							Foreground(theme.Title.Color()).
 							Bold(true).
 							Render("►")
-						lineNumStyle = lineNumStyle.Bold(true).Foreground(theme.Title)
+						lineNumStyle = lineNumStyle.Bold(true).Foreground(theme.Title.Color())
 						lineStyle = lineStyle.
-							Background(theme.SelectionBg).
-							Foreground(theme.SelectionFg).
+							Background(theme.SelectionBg.Color()).
+							Foreground(theme.SelectionFg.Color()).
 							Bold(true)
 						fmt.Fprintf(&contextText, "%s %s │ %s\n",
 							marker,
@@ -682,7 +682,7 @@ func (m *Model) renderThread() string {
 	// Root comment
 	rootStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(theme.GroupHeader).
+		BorderForeground(theme.GroupHeader.Color()).
 		Padding(1).
 		Width(m.width - 8)
 
@@ -724,7 +724,7 @@ func (m *Model) renderThread() string {
 	if m.selectedThread.IsSuggestion {
 		suggestionStyle := lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(theme.Warning).
+			BorderForeground(theme.Warning.Color()).
 			Padding(0, 1).
 			Width(m.width - 8)
 
@@ -750,8 +750,8 @@ func (m *Model) renderThread() string {
 			fmt.Sprintf("Replies (%d):", len(m.selectedThread.Replies))))
 		rendered.WriteString("\n\n")
 
-		borderStyle := lipgloss.NewStyle().Foreground(theme.Border)
-		authorStyle := lipgloss.NewStyle().Foreground(theme.MetaText)
+		borderStyle := lipgloss.NewStyle().Foreground(theme.Border.Color())
+		authorStyle := lipgloss.NewStyle().Foreground(theme.MetaText.Color())
 
 		// Calculate available width for reply text: width - padding - border characters
 		replyWidth := max(m.width-12, 40)
@@ -831,23 +831,23 @@ func (m *Model) getSectionContext(lineNum int) string {
 
 	// Styles
 	sectionStyle := lipgloss.NewStyle().
-		Foreground(theme.Accent).
+		Foreground(theme.Accent.Color()).
 		Bold(true)
 
 	headingStyle := lipgloss.NewStyle().
-		Foreground(theme.Title).
+		Foreground(theme.Title.Color()).
 		Bold(true)
 
 	lineNumStyle := lipgloss.NewStyle().
-		Foreground(theme.LineNumber)
+		Foreground(theme.LineNumber.Color())
 
 	highlightStyle := lipgloss.NewStyle().
-		Background(theme.SelectionBg).
-		Foreground(theme.SelectionFg).
+		Background(theme.SelectionBg.Color()).
+		Foreground(theme.SelectionFg.Color()).
 		Bold(true)
 
 	dimStyle := lipgloss.NewStyle().
-		Foreground(theme.MetaText)
+		Foreground(theme.MetaText.Color())
 
 	// Show section path
 	sectionPath := m.getSectionPath(section)

@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/rcliao/comments/pkg/comment"
 	"github.com/rcliao/comments/pkg/tui"
 )
@@ -135,7 +135,9 @@ func viewCommand(args []string) error {
 	}
 
 	// Run TUI
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	// Bubbletea v2: the alt screen is a View field (set in tui.Model.View),
+	// no longer a program option
+	p := tea.NewProgram(model)
 
 	final, err := p.Run()
 	if err != nil {

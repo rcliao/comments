@@ -8,9 +8,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/rcliao/comments/pkg/comment"
 )
@@ -257,14 +255,20 @@ func TestTabCyclesThreadsOnSameLine(t *testing.T) {
 	}
 }
 
+// keyMsg builds a v2 key-press message from a readable key name. Bubbletea v2
+// made tea.KeyMsg an interface; presses are tea.KeyPressMsg with Code/Text.
 func keyMsg(key string) tea.KeyMsg {
 	switch key {
 	case "tab":
-		return tea.KeyMsg{Type: tea.KeyTab}
+		return tea.KeyPressMsg{Code: tea.KeyTab}
 	case "esc":
-		return tea.KeyMsg{Type: tea.KeyEsc}
+		return tea.KeyPressMsg{Code: tea.KeyEscape}
+	case "enter":
+		return tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "ctrl+c":
+		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	default:
-		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
+		return tea.KeyPressMsg{Code: []rune(key)[0], Text: key}
 	}
 }
 
@@ -303,18 +307,11 @@ var ansiPattern = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
 func stripANSI(s string) string { return ansiPattern.ReplaceAllString(s, "") }
 
-// withANSIProfile forces real escape sequences for the test (tests run
-// without a TTY, where lipgloss would otherwise strip all styling) and
-// restores the previous profile afterwards
-func withANSIProfile(t *testing.T) {
-	t.Helper()
-	old := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.ANSI256)
-	t.Cleanup(func() { lipgloss.SetColorProfile(old) })
-}
+// Lipgloss v2 removed the global color profile: Style.Render always emits
+// ANSI escape sequences and downsampling happens in the output writer, so
+// tests no longer need to force a profile (v1's withANSIProfile is gone).
 
 func TestStyleMarkdownLinePreservesWidth(t *testing.T) {
-	withANSIProfile(t)
 	lines := []string{
 		"plain prose with nothing special",
 		"Some **bold** and *italic* and `code` here.",
@@ -345,7 +342,6 @@ func TestStyleMarkdownLinePreservesWidth(t *testing.T) {
 }
 
 func TestStyleMarkdownLineStylesSpansWithDimmedGlyphs(t *testing.T) {
-	withANSIProfile(t)
 	// Pin the legacy palette: this test asserts exact 256-color codes
 	st := newStyleSet(themes["ansi"])
 	out := st.styleMarkdownLine("mix of **bold**, *ital*, and `code` spans")
@@ -373,7 +369,6 @@ func TestStyleMarkdownLineStylesSpansWithDimmedGlyphs(t *testing.T) {
 }
 
 func TestStyleMarkdownLineColorsBulletsAndQuoteBars(t *testing.T) {
-	withANSIProfile(t)
 	st := testStyles()
 	for _, line := range []string{"- item", "* item", "+ item", "3. item", "> quote"} {
 		out := st.styleMarkdownLine(line)
@@ -385,9 +380,10 @@ func TestStyleMarkdownLineColorsBulletsAndQuoteBars(t *testing.T) {
 		}
 	}
 	// The prose after the bullet is NOT swallowed by the bullet style:
-	// only the bullet glyph itself is wrapped
+	// only the bullet glyph itself is wrapped. (Lipgloss v2 resets styles
+	// with the shorter \x1b[m SGR; v1 emitted \x1b[0m.)
 	out := st.styleMarkdownLine("- item")
-	if !strings.Contains(out, "m-\x1b[0m item") {
+	if !strings.Contains(out, "m-\x1b[m item") {
 		t.Errorf("only the bullet glyph should be styled, got %q", out)
 	}
 }

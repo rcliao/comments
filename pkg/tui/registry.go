@@ -5,7 +5,7 @@ package tui
 // modeRegistry table below. handleKeyPress, View, and updateByMode all
 // dispatch through it, so adding a mode never touches those switches.
 
-import tea "github.com/charmbracelet/bubbletea"
+import tea "charm.land/bubbletea/v2"
 
 // modeDescriptor bundles everything a view mode plugs into the TUI loop.
 type modeDescriptor struct {

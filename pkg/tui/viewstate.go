@@ -62,6 +62,6 @@ func (m *Model) saveViewStateNow() {
 	}
 	_ = saveViewState(m.filename, viewState{
 		SelectedLine: m.selectedLine,
-		YOffset:      m.documentViewport.YOffset,
+		YOffset:      m.documentViewport.YOffset(),
 	})
 }

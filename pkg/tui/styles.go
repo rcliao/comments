@@ -1,6 +1,6 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import lipgloss "charm.land/lipgloss/v2"
 
 // styleSet bundles every style the TUI renders, built once from a Theme by
 // newStyleSet. The Model holds a *styleSet captured at construction, so
@@ -99,103 +99,103 @@ func newStyleSet(t Theme) *styleSet {
 
 		title: lipgloss.NewStyle().
 			Bold(true).
-			Foreground(t.Title),
+			Foreground(t.Title.Color()),
 
 		commentMarker: lipgloss.NewStyle().
-			Foreground(t.Marker).
+			Foreground(t.Marker.Color()).
 			Bold(true),
 
 		lineNumber: lipgloss.NewStyle().
-			Foreground(t.LineNumber).
+			Foreground(t.LineNumber.Color()).
 			Width(4).
 			Align(lipgloss.Right),
 
 		help: lipgloss.NewStyle().
-			Foreground(t.HelpText),
+			Foreground(t.HelpText.Color()),
 
 		commentPanel: lipgloss.NewStyle().
 			BorderLeft(true).
 			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(t.GroupHeader).
+			BorderForeground(t.GroupHeader.Color()).
 			Padding(0, 1),
 
 		selectedComment: lipgloss.NewStyle().
-			Background(t.CursorLineBg),
+			Background(t.CursorLineBg.Color()),
 
 		groupHeader: lipgloss.NewStyle().
-			Foreground(t.GroupHeader).
+			Foreground(t.GroupHeader.Color()).
 			Bold(true),
 
 		blockingMarker: lipgloss.NewStyle().
-			Foreground(t.Blocking).
+			Foreground(t.Blocking.Color()).
 			Bold(true),
 
 		resolvedMarker: lipgloss.NewStyle().
-			Foreground(t.Resolved),
+			Foreground(t.Resolved.Color()),
 
 		replyMeta: lipgloss.NewStyle().
-			Foreground(t.ReplyMeta),
+			Foreground(t.ReplyMeta.Color()),
 
 		cursor: lipgloss.NewStyle().
-			Background(t.CursorLineBg),
+			Background(t.CursorLineBg.Color()),
 
 		cursorAccent: lipgloss.NewStyle().
-			Foreground(t.CursorAccent).
+			Foreground(t.CursorAccent.Color()).
 			Bold(true),
 
 		cursorLineNum: lipgloss.NewStyle().
-			Foreground(t.CursorAccent).
+			Foreground(t.CursorAccent.Color()).
 			Bold(true).
 			Width(4).
 			Align(lipgloss.Right),
 
 		refLink: lipgloss.NewStyle().
-			Foreground(t.Accent).
+			Foreground(t.Accent.Color()).
 			Underline(true),
 
 		rangeMarker: lipgloss.NewStyle().
-			Foreground(t.Accent).
+			Foreground(t.Accent.Color()).
 			Bold(true),
 
 		selectedLine: lipgloss.NewStyle().
-			Background(t.SelectionBg),
+			Background(t.SelectionBg.Color()),
 
 		virtualText: lipgloss.NewStyle().
-			Foreground(t.VirtualText).
+			Foreground(t.VirtualText.Color()).
 			Italic(true),
 
 		newBadge: lipgloss.NewStyle().
-			Foreground(t.New).
+			Foreground(t.New.Color()).
 			Bold(true),
 
 		roundSeparator: lipgloss.NewStyle().
-			Foreground(t.DimSyntax),
+			Foreground(t.DimSyntax.Color()),
 
 		syntaxGlyph: lipgloss.NewStyle().
-			Foreground(t.DimSyntax),
+			Foreground(t.DimSyntax.Color()),
 
 		boldSpan:   lipgloss.NewStyle().Bold(true),
 		italicSpan: lipgloss.NewStyle().Italic(true),
 
 		codeSpan: lipgloss.NewStyle().
-			Foreground(t.Code),
+			Foreground(t.Code.Color()),
 
 		bullet: lipgloss.NewStyle().
-			Foreground(t.Bullet).
+			Foreground(t.Bullet.Color()).
 			Bold(true),
 
 		quoteBar: lipgloss.NewStyle().
-			Foreground(t.Quote).
+			Foreground(t.Quote.Color()).
 			Bold(true),
 
 		modalOverlay: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(t.Title).
+			BorderForeground(t.Title.Color()).
 			Padding(1, 2),
 
-		heading1: lipgloss.NewStyle().Bold(true).Foreground(t.Heading1),
-		heading2: lipgloss.NewStyle().Bold(true).Foreground(t.Heading2),
-		heading3: lipgloss.NewStyle().Bold(true).Foreground(t.Heading3),
-		heading4: lipgloss.NewStyle().Bold(true).Foreground(t.Heading4),
+		heading1: lipgloss.NewStyle().Bold(true).Foreground(t.Heading1.Color()),
+		heading2: lipgloss.NewStyle().Bold(true).Foreground(t.Heading2.Color()),
+		heading3: lipgloss.NewStyle().Bold(true).Foreground(t.Heading3.Color()),
+		heading4: lipgloss.NewStyle().Bold(true).Foreground(t.Heading4.Color()),
 	}
 }
