@@ -1,0 +1,48 @@
+version: 2
+
+project_name: comments
+
+builds:
+  - main: ./cmd/comments
+    binary: comments
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+archives:
+  # Version-free asset names keep the releases/latest/download/ URLs stable
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+
+release:
+  footer: |
+    ## Install
+
+    ```bash
+    # macOS (Apple Silicon)
+    curl -sL https://github.com/rcliao/comments/releases/download/{{ .Tag }}/comments_darwin_arm64.tar.gz | tar xz comments
+    mv comments ~/.local/bin/   # or anywhere on PATH
+    ```
+
+    Or with Go: `go install github.com/rcliao/comments/cmd/comments@{{ .Tag }}`
+
+    Claude Code plugin (skill + MCP server): `/plugin marketplace add rcliao/comments` then `/plugin install comments@comments`

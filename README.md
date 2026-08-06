@@ -21,7 +21,12 @@ Google-Docs-style review for markdown, in the terminal. Inline comment threads a
 ## Install
 
 ```bash
-# the binary (required)
+# the binary (required) — prebuilt, no Go toolchain needed:
+# grab the archive for your platform from the latest release
+#   https://github.com/rcliao/comments/releases/latest
+curl -sL https://github.com/rcliao/comments/releases/latest/download/comments_darwin_arm64.tar.gz | tar xz comments && mv comments ~/.local/bin/
+
+# or, with Go installed:
 go install github.com/rcliao/comments/cmd/comments@latest
 
 # the Claude Code plugin: review-comments skill + MCP server, one install
