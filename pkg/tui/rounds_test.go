@@ -262,7 +262,7 @@ func TestHelpAndHintBarMentionNewMotions(t *testing.T) {
 	m.width, m.height = 120, 40
 	m.handleResize()
 	m.mode = ModeLineSelect
-	if out := m.viewBrowse(); !strings.Contains(out, " n/N ") {
+	if out := m.viewBrowse(); !strings.Contains(out, "n/N:") {
 		t.Error("line-select hint bar should mention  n/N ")
 	}
 }
