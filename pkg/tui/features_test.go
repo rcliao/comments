@@ -5,6 +5,7 @@ package tui
 // overlay, and position persistence.
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -363,5 +364,45 @@ func TestCtrlCSavesViewStateOnQuit(t *testing.T) {
 	st, ok := loadViewState(docPath)
 	if !ok || st.SelectedLine != 5 {
 		t.Errorf("ctrl+c should persist the reading position, ok=%v state=%+v", ok, st)
+	}
+}
+
+// --- Error-state escape hatch ----------------------------------------------
+
+func TestErrorStateClearedByAnyKey(t *testing.T) {
+	m := testModel(nil)
+	m.err = errors.New("boom")
+
+	if !strings.Contains(m.View(), "Error: boom") {
+		t.Fatal("View should show the error screen while err is set")
+	}
+	if !strings.Contains(m.View(), "Press any key to continue") {
+		t.Error("error screen should advertise the any-key escape hatch")
+	}
+
+	next, _ := m.handleKeyPress(keyMsg("x"))
+	nm := next.(Model)
+	if nm.err != nil {
+		t.Errorf("any key should clear the error, still set: %v", nm.err)
+	}
+	if nm.mode != ModeBrowse {
+		t.Errorf("with a loaded doc, clearing the error should return to browse, got %v", nm.mode)
+	}
+	if strings.Contains(nm.View(), "Error: boom") {
+		t.Error("error screen should be gone after a key press")
+	}
+}
+
+func TestErrorStateWithoutDocReturnsToFilePicker(t *testing.T) {
+	m := NewModel()
+	m.err = errors.New("load failed")
+
+	next, _ := m.Update(keyMsg("j"))
+	nm := next.(Model)
+	if nm.err != nil {
+		t.Errorf("key press via Update should clear the error, still set: %v", nm.err)
+	}
+	if nm.mode != ModeFilePicker {
+		t.Errorf("with no doc loaded, clearing the error should return to the file picker, got %v", nm.mode)
 	}
 }

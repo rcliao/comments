@@ -129,8 +129,30 @@ func parseTemplate(data []byte) (*Template, error) {
 	return &t, nil
 }
 
+// headingMatchesPath reports whether a template heading matches a section path
+// (" > "-separated) on whole-segment boundaries. A single-segment heading like
+// "Problem" matches only a section titled exactly "Problem" (not "Big Problem");
+// a multi-segment heading like "Impl > Details" matches only whole trailing
+// segments of the path ("A > Impl > Details" yes, "A > Impl > More Details" no).
+func headingMatchesPath(heading, path string) bool {
+	want := strings.Split(heading, " > ")
+	have := strings.Split(path, " > ")
+	if len(want) > len(have) {
+		return false
+	}
+	offset := len(have) - len(want)
+	for i, seg := range want {
+		if have[offset+i] != seg {
+			return false
+		}
+	}
+	return true
+}
+
 // findTemplateSection locates the document section matching a template heading.
-// Matches by exact title, or by path suffix for nested headings ("A > B").
+// Matches by exact title, or by whole-segment path suffix for nested headings
+// ("A > B"). All template matching (validation, seeding, zone lookup) goes
+// through this single helper so the rule cannot drift between sites.
 func findTemplateSection(structure *markdown.DocumentStructure, heading string) *markdown.Section {
 	var found *markdown.Section
 	var walk func(sections []*markdown.Section, parentPath string)
@@ -140,7 +162,7 @@ func findTemplateSection(structure *markdown.DocumentStructure, heading string) 
 			if parentPath != "" {
 				path = parentPath + " > " + s.Title
 			}
-			if found == nil && (s.Title == heading || strings.HasSuffix(path, heading)) {
+			if found == nil && headingMatchesPath(heading, path) {
 				found = s
 			}
 			walk(s.Children, path)

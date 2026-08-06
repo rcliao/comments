@@ -340,23 +340,34 @@ func (m *Model) renderDocumentWithCursor() string {
 	return rendered.String()
 }
 
+// truncate shortens s to at most max runes, cutting on a rune boundary and
+// appending ellipsis when it doesn't fit (the ellipsis counts toward max).
+// Byte slicing (s[:n]) splits multi-byte runes (CJK, emoji) into mojibake —
+// always use this helper for display truncation.
+func truncate(s string, max int, ellipsis string) string {
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	keep := max - len([]rune(ellipsis))
+	if keep < 0 {
+		keep = 0
+	}
+	return string(runes[:keep]) + ellipsis
+}
+
 // getCommentTypeColor returns the color for a comment based on its type prefix
 func getCommentTypeColor(text string) string {
-	if len(text) < 3 {
-		return ""
-	}
-
-	prefix := text[:3]
-	switch prefix {
-	case "[B]": // Blocker
+	switch {
+	case strings.HasPrefix(text, "[B]"): // Blocker
 		return string(activeTheme.TypeB)
-	case "[Q]": // Question
+	case strings.HasPrefix(text, "[Q]"): // Question
 		return string(activeTheme.TypeQ)
-	case "[S]": // Suggestion
+	case strings.HasPrefix(text, "[S]"): // Suggestion
 		return string(activeTheme.TypeS)
-	case "[T]": // Technical
+	case strings.HasPrefix(text, "[T]"): // Technical
 		return string(activeTheme.TypeT)
-	case "[E]": // Editorial
+	case strings.HasPrefix(text, "[E]"): // Editorial
 		return string(activeTheme.TypeE)
 	default:
 		return ""
@@ -538,10 +549,7 @@ func (m *Model) renderComments() string {
 				continue
 			}
 
-			summary := c.Text
-			if len(summary) > 46 {
-				summary = summary[:46] + "…"
-			}
+			summary := truncate(c.Text, 47, "…")
 			text := fmt.Sprintf("  %s@%s%s%s: %s", resolvedMark, c.Author, threadMarkers(c), newBadge, summary)
 			rendered.WriteString(style.Render(text))
 			rendered.WriteString("\n")

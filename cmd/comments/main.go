@@ -439,24 +439,9 @@ func getCommand(filename string, args []string) {
 	// Compute section metadata for all comments if not already present
 	comment.ComputeSectionsForComments(doc)
 
-	// Find the thread
-	var foundComment *comment.Comment
-	for _, thread := range doc.Threads {
-		if thread.ID == *threadID {
-			foundComment = thread
-			break
-		}
-		// Also search in replies
-		for _, reply := range thread.Replies {
-			if reply.ID == *threadID {
-				foundComment = reply
-				break
-			}
-		}
-		if foundComment != nil {
-			break
-		}
-	}
+	// Find the comment anywhere in the nested thread tree (root, reply,
+	// or reply-to-reply at any depth)
+	foundComment := doc.FindCommentByID(*threadID)
 
 	if foundComment == nil {
 		fmt.Printf("Error: Thread with ID '%s' not found\n", *threadID)
@@ -480,7 +465,7 @@ func filterCommentsByType(comments []*comment.Comment, typePrefix string) []*com
 	targetPrefix := "[" + typePrefix + "]"
 
 	for _, c := range comments {
-		if len(c.Text) >= len(targetPrefix) && c.Text[:len(targetPrefix)] == targetPrefix {
+		if strings.HasPrefix(c.Text, targetPrefix) {
 			filtered = append(filtered, c)
 		}
 	}

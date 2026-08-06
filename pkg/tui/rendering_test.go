@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -403,5 +404,68 @@ func TestOpenCommentMotions(t *testing.T) {
 	prev, _ := nm.handleLineSelectKeys(keyMsg("["))
 	if prev.(Model).selectedLine != 3 {
 		t.Errorf("[ should jump back to line 3, got %d", prev.(Model).selectedLine)
+	}
+}
+
+func TestTruncateRuneSafe(t *testing.T) {
+	cases := []struct {
+		name     string
+		in       string
+		max      int
+		ellipsis string
+		want     string
+	}{
+		{"short ascii unchanged", "hello", 10, "...", "hello"},
+		{"exact fit unchanged", strings.Repeat("a", 60), 60, "...", strings.Repeat("a", 60)},
+		{"long ascii cut", strings.Repeat("a", 61), 60, "...", strings.Repeat("a", 57) + "..."},
+		{"cjk cut on rune boundary", strings.Repeat("日", 50), 10, "…", strings.Repeat("日", 9) + "…"},
+		{"emoji cut on rune boundary", strings.Repeat("🎉", 20), 5, "...", "🎉🎉..."},
+		{"mixed ascii cjk", "ab" + strings.Repeat("界", 10), 6, "…", "ab界界界…"},
+		{"combining chars stay valid", strings.Repeat("é", 40), 10, "…", ""},
+	}
+	for _, tc := range cases {
+		got := truncate(tc.in, tc.max, tc.ellipsis)
+		if !utf8.ValidString(got) {
+			t.Errorf("%s: truncate produced invalid UTF-8: %q", tc.name, got)
+		}
+		if n := len([]rune(got)); n > tc.max {
+			t.Errorf("%s: result is %d runes, exceeds max %d: %q", tc.name, n, tc.max, got)
+		}
+		if tc.want != "" && got != tc.want {
+			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
+		}
+	}
+
+	// The old byte-slicing bug: s[:57] inside a multi-byte rune. The helper
+	// must never produce the replacement-character mojibake that displayed.
+	s := strings.Repeat("汉", 30) // 90 bytes, 30 runes
+	got := truncate(s, 60, "...")
+	if got != s {
+		t.Errorf("30 runes fit in max 60, should be unchanged, got %q", got)
+	}
+	if bad := truncate(s, 10, "..."); strings.ContainsRune(bad, utf8.RuneError) {
+		t.Errorf("truncate split a rune: %q", bad)
+	}
+}
+
+func TestSidebarSummaryTruncationIsRuneSafe(t *testing.T) {
+	// A collapsed (non-focused) sidebar entry with a long CJK text must not
+	// render mojibake. Put the long thread on a different line from the
+	// focused one so it renders collapsed.
+	long := strings.Repeat("測試文字", 30) // 120 runes
+	m := testModel([]*comment.Comment{
+		{ID: "c1", Line: 5, Text: "focused", Author: "a"},
+		{ID: "c2", Line: 9, Text: long, Author: "b"},
+	})
+	m.selectedComment = 0
+	out := m.renderComments()
+	if !utf8.ValidString(out) {
+		t.Fatal("sidebar output contains invalid UTF-8")
+	}
+	if strings.ContainsRune(out, utf8.RuneError) {
+		t.Error("sidebar output contains U+FFFD mojibake from byte truncation")
+	}
+	if !strings.Contains(out, "…") {
+		t.Error("long collapsed summary should be ellipsized")
 	}
 }

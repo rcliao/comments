@@ -281,6 +281,25 @@ func (m *Model) refreshDocumentPane() {
 
 // handleKeyPress handles keyboard input based on current mode
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Error escape hatch: while an error is displayed (View short-circuits to
+	// the error screen), any key dismisses it and returns to a sane mode —
+	// browse when a document is loaded, otherwise the file picker.
+	if m.err != nil {
+		m.err = nil
+		if m.doc != nil {
+			m.mode = ModeBrowse
+			if m.ready {
+				m.refreshDocumentPane()
+				m.commentViewport.SetContent(m.renderComments())
+			}
+		} else {
+			m.mode = ModeFilePicker
+			m.filename = ""
+			m.ready = false
+		}
+		return m, nil
+	}
+
 	switch m.mode {
 	case ModeFilePicker:
 		return m.handleFilePickerKeys(msg)
@@ -1218,7 +1237,7 @@ func (m *Model) saveDocument() error {
 // View renders the UI based on current mode
 func (m Model) View() string {
 	if m.err != nil {
-		return fmt.Sprintf("Error: %v\n\nPress q to quit", m.err)
+		return fmt.Sprintf("Error: %v\n\nPress any key to continue", m.err)
 	}
 
 	switch m.mode {
@@ -1504,11 +1523,8 @@ func (m Model) viewReply() string {
 		m.selectedThread.Author,
 		m.selectedThread.Timestamp.Format("2006-01-02 15:04"))
 
-	// Truncate root comment if too long
-	rootText := m.selectedThread.Text
-	if len(rootText) > 60 {
-		rootText = rootText[:57] + "..."
-	}
+	// Truncate root comment if too long (rune-safe)
+	rootText := truncate(m.selectedThread.Text, 60, "...")
 	fmt.Fprintf(&threadContext, "│ %s\n", rootText)
 
 	// Show recent replies (last 2)
@@ -1526,11 +1542,8 @@ func (m Model) viewReply() string {
 				reply.Author,
 				reply.Timestamp.Format("2006-01-02 15:04"))
 
-			// Truncate reply if too long
-			replyText := reply.Text
-			if len(replyText) > 60 {
-				replyText = replyText[:57] + "..."
-			}
+			// Truncate reply if too long (rune-safe)
+			replyText := truncate(reply.Text, 60, "...")
 			fmt.Fprintf(&threadContext, "│ %s\n", replyText)
 		}
 	}

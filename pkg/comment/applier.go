@@ -102,18 +102,38 @@ func PreviewSuggestion(content string, suggestion *Comment) (string, error) {
 	return preview.String(), nil
 }
 
-// ApplyAllSuggestions applies multiple suggestions to the document
-// Suggestions should be sorted by line number in descending order (bottom to top)
-// to avoid line number shifts affecting subsequent suggestions
+// SuggestionLinesAdded returns the number of lines the suggestion's proposed
+// text inserts in place of [StartLine, EndLine]. An empty ProposedText is a
+// pure deletion and inserts 0 lines. Use this as the linesAdded argument to
+// RecalculateCommentLines after applying a suggestion.
+func SuggestionLinesAdded(suggestion *Comment) int {
+	if suggestion.ProposedText == "" {
+		return 0
+	}
+	return len(strings.Split(suggestion.ProposedText, "\n"))
+}
+
+// ApplyAllSuggestions applies multiple suggestions to the document in the
+// order given. After each successful application, the positions of the
+// remaining (not yet applied) suggestions are recalculated via
+// RecalculateCommentLines, so callers no longer need to pre-sort
+// suggestions bottom-to-top. Note that this mutates the StartLine/EndLine
+// of the passed suggestions to keep them consistent with the returned
+// content.
 func ApplyAllSuggestions(content string, suggestions []*Comment) (string, error) {
 	result := content
 	var err error
 
 	// Apply each suggestion
-	for _, suggestion := range suggestions {
+	for i, suggestion := range suggestions {
 		result, err = ApplySuggestion(result, suggestion)
 		if err != nil {
 			return "", fmt.Errorf("failed to apply suggestion %s: %w", suggestion.ID, err)
+		}
+		// Shift the ranges of the suggestions not yet applied so they still
+		// target the right lines after this edit changed the line count.
+		if rest := suggestions[i+1:]; len(rest) > 0 {
+			RecalculateCommentLines(rest, suggestion.StartLine, suggestion.EndLine, SuggestionLinesAdded(suggestion))
 		}
 	}
 

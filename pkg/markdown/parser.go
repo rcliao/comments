@@ -15,9 +15,27 @@ var (
 func ParseDocument(content string) *DocumentStructure {
 	lines := strings.Split(content, "\n")
 
-	// First pass: identify all headings
+	// First pass: identify all headings, skipping lines inside fenced code blocks
 	headings := []headingInfo{}
+	inFence := false
+	var fenceChar byte
+	fenceLen := 0
+
 	for i, line := range lines {
+		if inFence {
+			if closesFence(line, fenceChar, fenceLen) {
+				inFence = false
+			}
+			continue // lines inside a fence (including the closer) are never headings
+		}
+
+		if ch, length, ok := parseFenceOpen(line); ok {
+			inFence = true
+			fenceChar = ch
+			fenceLen = length
+			continue
+		}
+
 		if matches := headingRegex.FindStringSubmatch(line); matches != nil {
 			level := len(matches[1]) // Count the # characters
 			title := strings.TrimSpace(matches[2])
@@ -44,6 +62,69 @@ func ParseDocument(content string) *DocumentStructure {
 		SectionsByID:   sectionsByID,
 		SectionsByLine: sectionsByLine,
 	}
+}
+
+// trimFenceIndent strips up to 3 leading spaces (CommonMark allows fences to be
+// indented up to 3 spaces). Returns the line and false if indented 4+ spaces.
+func trimFenceIndent(line string) (string, bool) {
+	indent := 0
+	for indent < len(line) && line[indent] == ' ' {
+		indent++
+	}
+	if indent > 3 {
+		return "", false
+	}
+	return line[indent:], true
+}
+
+// parseFenceOpen reports whether a line opens a fenced code block.
+// A fence opens with 3+ backticks or tildes (up to 3 spaces of indentation),
+// optionally followed by an info string. Per CommonMark, the info string of a
+// backtick fence may not contain backticks.
+func parseFenceOpen(line string) (fenceChar byte, fenceLen int, ok bool) {
+	s, valid := trimFenceIndent(line)
+	if !valid || len(s) == 0 {
+		return 0, 0, false
+	}
+
+	ch := s[0]
+	if ch != '`' && ch != '~' {
+		return 0, 0, false
+	}
+
+	n := 0
+	for n < len(s) && s[n] == ch {
+		n++
+	}
+	if n < 3 {
+		return 0, 0, false
+	}
+
+	info := s[n:]
+	if ch == '`' && strings.ContainsRune(info, '`') {
+		return 0, 0, false
+	}
+
+	return ch, n, true
+}
+
+// closesFence reports whether a line closes an open fence: at least as many of
+// the same fence character as the opener, with nothing else but whitespace.
+func closesFence(line string, fenceChar byte, fenceLen int) bool {
+	s, valid := trimFenceIndent(line)
+	if !valid {
+		return false
+	}
+
+	n := 0
+	for n < len(s) && s[n] == fenceChar {
+		n++
+	}
+	if n < fenceLen {
+		return false
+	}
+
+	return strings.TrimSpace(s[n:]) == ""
 }
 
 // headingInfo is an intermediate structure used during parsing

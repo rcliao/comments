@@ -367,6 +367,189 @@ With different structure`
 	}
 }
 
+// acceptAndRecalc mirrors the CLI/TUI accept flow: apply the suggestion to
+// the content, mark it accepted, and recalculate all comment positions.
+func acceptAndRecalc(t *testing.T, content string, threads []*Comment, s *Comment) string {
+	t.Helper()
+	newContent, err := ApplySuggestion(content, s)
+	if err != nil {
+		t.Fatalf("ApplySuggestion(%s) failed: %v", s.ID, err)
+	}
+	if err := AcceptSuggestion(threads, s.ID); err != nil {
+		t.Fatalf("AcceptSuggestion(%s) failed: %v", s.ID, err)
+	}
+	RecalculateCommentLines(threads, s.StartLine, s.EndLine, SuggestionLinesAdded(s))
+	return newContent
+}
+
+func TestAcceptStackedSuggestionsGrow(t *testing.T) {
+	content := "line1\nline2\nline3\nline4\nline5\nline6"
+
+	first := NewSuggestion("alice", 2, 2, "expand", "line2", "line2a\nline2b\nline2c")
+	second := NewSuggestion("bob", 5, 5, "fix", "line5", "LINE5")
+	commentAbove := NewComment("carol", 1, "above the edit")
+	commentBelow := NewComment("carol", 6, "below the edit")
+	threads := []*Comment{first, second, commentAbove, commentBelow}
+
+	// Accept the first suggestion: replaces 1 line with 3 (delta +2)
+	content = acceptAndRecalc(t, content, threads, first)
+
+	// The second pending suggestion must have shifted by +2
+	if second.StartLine != 7 || second.EndLine != 7 {
+		t.Fatalf("second suggestion range = %d-%d, want 7-7", second.StartLine, second.EndLine)
+	}
+	// Plain comment below the edit shifts; comment above does not
+	if commentBelow.Line != 8 {
+		t.Errorf("commentBelow line = %d, want 8", commentBelow.Line)
+	}
+	if commentAbove.Line != 1 {
+		t.Errorf("commentAbove line = %d, want 1", commentAbove.Line)
+	}
+
+	// Accepting the second suggestion now edits the right text
+	// (OriginalText verification proves the range points at "line5")
+	content = acceptAndRecalc(t, content, threads, second)
+
+	expected := "line1\nline2a\nline2b\nline2c\nline3\nline4\nLINE5\nline6"
+	if content != expected {
+		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, content)
+	}
+}
+
+func TestAcceptStackedSuggestionsShrink(t *testing.T) {
+	content := "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8"
+
+	first := NewSuggestion("alice", 2, 4, "merge", "line2\nline3\nline4", "merged")
+	second := NewSuggestion("bob", 6, 7, "rewrite", "line6\nline7", "SIX\nSEVEN")
+	commentBelow := NewComment("carol", 8, "below both")
+	threads := []*Comment{first, second, commentBelow}
+
+	// Accept the first suggestion: replaces 3 lines with 1 (delta -2)
+	content = acceptAndRecalc(t, content, threads, first)
+
+	if second.StartLine != 4 || second.EndLine != 5 {
+		t.Fatalf("second suggestion range = %d-%d, want 4-5", second.StartLine, second.EndLine)
+	}
+	if commentBelow.Line != 6 {
+		t.Errorf("commentBelow line = %d, want 6", commentBelow.Line)
+	}
+
+	content = acceptAndRecalc(t, content, threads, second)
+
+	expected := "line1\nmerged\nline5\nSIX\nSEVEN\nline8"
+	if content != expected {
+		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, content)
+	}
+}
+
+func TestAcceptSuggestionAfterDeletionShiftsNext(t *testing.T) {
+	content := "line1\nline2\nline3\nline4\nline5"
+
+	// Pure deletion: ProposedText empty removes lines 2-3 (delta -2)
+	first := NewSuggestion("alice", 2, 3, "delete", "line2\nline3", "")
+	second := NewSuggestion("bob", 5, 5, "fix", "line5", "LINE5")
+	threads := []*Comment{first, second}
+
+	content = acceptAndRecalc(t, content, threads, first)
+
+	if second.StartLine != 3 || second.EndLine != 3 {
+		t.Fatalf("second suggestion range = %d-%d, want 3-3", second.StartLine, second.EndLine)
+	}
+
+	content = acceptAndRecalc(t, content, threads, second)
+
+	expected := "line1\nline4\nLINE5"
+	if content != expected {
+		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, content)
+	}
+}
+
+func TestAcceptSuggestionShiftsNestedReplies(t *testing.T) {
+	content := "line1\nline2\nline3\nline4\nline5\nline6"
+
+	first := NewSuggestion("alice", 2, 2, "expand", "line2", "line2a\nline2b\nline2c")
+	thread := NewComment("carol", 5, "root below edit")
+	reply := NewReply("dave", "reply", thread)
+	nested := NewReply("erin", "nested reply", reply)
+	reply.Replies = append(reply.Replies, nested)
+	thread.Replies = append(thread.Replies, reply)
+	threads := []*Comment{first, thread}
+
+	acceptAndRecalc(t, content, threads, first)
+
+	if thread.Line != 7 {
+		t.Errorf("thread line = %d, want 7", thread.Line)
+	}
+	if reply.Line != 7 {
+		t.Errorf("reply line = %d, want 7", reply.Line)
+	}
+	if nested.Line != 7 {
+		t.Errorf("nested reply line = %d, want 7", nested.Line)
+	}
+}
+
+func TestSuggestionLinesAdded(t *testing.T) {
+	cases := []struct {
+		proposed string
+		want     int
+	}{
+		{"", 0},
+		{"one line", 1},
+		{"a\nb", 2},
+		{"a\nb\nc", 3},
+	}
+
+	for _, tc := range cases {
+		s := &Comment{IsSuggestion: true, ProposedText: tc.proposed}
+		if got := SuggestionLinesAdded(s); got != tc.want {
+			t.Errorf("SuggestionLinesAdded(%q) = %d, want %d", tc.proposed, got, tc.want)
+		}
+	}
+}
+
+func TestApplyAllSuggestionsTopDownOrder(t *testing.T) {
+	content := "line1\nline2\nline3\nline4\nline5\nline6"
+
+	// Ascending order: the first apply grows the document by 2 lines, so
+	// the second suggestion is only correct if ApplyAllSuggestions
+	// recalculates its range between applications.
+	first := NewSuggestion("alice", 2, 2, "expand", "line2", "line2a\nline2b\nline2c")
+	second := NewSuggestion("bob", 5, 5, "fix", "line5", "LINE5")
+
+	result, err := ApplyAllSuggestions(content, []*Comment{first, second})
+	if err != nil {
+		t.Fatalf("ApplyAllSuggestions failed: %v", err)
+	}
+
+	expected := "line1\nline2a\nline2b\nline2c\nline3\nline4\nLINE5\nline6"
+	if result != expected {
+		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, result)
+	}
+
+	// The second suggestion's range was updated to match the new content
+	if second.StartLine != 7 || second.EndLine != 7 {
+		t.Errorf("second suggestion range = %d-%d, want 7-7", second.StartLine, second.EndLine)
+	}
+}
+
+func TestApplyAllSuggestionsBottomUpStillWorks(t *testing.T) {
+	content := "line1\nline2\nline3\nline4\nline5\nline6"
+
+	lower := NewSuggestion("bob", 5, 5, "fix", "line5", "LINE5")
+	upper := NewSuggestion("alice", 2, 2, "expand", "line2", "line2a\nline2b\nline2c")
+
+	// Old contract: bottom-to-top ordering must keep working
+	result, err := ApplyAllSuggestions(content, []*Comment{lower, upper})
+	if err != nil {
+		t.Fatalf("ApplyAllSuggestions failed: %v", err)
+	}
+
+	expected := "line1\nline2a\nline2b\nline2c\nline3\nline4\nLINE5\nline6"
+	if result != expected {
+		t.Errorf("Result mismatch.\nExpected:\n%s\nGot:\n%s", expected, result)
+	}
+}
+
 func TestPreviewSuggestion(t *testing.T) {
 	content := `Line 1
 Line 2

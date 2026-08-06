@@ -347,6 +347,164 @@ func TestMultipleLevels(t *testing.T) {
 	}
 }
 
+func TestFencedCodeBlocks(t *testing.T) {
+	type wantHeading struct {
+		title string
+		line  int
+	}
+
+	tests := []struct {
+		name    string
+		content string
+		want    []wantHeading
+	}{
+		{
+			name: "heading inside backtick fence ignored",
+			content: "# Real\n" +
+				"```\n" +
+				"# Not a heading\n" +
+				"```\n",
+			want: []wantHeading{{"Real", 1}},
+		},
+		{
+			name: "heading inside tilde fence ignored",
+			content: "# Real\n" +
+				"~~~\n" +
+				"# Not a heading\n" +
+				"~~~\n",
+			want: []wantHeading{{"Real", 1}},
+		},
+		{
+			name: "fence with info string",
+			content: "# Docs\n" +
+				"```go\n" +
+				"// # comment\n" +
+				"# still not a heading\n" +
+				"```\n" +
+				"# After\n",
+			want: []wantHeading{{"Docs", 1}, {"After", 6}},
+		},
+		{
+			name: "shell comment in code block",
+			content: "# Setup\n" +
+				"\n" +
+				"```bash\n" +
+				"# install dependencies\n" +
+				"npm install\n" +
+				"```\n" +
+				"\n" +
+				"# Usage\n",
+			want: []wantHeading{{"Setup", 1}, {"Usage", 8}},
+		},
+		{
+			name: "unclosed fence swallows rest of document",
+			content: "# Real\n" +
+				"```\n" +
+				"# Hidden 1\n" +
+				"# Hidden 2\n",
+			want: []wantHeading{{"Real", 1}},
+		},
+		{
+			name: "tilde does not close backtick fence",
+			content: "```\n" +
+				"~~~\n" +
+				"# Hidden\n" +
+				"```\n" +
+				"# Visible\n",
+			want: []wantHeading{{"Visible", 5}},
+		},
+		{
+			name: "backtick does not close tilde fence",
+			content: "~~~\n" +
+				"```\n" +
+				"# Hidden\n" +
+				"~~~\n" +
+				"# Visible\n",
+			want: []wantHeading{{"Visible", 5}},
+		},
+		{
+			name: "shorter run does not close longer fence",
+			content: "````\n" +
+				"```\n" +
+				"# Hidden\n" +
+				"````\n" +
+				"# Visible\n",
+			want: []wantHeading{{"Visible", 5}},
+		},
+		{
+			name: "longer run closes shorter fence",
+			content: "```\n" +
+				"# Hidden\n" +
+				"`````\n" +
+				"# Visible\n",
+			want: []wantHeading{{"Visible", 4}},
+		},
+		{
+			name: "closing fence may have trailing whitespace but no info string",
+			content: "```\n" +
+				"# Hidden\n" +
+				"``` text\n" +
+				"# Still hidden\n" +
+				"```   \n" +
+				"# Visible\n",
+			want: []wantHeading{{"Visible", 6}},
+		},
+		{
+			name: "indented fence up to 3 spaces still opens",
+			content: "   ```\n" +
+				"# Hidden\n" +
+				"```\n" +
+				"# Visible\n",
+			want: []wantHeading{{"Visible", 4}},
+		},
+		{
+			name: "headings before and after fences keep correct lines",
+			content: "# One\n" +
+				"text\n" +
+				"```\n" +
+				"# nope\n" +
+				"```\n" +
+				"# Two\n" +
+				"~~~\n" +
+				"## nope\n" +
+				"~~~\n" +
+				"## Three\n",
+			want: []wantHeading{{"One", 1}, {"Two", 6}, {"Three", 10}},
+		},
+		{
+			name: "two backticks is not a fence",
+			content: "``\n" +
+				"# Visible\n",
+			want: []wantHeading{{"Visible", 2}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := ParseDocument(tt.content)
+
+			var got []wantHeading
+			var collect func(sections []*Section)
+			collect = func(sections []*Section) {
+				for _, s := range sections {
+					got = append(got, wantHeading{s.Title, s.StartLine})
+					collect(s.Children)
+				}
+			}
+			collect(doc.Sections)
+
+			if len(got) != len(tt.want) {
+				t.Fatalf("expected %d headings %v, got %d headings %v", len(tt.want), tt.want, len(got), got)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Errorf("heading %d: expected %+v, got %+v", i, tt.want[i], got[i])
+				}
+			}
+		})
+	}
+}
+
 func TestSectionEndLines(t *testing.T) {
 	content := `Line 1
 # Section 1

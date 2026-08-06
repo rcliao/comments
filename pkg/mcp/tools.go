@@ -170,28 +170,46 @@ func (s *Server) handleStatus(ctx context.Context, req *mcp.CallToolRequest, arg
 		return nil, nil, fmt.Errorf("invalid file path: %w", err)
 	}
 
+	// Compute staleness from the raw sidecar BEFORE LoadFromSidecar, which
+	// re-validates and rewrites the sidecar with a refreshed hash. Stale means
+	// the markdown content changed since the sidecar was last written.
+	isStale := false
+	if raw, readErr := os.ReadFile(comment.GetSidecarPath(absPath)); readErr == nil {
+		var stored struct {
+			DocumentHash string `json:"documentHash"`
+		}
+		if json.Unmarshal(raw, &stored) == nil && stored.DocumentHash != "" {
+			if content, contentErr := os.ReadFile(absPath); contentErr == nil {
+				isStale = stored.DocumentHash != comment.ComputeDocumentHash(string(content))
+			}
+		}
+	}
+
 	// Load document with comments
 	doc, err := comment.LoadFromSidecar(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load comments: %w", err)
 	}
 
-	// Calculate statistics
+	// Calculate statistics: thread counts over root threads only,
+	// comment-level counts over the flattened tree (roots + replies)
 	totalThreads := len(doc.Threads)
 	resolvedThreads := 0
 	unresolvedThreads := 0
+	for _, t := range doc.Threads {
+		if t.Resolved {
+			resolvedThreads++
+		} else {
+			unresolvedThreads++
+		}
+	}
+
 	pendingSuggestions := 0
 	orphanedComments := 0
 	suggestionsByAuthor := make(map[string]int)
 
 	allComments := doc.GetAllComments()
 	for _, c := range allComments {
-		if c.Resolved {
-			resolvedThreads++
-		} else {
-			unresolvedThreads++
-		}
-
 		if c.Status == "orphaned" {
 			orphanedComments++
 		}
@@ -206,11 +224,12 @@ func (s *Server) handleStatus(ctx context.Context, req *mcp.CallToolRequest, arg
 	status := DocumentStatus{
 		FilePath:            absPath,
 		TotalThreads:        totalThreads,
+		TotalComments:       len(allComments),
 		ResolvedThreads:     resolvedThreads,
 		UnresolvedThreads:   unresolvedThreads,
 		PendingSuggestions:  pendingSuggestions,
 		OrphanedComments:    orphanedComments,
-		IsStale:             false, // TODO: implement staleness check
+		IsStale:             isStale,
 		DocumentHash:        doc.DocumentHash,
 		LastValidated:       doc.LastValidated.Format("2006-01-02T15:04:05Z"),
 		SuggestionsByAuthor: suggestionsByAuthor,
@@ -533,6 +552,11 @@ func (s *Server) handleAccept(ctx context.Context, req *mcp.CallToolRequest, arg
 		return nil, nil, fmt.Errorf("failed to accept suggestion: %w", err)
 	}
 
+	// Recalculate line numbers for all other comments/suggestions displaced
+	// by the applied edit (mirrors the CLI accept path)
+	comment.RecalculateCommentLines(doc.Threads, suggestion.StartLine, suggestion.EndLine,
+		comment.SuggestionLinesAdded(suggestion))
+
 	// Write the updated content
 	if err := os.WriteFile(absPath, []byte(newContent), 0644); err != nil {
 		return nil, nil, fmt.Errorf("failed to write updated document: %w", err)
@@ -703,27 +727,58 @@ func (s *Server) handleBatchReply(ctx context.Context, req *mcp.CallToolRequest,
 		return nil, nil, fmt.Errorf("failed to load comments: %w", err)
 	}
 
-	// Add all replies
+	// Validate ALL thread IDs exist before adding any replies (atomic
+	// all-or-nothing, matching the CLI batch-reply contract)
+	threadIDs := make(map[string]bool)
+	for _, t := range doc.Threads {
+		threadIDs[t.ID] = true
+	}
+	missing := []string{}
+	seenMissing := make(map[string]bool)
+	for _, replyData := range args.Replies {
+		if !threadIDs[replyData.ThreadID] && !seenMissing[replyData.ThreadID] {
+			missing = append(missing, replyData.ThreadID)
+			seenMissing[replyData.ThreadID] = true
+		}
+	}
+	if len(missing) > 0 {
+		available := make([]string, 0, len(doc.Threads))
+		for _, t := range doc.Threads {
+			available = append(available, t.ID)
+		}
+		return nil, nil, fmt.Errorf(
+			"batch rejected, no replies added: thread ID(s) not found: %s (available threads: %s)",
+			strings.Join(missing, ", "), strings.Join(available, ", "))
+	}
+
+	// Add all replies; any failure past validation is reported explicitly
 	successCount := 0
+	failed := []map[string]any{}
 	for _, replyData := range args.Replies {
 		if err := comment.AddReplyToThread(doc.Threads, replyData.ThreadID, replyData.Author, replyData.Text); err != nil {
-			// Log error but continue with other replies
+			failed = append(failed, map[string]any{
+				"thread_id": replyData.ThreadID,
+				"error":     err.Error(),
+			})
 			continue
 		}
 		successCount++
 	}
 
-	// Save
+	// Save (only what succeeded is in the document)
 	if err := comment.SaveToSidecar(absPath, doc); err != nil {
 		return nil, nil, fmt.Errorf("failed to save comments: %w", err)
 	}
 
-	// Return success
+	// Report result; success only when every reply was added
 	result := map[string]any{
-		"success":     true,
+		"success":     len(failed) == 0,
 		"added_count": successCount,
 		"total_count": len(args.Replies),
 		"message":     fmt.Sprintf("Added %d replies out of %d", successCount, len(args.Replies)),
+	}
+	if len(failed) > 0 {
+		result["failed"] = failed
 	}
 
 	jsonData, err := json.Marshal(result)

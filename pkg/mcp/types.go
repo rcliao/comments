@@ -178,6 +178,7 @@ type GetTemplateRequest struct {
 type DocumentStatus struct {
 	FilePath            string         `json:"filepath"`
 	TotalThreads        int            `json:"total_threads"`
+	TotalComments       int            `json:"total_comments"`
 	ResolvedThreads     int            `json:"resolved_threads"`
 	UnresolvedThreads   int            `json:"unresolved_threads"`
 	PendingSuggestions  int            `json:"pending_suggestions"`

@@ -145,6 +145,124 @@ func TestSectionZone(t *testing.T) {
 	}
 }
 
+func TestHeadingMatchesPath(t *testing.T) {
+	cases := []struct {
+		name    string
+		heading string
+		path    string
+		want    bool
+	}{
+		{"exact title match", "Problem", "Problem", true},
+		{"suffix false positive rejected", "Problem", "Big Problem", false},
+		{"prefix mismatch rejected", "Problem", "Problems", false},
+		{"Design does not match Redesign", "Design", "Redesign", false},
+		{"single segment matches last path segment", "Options Considered", "Design > Options Considered", true},
+		{"segment boundary respected in path", "Options Considered", "Design > More Options Considered", false},
+		{"multi-segment suffix matches whole trailing segments", "Impl > Details", "Doc > Impl > Details", true},
+		{"multi-segment suffix exact path", "Impl > Details", "Impl > Details", true},
+		{"multi-segment partial first segment rejected", "Impl > Details", "Doc > MyImpl > Details", false},
+		{"multi-segment partial last segment rejected", "Impl > Details", "Doc > Impl > More Details", false},
+		{"heading longer than path rejected", "Doc > Impl > Details", "Impl > Details", false},
+		{"case sensitive", "problem", "Problem", false},
+		{"middle segment alone does not match full path tail mismatch", "Impl", "Doc > Impl > Details", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := headingMatchesPath(tc.heading, tc.path); got != tc.want {
+				t.Errorf("headingMatchesPath(%q, %q) = %v, want %v", tc.heading, tc.path, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidateTemplateNoSuffixFalsePositive(t *testing.T) {
+	// "Big Problem" must NOT satisfy the required "Problem" section.
+	doc := `# My Design
+
+## Big Problem
+
+Things are slow.
+
+## Options Considered
+
+### Option A
+
+A.
+
+### Option B
+
+B.
+
+## Unresolved Questions
+
+None.
+`
+	violations := ValidateTemplate(doc, testTemplate(t))
+	found := false
+	for _, v := range violations {
+		if v.Rule == "missing_section" && v.Section == "Problem" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected missing_section for %q (Big Problem must not match), got %v", "Problem", violations)
+	}
+}
+
+const zoneBoundaryTemplateYAML = `template: zone-test
+version: 1
+sections:
+  - heading: "Risks"
+    required: true
+    zone: human
+    review_criteria:
+      - "Are the risks real?"
+`
+
+// Doc where the near-miss section comes first, so the old suffix matching
+// would have latched onto "More Risks" before reaching "Risks".
+const zoneBoundaryDoc = `# Doc
+
+## More Risks
+
+Not the human zone.
+
+## Risks
+
+The human zone.
+`
+
+func TestSectionZoneSegmentBoundary(t *testing.T) {
+	tmpl, err := parseTemplate([]byte(zoneBoundaryTemplateYAML))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Line 5 is inside "More Risks" — must NOT be captured by zone:human "Risks".
+	if zone := SectionZone(zoneBoundaryDoc, tmpl, 5); zone != "" {
+		t.Errorf("expected no zone inside %q, got %q", "More Risks", zone)
+	}
+	// Line 9 is inside "Risks" — must be human.
+	if zone := SectionZone(zoneBoundaryDoc, tmpl, 9); zone != ZoneHuman {
+		t.Errorf("expected human zone inside %q, got %q", "Risks", zone)
+	}
+}
+
+func TestComputeSeedTargetsSegmentBoundary(t *testing.T) {
+	tmpl, err := parseTemplate([]byte(zoneBoundaryTemplateYAML))
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets := ComputeSeedTargets(zoneBoundaryDoc, tmpl, false)
+	if len(targets) != 1 {
+		t.Fatalf("expected 1 seed target, got %d: %v", len(targets), targets)
+	}
+	// "Risks" heading is line 7; the old suffix match would anchor at
+	// "More Risks" (line 3).
+	if targets[0].Line != 7 {
+		t.Errorf("criteria must anchor at the Risks heading (line 7), got %d", targets[0].Line)
+	}
+}
+
 func TestLoadBuiltinTemplates(t *testing.T) {
 	for _, name := range []string{"design-doc", "adr", "rfc"} {
 		tmpl, err := LoadTemplate(name)
