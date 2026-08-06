@@ -70,6 +70,37 @@ var (
 				Foreground(lipgloss.Color("240")).
 				Italic(true)
 
+	// NEW-activity badge: thread has replies newer than the last signoff
+	newBadgeStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("205")).
+			Bold(true)
+
+	// Dimmed round separators between replies that straddle a signoff
+	roundSeparatorStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("240"))
+
+	// In-place markdown span styling: syntax glyphs stay visible but dimmed
+	syntaxGlyphStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("240"))
+
+	// Bold/italic span content (glyphs excluded, handled by syntaxGlyphStyle)
+	boldSpanStyle   = lipgloss.NewStyle().Bold(true)
+	italicSpanStyle = lipgloss.NewStyle().Italic(true)
+
+	// Inline code span content
+	codeSpanStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("173"))
+
+	// List bullets (-, *, +, numbered)
+	bulletStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("214")).
+			Bold(true)
+
+	// Blockquote > bars
+	quoteBarStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("108")).
+			Bold(true)
+
 	// Modal overlay
 	modalOverlayStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).

@@ -569,6 +569,36 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.refreshSidebar()
 		return m, nil
 
+	case "]r":
+		// Jump to next line whose threads have NEW activity since the last
+		// signoff (the inbox motion, mirroring ]/[ above)
+		since := lastSignoffTime(m.doc.Reviews)
+		for _, c := range m.visibleComments() {
+			if c.Line > m.selectedLine && threadHasNewActivity(c, since) {
+				m.selectedLine = c.Line
+				break
+			}
+		}
+		m.documentViewport.SetContent(m.renderDocumentWithCursor())
+		m.scrollToLine(m.selectedLine)
+		m.refreshSidebar()
+		return m, nil
+
+	case "[r":
+		// Jump to previous line whose threads have NEW activity
+		since := lastSignoffTime(m.doc.Reviews)
+		visible := m.visibleComments()
+		for i := len(visible) - 1; i >= 0; i-- {
+			if visible[i].Line < m.selectedLine && threadHasNewActivity(visible[i], since) {
+				m.selectedLine = visible[i].Line
+				break
+			}
+		}
+		m.documentViewport.SetContent(m.renderDocumentWithCursor())
+		m.scrollToLine(m.selectedLine)
+		m.refreshSidebar()
+		return m, nil
+
 	case "r":
 		// Dive into the focused thread on this line (reply from there)
 		if thread := m.focusedThreadAtCursor(); thread != nil {
@@ -1249,7 +1279,7 @@ func (m Model) viewBrowse() string {
 
 	var helpText string
 	if m.mode == ModeLineSelect {
-		helpText = "j/k: move • r: open thread • Tab: cycle threads on line • c: comment • s: suggest • t: TOC • ?: help • Esc: cancel"
+		helpText = "j/k: move • r: open thread • ]r/[r: next/prev NEW • Tab: cycle threads • c: comment • s: suggest • t: TOC • ?: help • Esc: cancel"
 	} else {
 		quitText := "back"
 		if m.startedWithFile {

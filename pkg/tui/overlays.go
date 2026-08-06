@@ -29,6 +29,7 @@ func helpGroups() []helpGroup {
 			{"Ctrl+D / Ctrl+U", "half page down / up"},
 			{"g / G", "first / last line"},
 			{"] / [", "next / previous open comment"},
+			{"]r / [r", "next / previous NEW activity (since last signoff)"},
 			{"t", "table of contents (jump to section)"},
 		}},
 		{"Threads", [][2]string{

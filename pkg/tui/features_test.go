@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -204,14 +205,14 @@ func TestSidebarDensityCycle(t *testing.T) {
 // --- Virtual-text line summaries -------------------------------------------
 
 func TestLineSummaryPure(t *testing.T) {
-	if got := lineSummary(nil); got != "" {
+	if got := lineSummary(nil, time.Time{}); got != "" {
 		t.Errorf("no threads should yield empty summary, got %q", got)
 	}
 	threads := []*comment.Comment{
 		{Author: "rcliao", Text: "open one"},
 		{Author: "claude", Text: "done", Resolved: true},
 	}
-	got := lineSummary(threads)
+	got := lineSummary(threads, time.Time{})
 	if !strings.Contains(got, "@rcliao") || !strings.Contains(got, "×2") || !strings.Contains(got, "1 open") {
 		t.Errorf("summary should read like `· @rcliao ×2 1 open`, got %q", got)
 	}

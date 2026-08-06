@@ -6,6 +6,22 @@ Convention: newest entry first. Tag friction items `[friction]`, validated wins 
 
 ---
 
+## 2026-08-05 — Thread tracking (rounds/NEW) + in-place span styling shipped together
+
+**What we did:** Implemented `docs/design-markdown-render.md` as decided in review: Phase A thread tracking (round markers, thread timeline, `]r`/`[r` motions) and Phase B step 4 (in-place markdown span styling), one batch. Step 5 (full rendered mode) stays parked behind the lived-experience off-ramp.
+
+- `[win]` Signoff timestamps now partition every thread into review rounds via three pure functions (`lastSignoffTime`, `threadHasNewActivity`, `roundNumber`) — no new stored state, the review history we already had answers "what changed since my last pass". No signoffs yet = everything is NEW, which is the honest default.
+- `[win]` `NEW` badges surface unseen activity in the sidebar (expanded and collapsed rows) and in the virtual-text line summaries; expanded threads get dimmed `── round N ──` separators between replies that straddle a signoff, so a conversation's evolution reads as a timeline.
+- `[win]` `]r`/`[r` jump the line-select cursor between lines with NEW activity — the inbox motion from the design doc, mirroring `]`/`[`. Hint bar and `?` help updated.
+- `[win]` `styleMarkdownLine` now styles bold/italic/inline-code content with their syntax glyphs dimmed but *kept*, and colors list bullets and blockquote `>` bars. Span discovery masks claimed bytes so bold delimiters can't seed phantom italics. Invariant tested: ANSI-stripped output is byte-identical to the input — zero reflow, anchors untouched.
+- `[win]` TUI suite 27 → 43 tests; the width-preservation test forces an ANSI256 color profile so it verifies real escape sequences, not the no-TTY plain-text fallback.
+- `[friction]` `]r`/`[r` follow the existing combined-string key convention (like the pre-existing `"]c"` case) — fine for tests and paste-style input, but a true two-key chord needs pending-key state the TUI doesn't have yet. Worth revisiting if the motion feels unreachable in a real terminal pass.
+- `[idea]` Open design question stands: should NEW badges clear on view (focus once) or only on reply/resolve? Currently only a new signoff clears them.
+
+**State at entry close:** `go build`, `go vet`, full `go test ./...` green; root binary rebuilt (stale-binary lesson applied). Awaiting the one human test pass covering both workstreams.
+
+---
+
 ## 2026-08-05 — Cleanup pass: dead review modal removed, .comments/ ignored, stale-binary lesson recorded
 
 **What we did:** Post-review-pack housekeeping: deleted the unreachable `ModeReviewSuggestion` path, gitignored the new `.comments/` view-state dirs, and wrote the stale-binary lesson into CI and CLAUDE.md.

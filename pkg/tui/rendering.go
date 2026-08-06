@@ -5,13 +5,135 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
 	"github.com/rcliao/comments/pkg/comment"
 )
 
-// styleMarkdownLine applies syntax highlighting to a markdown line
+// Inline span and line-prefix patterns for in-place markdown styling.
+// All delimiters are ASCII, so regexp byte offsets index the line directly.
+var (
+	codeSpanPattern    = regexp.MustCompile("`[^`]+`")
+	boldStarPattern    = regexp.MustCompile(`\*\*[^*]+\*\*`)
+	boldUnderPattern   = regexp.MustCompile(`__[^_]+__`)
+	italicStarPattern  = regexp.MustCompile(`\*[^*\s][^*]*\*`)
+	italicUnderPattern = regexp.MustCompile(`_[^_\s][^_]*_`)
+
+	quotePrefixPattern    = regexp.MustCompile(`^(\s*)(>+)(\s?)`)
+	bulletPrefixPattern   = regexp.MustCompile(`^(\s*)([-*+])(\s)`)
+	numberedPrefixPattern = regexp.MustCompile(`^(\s*)(\d+[.)])(\s)`)
+)
+
+// spanKind classifies an inline markdown span
+type spanKind int
+
+const (
+	spanCode spanKind = iota
+	spanBold
+	spanItalic
+)
+
+// inlineSpan is one styled region of a line: [start,end) byte offsets into
+// the raw line, with markerLen syntax glyphs on each side of the content
+type inlineSpan struct {
+	start, end, markerLen int
+	kind                  spanKind
+}
+
+// findInlineSpans locates non-overlapping code/bold/italic spans in priority
+// order (code wins over bold wins over italic), returned sorted by start.
+// Claimed bytes are masked out before lower-priority patterns scan, so a
+// consumed delimiter (e.g. bold's **) can never seed a later match.
+func findInlineSpans(line string) []inlineSpan {
+	spans := []inlineSpan{}
+	taken := make([]bool, len(line))
+	masked := []byte(line)
+	add := func(re *regexp.Regexp, markerLen int, kind spanKind) {
+		for _, loc := range re.FindAllIndex(masked, -1) {
+			overlaps := false
+			for i := loc[0]; i < loc[1]; i++ {
+				if taken[i] {
+					overlaps = true
+					break
+				}
+			}
+			if overlaps {
+				continue
+			}
+			for i := loc[0]; i < loc[1]; i++ {
+				taken[i] = true
+				masked[i] = 0
+			}
+			spans = append(spans, inlineSpan{start: loc[0], end: loc[1], markerLen: markerLen, kind: kind})
+		}
+	}
+	add(codeSpanPattern, 1, spanCode)
+	add(boldStarPattern, 2, spanBold)
+	add(boldUnderPattern, 2, spanBold)
+	add(italicStarPattern, 1, spanItalic)
+	add(italicUnderPattern, 1, spanItalic)
+	sort.Slice(spans, func(i, j int) bool { return spans[i].start < spans[j].start })
+	return spans
+}
+
+// styleInlineSpans renders bold/italic/inline-code spans in place: content
+// styled, syntax glyphs dimmed but kept, so the ANSI-stripped text is
+// byte-identical to the input (no reflow, anchors untouched)
+func styleInlineSpans(s string) string {
+	spans := findInlineSpans(s)
+	if len(spans) == 0 {
+		return s
+	}
+	var b strings.Builder
+	last := 0
+	for _, sp := range spans {
+		b.WriteString(s[last:sp.start])
+		open := s[sp.start : sp.start+sp.markerLen]
+		content := s[sp.start+sp.markerLen : sp.end-sp.markerLen]
+		close := s[sp.end-sp.markerLen : sp.end]
+		b.WriteString(syntaxGlyphStyle.Render(open))
+		switch sp.kind {
+		case spanCode:
+			b.WriteString(codeSpanStyle.Render(content))
+		case spanBold:
+			b.WriteString(boldSpanStyle.Render(content))
+		case spanItalic:
+			b.WriteString(italicSpanStyle.Render(content))
+		}
+		b.WriteString(syntaxGlyphStyle.Render(close))
+		last = sp.end
+	}
+	b.WriteString(s[last:])
+	return b.String()
+}
+
+// styleLinePrefix colors blockquote > bars and list bullets (-/*/+/numbered)
+// without changing any characters. Returns the styled prefix and the rest of
+// the line (a blockquote's content may itself carry a list bullet).
+func styleLinePrefix(line string) (string, string) {
+	prefix := ""
+	rest := line
+	if m := quotePrefixPattern.FindStringSubmatch(rest); m != nil {
+		prefix += m[1] + quoteBarStyle.Render(m[2]) + m[3]
+		rest = rest[len(m[0]):]
+	}
+	if m := bulletPrefixPattern.FindStringSubmatch(rest); m != nil {
+		prefix += m[1] + bulletStyle.Render(m[2]) + m[3]
+		rest = rest[len(m[0]):]
+	} else if m := numberedPrefixPattern.FindStringSubmatch(rest); m != nil {
+		prefix += m[1] + bulletStyle.Render(m[2]) + m[3]
+		rest = rest[len(m[0]):]
+	}
+	return prefix, rest
+}
+
+// styleMarkdownLine applies in-place syntax styling to a markdown line:
+// headers colored whole-line, bold/italic/inline-code spans styled with their
+// syntax glyphs dimmed (never removed), list bullets and blockquote bars
+// colored. The ANSI-stripped result always equals the input — line widths
+// and anchors are untouched.
 func styleMarkdownLine(line string) string {
 	// Headers - color them for better scannability
 	if strings.HasPrefix(line, "# ") {
@@ -39,37 +161,8 @@ func styleMarkdownLine(line string) string {
 			Render(line)
 	}
 
-	// For non-header lines, apply inline styling (bold/italic) without changing color
-
-	// Bold text **text**
-	boldStarPattern := regexp.MustCompile(`\*\*([^*]+)\*\*`)
-	line = boldStarPattern.ReplaceAllStringFunc(line, func(match string) string {
-		content := boldStarPattern.FindStringSubmatch(match)[1]
-		return lipgloss.NewStyle().Bold(true).Render("**" + content + "**")
-	})
-
-	// Bold text __text__
-	boldUnderPattern := regexp.MustCompile(`__([^_]+)__`)
-	line = boldUnderPattern.ReplaceAllStringFunc(line, func(match string) string {
-		content := boldUnderPattern.FindStringSubmatch(match)[1]
-		return lipgloss.NewStyle().Bold(true).Render("__" + content + "__")
-	})
-
-	// Italic text *text* (but not **)
-	italicStarPattern := regexp.MustCompile(`\*([^*\s][^*]*?)\*`)
-	line = italicStarPattern.ReplaceAllStringFunc(line, func(match string) string {
-		content := italicStarPattern.FindStringSubmatch(match)[1]
-		return lipgloss.NewStyle().Italic(true).Render("*" + content + "*")
-	})
-
-	// Italic text _text_ (but not __)
-	italicUnderPattern := regexp.MustCompile(`_([^_\s][^_]*?)_`)
-	line = italicUnderPattern.ReplaceAllStringFunc(line, func(match string) string {
-		content := italicUnderPattern.FindStringSubmatch(match)[1]
-		return lipgloss.NewStyle().Italic(true).Render("_" + content + "_")
-	})
-
-	return line
+	prefix, rest := styleLinePrefix(line)
+	return prefix + styleInlineSpans(rest)
 }
 
 // rootThreadsByLine groups root threads (not replies) by their anchor line
@@ -113,9 +206,10 @@ func lineMarker(threads []*comment.Comment) string {
 }
 
 // lineSummary builds the dimmed virtual-text summary for a commented line:
-// first thread's author, thread count, open count (`· @rcliao ×2 1 open`).
-// Returns "" for uncommented lines.
-func lineSummary(threads []*comment.Comment) string {
+// first thread's author, thread count, open count (`· @rcliao ×2 1 open`),
+// plus a NEW badge when any thread has activity newer than the last signoff
+// (`since`). Returns "" for uncommented lines.
+func lineSummary(threads []*comment.Comment, since time.Time) string {
 	if len(threads) == 0 {
 		return ""
 	}
@@ -125,7 +219,11 @@ func lineSummary(threads []*comment.Comment) string {
 			open++
 		}
 	}
-	return virtualTextStyle.Render(fmt.Sprintf("· @%s ×%d %d open", threads[0].Author, len(threads), open))
+	summary := virtualTextStyle.Render(fmt.Sprintf("· @%s ×%d %d open", threads[0].Author, len(threads), open))
+	if anyNewActivity(threads, since) {
+		summary += " " + newBadgeStyle.Render("NEW")
+	}
+	return summary
 }
 
 // lineSummarySuffix returns the end-of-line summary (with leading space) for
@@ -134,7 +232,7 @@ func (m *Model) lineSummarySuffix(threads []*comment.Comment) string {
 	if !m.showLineSummaries {
 		return ""
 	}
-	summary := lineSummary(threads)
+	summary := lineSummary(threads, lastSignoffTime(m.doc.Reviews))
 	if summary == "" {
 		return ""
 	}
@@ -337,15 +435,25 @@ func indentWrap(text string, width int, indent string) string {
 	return strings.Join(wrapped, "\n")
 }
 
-// renderReplies renders a thread's replies nested under the root (expanded view)
-func renderReplies(b *strings.Builder, replies []*comment.Comment, width, depth int) {
+// renderReplies renders a thread's replies nested under the root (expanded
+// view), inserting a dimmed `── round N ──` separator whenever a reply falls
+// in a later review round than everything rendered before it (the thread
+// timeline: rounds are partitioned by signoff timestamps, see roundNumber).
+// currentRound carries the round of the previously rendered comment through
+// the recursion, starting at the root's round.
+func renderReplies(b *strings.Builder, replies []*comment.Comment, width, depth int, reviews []comment.ReviewRecord, currentRound *int) {
 	indent := strings.Repeat("  ", depth+1)
 	for _, r := range replies {
+		if round := roundNumber(r.Timestamp, reviews); round != *currentRound {
+			b.WriteString(roundSeparatorStyle.Render(fmt.Sprintf("%s── round %d ──", indent, round)))
+			b.WriteString("\n")
+			*currentRound = round
+		}
 		b.WriteString(replyMetaStyle.Render(fmt.Sprintf("%s└─ @%s · %s", indent, r.Author, r.Timestamp.Format("01-02 15:04"))))
 		b.WriteString("\n")
 		b.WriteString(indentWrap(r.Text, width, indent+"   "))
 		b.WriteString("\n")
-		renderReplies(b, r.Replies, width, depth+1)
+		renderReplies(b, r.Replies, width, depth+1, reviews, currentRound)
 	}
 }
 
@@ -372,6 +480,7 @@ func (m *Model) renderComments() string {
 		statusText = "all"
 	}
 	focus := m.focusLine()
+	since := lastSignoffTime(m.doc.Reviews)
 
 	var rendered strings.Builder
 	rendered.WriteString(fmt.Sprintf("Comments (%d %s)\n\n", len(visible), statusText))
@@ -418,15 +527,22 @@ func (m *Model) renderComments() string {
 				resolvedMark = "✓ "
 			}
 
+			// NEW badge: this thread has activity newer than the last signoff
+			newBadge := ""
+			if threadHasNewActivity(c, since) {
+				newBadge = " " + newBadgeStyle.Render("NEW")
+			}
+
 			if expanded {
 				wrapWidth := m.sidebarWrapWidth()
-				text := fmt.Sprintf("  %s@%s%s · %s\n%s",
-					resolvedMark, c.Author, threadMarkers(c),
+				text := fmt.Sprintf("  %s@%s%s%s · %s\n%s",
+					resolvedMark, c.Author, threadMarkers(c), newBadge,
 					c.Timestamp.Format("2006-01-02 15:04"),
 					indentWrap(c.Text, wrapWidth, "  "))
 				rendered.WriteString(style.Render(text))
 				rendered.WriteString("\n")
-				renderReplies(&rendered, c.Replies, wrapWidth, 1)
+				rootRound := roundNumber(c.Timestamp, m.doc.Reviews)
+				renderReplies(&rendered, c.Replies, wrapWidth, 1, m.doc.Reviews, &rootRound)
 				continue
 			}
 
@@ -434,7 +550,7 @@ func (m *Model) renderComments() string {
 			if len(summary) > 46 {
 				summary = summary[:46] + "…"
 			}
-			text := fmt.Sprintf("  %s@%s%s: %s", resolvedMark, c.Author, threadMarkers(c), summary)
+			text := fmt.Sprintf("  %s@%s%s%s: %s", resolvedMark, c.Author, threadMarkers(c), newBadge, summary)
 			rendered.WriteString(style.Render(text))
 			rendered.WriteString("\n")
 		}

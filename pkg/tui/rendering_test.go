@@ -3,10 +3,13 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/rcliao/comments/pkg/comment"
 )
@@ -285,6 +288,97 @@ func TestVerdictDialogFlow(t *testing.T) {
 	}
 	if len(dm.doc.Reviews) != 1 || dm.doc.Reviews[0].Decision != comment.DecisionApproved {
 		t.Errorf("signoff not recorded: %v", dm.doc.Reviews)
+	}
+}
+
+// --- In-place markdown span styling (Phase B step 4) -------------------------
+
+var ansiPattern = regexp.MustCompile("\x1b\\[[0-9;]*m")
+
+func stripANSI(s string) string { return ansiPattern.ReplaceAllString(s, "") }
+
+// withANSIProfile forces real escape sequences for the test (tests run
+// without a TTY, where lipgloss would otherwise strip all styling) and
+// restores the previous profile afterwards
+func withANSIProfile(t *testing.T) {
+	t.Helper()
+	old := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.ANSI256)
+	t.Cleanup(func() { lipgloss.SetColorProfile(old) })
+}
+
+func TestStyleMarkdownLinePreservesWidth(t *testing.T) {
+	withANSIProfile(t)
+	lines := []string{
+		"plain prose with nothing special",
+		"Some **bold** and *italic* and `code` here.",
+		"__under bold__ and _under italic_ mixed",
+		"- bullet item with **bold** inside",
+		"* star bullet stays a bullet, *this* is italic",
+		"+ plus bullet",
+		"1. numbered item",
+		"42) paren numbered item",
+		"  - indented bullet",
+		"> quoted text with `code`",
+		">> nested quote",
+		"> - bullet inside a quote",
+		"# H1 header",
+		"## H2 header with **bold**",
+		"`code with **not bold** inside`",
+		"broken **unclosed bold and `unclosed tick",
+		"a * b times * c spaced stars",
+		"",
+	}
+	for _, line := range lines {
+		styled := styleMarkdownLine(line)
+		if got := stripANSI(styled); got != line {
+			t.Errorf("ANSI-stripped output must equal input.\n in: %q\nout: %q", line, got)
+		}
+	}
+}
+
+func TestStyleMarkdownLineStylesSpansWithDimmedGlyphs(t *testing.T) {
+	withANSIProfile(t)
+	out := styleMarkdownLine("mix of **bold**, *ital*, and `code` spans")
+
+	if !strings.Contains(out, "\x1b[") {
+		t.Fatal("expected ANSI styling in output")
+	}
+	// Syntax glyphs kept but dimmed (color 240), not removed
+	if !strings.Contains(out, "\x1b[38;5;240m**") {
+		t.Errorf("bold glyphs should render dimmed, got %q", out)
+	}
+	if !strings.Contains(out, "\x1b[38;5;240m`") {
+		t.Errorf("backtick glyphs should render dimmed, got %q", out)
+	}
+	// Content styled: bold weight on bold text, code color on code text
+	if !strings.Contains(out, "\x1b[1mbold") {
+		t.Errorf("bold content should render bold, got %q", out)
+	}
+	if !strings.Contains(out, "\x1b[38;5;173mcode") {
+		t.Errorf("code content should render in the code color, got %q", out)
+	}
+	if !strings.Contains(out, "\x1b[3mital") {
+		t.Errorf("italic content should render italic, got %q", out)
+	}
+}
+
+func TestStyleMarkdownLineColorsBulletsAndQuoteBars(t *testing.T) {
+	withANSIProfile(t)
+	for _, line := range []string{"- item", "* item", "+ item", "3. item", "> quote"} {
+		out := styleMarkdownLine(line)
+		if out == line {
+			t.Errorf("prefix of %q should be styled, got unstyled output", line)
+		}
+		if got := stripANSI(out); got != line {
+			t.Errorf("prefix styling must not change characters: in %q out %q", line, got)
+		}
+	}
+	// The prose after the bullet is NOT swallowed by the bullet style:
+	// only the bullet glyph itself is wrapped
+	out := styleMarkdownLine("- item")
+	if !strings.Contains(out, "m-\x1b[0m item") {
+		t.Errorf("only the bullet glyph should be styled, got %q", out)
 	}
 }
 
