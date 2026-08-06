@@ -284,15 +284,26 @@ func TestSidebarFocusHighlightsDocLine(t *testing.T) {
 }
 
 // lineHasFocusBg reports whether the rendered doc line numbered n carries the
-// cursor/focus background style
+// cursor/focus background style. The gutter is marker-then-number, so the
+// line number is the first all-digit field in the row.
 func lineHasFocusBg(frame string, n int) bool {
+	want := fmt.Sprintf("%d", n)
 	for _, row := range strings.Split(frame, "\n") {
-		plain := stripANSI(row)
-		trimmed := strings.TrimSpace(plain)
-		if strings.HasPrefix(trimmed, fmt.Sprintf("%d ", n)) || strings.HasPrefix(trimmed, fmt.Sprintf("%d", n)) {
-			num := strings.Fields(trimmed)
-			if len(num) > 0 && num[0] == fmt.Sprintf("%d", n) {
+		for _, f := range strings.Fields(stripANSI(row)) {
+			if f == want {
 				return strings.Contains(row, "\x1b[48;") || strings.Contains(row, ";48;")
+			}
+			// stop at the first field that is pure digits but not ours —
+			// that's a different line's number
+			isNum := len(f) > 0
+			for _, r := range f {
+				if r < '0' || r > '9' {
+					isNum = false
+					break
+				}
+			}
+			if isNum {
+				break
 			}
 		}
 	}

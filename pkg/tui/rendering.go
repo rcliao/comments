@@ -378,26 +378,30 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 				wrappedLine = m.styles.selectedLine.Render(wrappedLine)
 			}
 
+			// Marker column sits LEFT of the line number (fixed 4 cells)
+			// so text alignment never shifts on commented lines
+			markerCell := marker + strings.Repeat(" ", max(0, 4-lipgloss.Width(marker)))
+
 			if !withCursor {
 				if j == 0 {
-					// First line: show line number, marker, and virtual-text summary
-					fmt.Fprintf(&rendered, "%s %s %s%s\n", lineNumStr, marker, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
+					// First line: marker, line number, then text + summary
+					fmt.Fprintf(&rendered, "%s%s %s%s\n", markerCell, lineNumStr, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
 				} else {
 					// Continuation lines: indent with spaces
-					fmt.Fprintf(&rendered, "%s %s %s\n", strings.Repeat(" ", 4), "  ", wrappedLine)
+					fmt.Fprintf(&rendered, "%s %s\n", strings.Repeat(" ", 8), wrappedLine)
 				}
 				continue
 			}
 
 			if j == 0 {
-				// First line: show cursor, line number and marker
+				// First line: cursor, marker, line number, text
 				cursor := "  "
 				if isSelected {
 					cursor = m.styles.cursorAccent.Render("▶ ")
 				} else if inRange {
 					cursor = m.styles.rangeMarker.Render("│")
 				}
-				fmt.Fprintf(&rendered, "%s %s %s %s%s\n", cursor, lineNumStr, marker, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
+				fmt.Fprintf(&rendered, "%s %s%s %s%s\n", cursor, markerCell, lineNumStr, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
 			} else {
 				// Continuation lines: indent with spaces
 				displayCursor := "  "
@@ -406,7 +410,7 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 				} else if inRange {
 					displayCursor = m.styles.rangeMarker.Render("│ ")
 				}
-				fmt.Fprintf(&rendered, "%s %s %s %s\n", displayCursor, strings.Repeat(" ", 4), "  ", wrappedLine)
+				fmt.Fprintf(&rendered, "%s %s %s\n", displayCursor, strings.Repeat(" ", 8), wrappedLine)
 			}
 		}
 	}
