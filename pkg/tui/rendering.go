@@ -153,6 +153,44 @@ func (st *styleSet) styleMarkdownLine(line string) string {
 	return prefix + st.styleInlineSpans(rest)
 }
 
+// styleDocLine styles one document line: markdown syntax styling plus link
+// styling for resolvable file references on the line. Segments between
+// references still get inline-span styling; a span that would cross a
+// reference boundary is simply left raw (characters are always preserved —
+// the ANSI-stripped result equals the input). Headings keep whole-line
+// styling and skip reference styling.
+func (m *Model) styleDocLine(line string, lineNum int) string {
+	refs := m.refsByLine[lineNum]
+	styled := make([]resolvedRef, 0, len(refs))
+	for _, r := range refs {
+		if r.resolved && r.StartCol >= 0 && r.EndCol <= len(line) {
+			styled = append(styled, r)
+		}
+	}
+	if len(styled) == 0 || strings.HasPrefix(line, "#") {
+		return m.styles.styleMarkdownLine(line)
+	}
+
+	var b strings.Builder
+	last := 0
+	for i, r := range styled {
+		if r.StartCol < last {
+			continue // overlapping parse; keep the earlier reference
+		}
+		seg := line[last:r.StartCol]
+		if i == 0 {
+			prefix, rest := m.styles.styleLinePrefix(seg)
+			b.WriteString(prefix + m.styles.styleInlineSpans(rest))
+		} else {
+			b.WriteString(m.styles.styleInlineSpans(seg))
+		}
+		b.WriteString(m.styles.refLink.Render(line[r.StartCol:r.EndCol]))
+		last = r.EndCol
+	}
+	b.WriteString(m.styles.styleInlineSpans(line[last:]))
+	return b.String()
+}
+
 // rootThreadsByLine groups root threads (not replies) by their anchor line
 func rootThreadsByLine(threads []*comment.Comment) map[int][]*comment.Comment {
 	byLine := map[int][]*comment.Comment{}
@@ -279,7 +317,7 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 		// background; range keeps raw too)
 		styledLine := line
 		if !isSelected && !inRange {
-			styledLine = m.styles.styleMarkdownLine(line)
+			styledLine = m.styleDocLine(line, lineNum)
 		}
 		if isSelected {
 			lineNumStr = m.styles.cursorLineNum.Render(fmt.Sprintf("%d", lineNum))

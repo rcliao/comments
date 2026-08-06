@@ -52,6 +52,10 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.openTOC()
 		return m, nil
 
+	case "f":
+		// Follow a citation on the cursor line: peek the referenced file
+		return m.openRefPeek()
+
 	case "j", "down":
 		// Move cursor down
 		if m.selectedLine < totalLines {

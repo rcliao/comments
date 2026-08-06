@@ -87,6 +87,10 @@ var modeRegistry = map[ViewMode]modeDescriptor{
 		handleKeys: Model.handleTOCKeys,
 		view:       Model.viewTOC,
 	},
+	ModeRefPeek: {
+		handleKeys: Model.handleRefPeekKeys,
+		view:       Model.viewRefPeek,
+	},
 }
 
 // updateFilePicker forwards non-key messages to the file picker component

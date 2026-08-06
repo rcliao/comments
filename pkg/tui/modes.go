@@ -45,6 +45,9 @@ const (
 
 	// ModeTOC shows the table-of-contents overlay with per-section open counts
 	ModeTOC
+
+	// ModeRefPeek shows a read-only excerpt of a cited file (f on a citation)
+	ModeRefPeek
 )
 
 // String returns the string representation of the view mode
@@ -78,6 +81,8 @@ func (m ViewMode) String() string {
 		return "HELP"
 	case ModeTOC:
 		return "TOC"
+	case ModeRefPeek:
+		return "REF_PEEK"
 	default:
 		return "UNKNOWN"
 	}

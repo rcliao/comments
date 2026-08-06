@@ -62,6 +62,15 @@ type Model struct {
 	rangeActive         bool // True if range selection is active
 	suggestionIsSection bool // True if suggestion is section-based
 
+	// Reference peek state (docs/design-reference-jump.md)
+	refsByLine        map[int][]resolvedRef // citations per doc line, resolved at load
+	refPeekList       []resolvedRef         // references on the peeked line
+	refPeekIdx        int                   // which of refPeekList is shown
+	refPeekReturnMode ViewMode              // mode to restore when closing the peek
+	refPeekContent    []string              // target file lines (read at peek open)
+	refPeekTargetLine int                   // cited line in the target (0 = none)
+	refPeekErr        string                // resolution/read error shown in the peek
+
 	// Review pack state
 	suggestionQueue   map[string]bool // suggestion ID -> accept(true)/reject(false); applied at verdict
 	sidebarDensity    int             // densityFull / densityCondensed / densityHidden (S cycles)
@@ -150,6 +159,8 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 	// Parse sections
 	if doc != nil {
 		m.documentSections = markdown.ParseDocument(doc.Content)
+		// Detect and resolve file references once; rendering and peek only read this
+		m.refsByLine = buildRefMap(doc.Content, filename)
 	}
 
 	// Resume the previous review position, if one was persisted
@@ -185,6 +196,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		return m.handleKeyPress(msg)
+
+	case editorFinishedMsg:
+		// $EDITOR handoff ended; resume the review where it was
+		m.mode = m.refPeekReturnMode
+		if msg.err != nil {
+			m.err = fmt.Errorf("editor: %w", msg.err)
+		}
+		m.refreshCursorView()
+		return m, nil
 	}
 
 	// Delegate to mode-specific updates
@@ -340,6 +360,9 @@ func (m Model) loadFile(path string) (tea.Model, tea.Cmd) {
 
 	// Parse sections
 	m.documentSections = markdown.ParseDocument(m.doc.Content)
+
+	// Detect and resolve file references once; rendering and peek only read this
+	m.refsByLine = buildRefMap(m.doc.Content, path)
 
 	// If we have dimensions, initialize viewports now
 	if m.width > 0 && m.height > 0 {

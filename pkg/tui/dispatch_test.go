@@ -18,6 +18,7 @@ var allModes = []ViewMode{
 	ModeFilePicker, ModeBrowse, ModeLineSelect, ModeAddComment, ModeThreadView,
 	ModeReply, ModeResolve, ModeAddSuggestion, ModeChooseTarget,
 	ModeSelectSuggestionType, ModeSelectRange, ModeVerdict, ModeHelp, ModeTOC,
+	ModeRefPeek,
 }
 
 // dispatchModel builds a ready model in the given mode with enough state for
@@ -41,6 +42,9 @@ func dispatchModel(t *testing.T, mode ViewMode) Model {
 	m.verdictReturnMode = ModeBrowse
 	m.helpReturnMode = ModeBrowse
 	m.tocReturnMode = ModeBrowse
+	m.refPeekReturnMode = ModeLineSelect
+	m.refPeekList = []resolvedRef{{}} // viewRefPeek indexes the list; one unresolved ref
+	m.refPeekErr = "unresolved"
 	m.mode = mode
 	return m
 }

@@ -137,7 +137,7 @@ func (m Model) viewBrowse() string {
 
 	var helpText string
 	if m.mode == ModeLineSelect {
-		helpText = "j/k: move • r: open thread • n/N: next/prev NEW • Tab: cycle threads • c: comment • s: suggest • t: TOC • ?: help • Esc: cancel"
+		helpText = "j/k: move • r: open thread • f: follow ref • n/N: next/prev NEW • Tab: cycle threads • c: comment • s: suggest • t: TOC • ?: help • Esc: cancel"
 	} else {
 		quitText := "back"
 		if m.startedWithFile {

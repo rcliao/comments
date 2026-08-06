@@ -50,6 +50,9 @@ type styleSet struct {
 	// Accented line number, same 4-cell right-aligned box as lineNumber
 	cursorLineNum lipgloss.Style
 
+	// Resolvable file references (citations): link-styled, followable with f
+	refLink lipgloss.Style
+
 	// Range selection
 	rangeMarker  lipgloss.Style
 	selectedLine lipgloss.Style
@@ -145,6 +148,10 @@ func newStyleSet(t Theme) *styleSet {
 			Bold(true).
 			Width(4).
 			Align(lipgloss.Right),
+
+		refLink: lipgloss.NewStyle().
+			Foreground(t.Accent).
+			Underline(true),
 
 		rangeMarker: lipgloss.NewStyle().
 			Foreground(t.Accent).
