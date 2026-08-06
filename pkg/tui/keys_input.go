@@ -275,61 +275,15 @@ func (m Model) handleAddSuggestionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// viewAddComment renders the add comment modal
+// viewAddComment renders the add-comment dialog as a popup over the live
+// document view — the cursor line behind the dialog IS the context, so no
+// document lines are re-printed inside the box.
 func (m Model) viewAddComment() string {
 	if !m.ready {
 		return "Loading..."
 	}
 
 	theme := m.styles.theme
-
-	// Base layout with document
-	modeStr := "Adding Comment"
-	title := m.styles.title.Render(fmt.Sprintf("📄 %s - Mode: %s", m.filename, modeStr))
-
-	// Layout: document on left, comments on right (background)
-	content := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		m.documentViewport.View(),
-		m.styles.commentPanel.Render(m.commentViewport.View()),
-	)
-
-	// Get section-aware context
-	var contextText string
-	sectionContext := m.getSectionContext(m.selectedLine)
-	if sectionContext != "" {
-		// Use section-aware context
-		contextText = sectionContext
-	} else {
-		// Fall back to line-based context if no section found
-		contextLines := m.getContextLines(m.selectedLine, 2)
-		var builder strings.Builder
-
-		contextStyle := lipgloss.NewStyle().
-			Foreground(theme.MetaText.Color()).
-			Italic(true)
-		lineNumStyle := lipgloss.NewStyle().Foreground(theme.LineNumber.Color())
-		highlightStyle := lipgloss.NewStyle().
-			Background(theme.SelectionBg.Color()).
-			Foreground(theme.SelectionFg.Color()).
-			Bold(true)
-
-		builder.WriteString(contextStyle.Render("Document Context:"))
-		builder.WriteString("\n")
-
-		for _, cl := range contextLines {
-			linePrefix := fmt.Sprintf("%4d │ ", cl.LineNum)
-			if cl.LineNum == m.selectedLine {
-				builder.WriteString(lineNumStyle.Bold(true).Render(linePrefix))
-				builder.WriteString(highlightStyle.Render(cl.Text))
-			} else {
-				builder.WriteString(lineNumStyle.Render(linePrefix))
-				builder.WriteString(cl.Text)
-			}
-			builder.WriteString("\n")
-		}
-		contextText = builder.String()
-	}
 
 	// Current selection display
 	selectionStyle := lipgloss.NewStyle().
@@ -385,8 +339,6 @@ func (m Model) viewAddComment() string {
 			lipgloss.Left,
 			modalTitle,
 			"",
-			contextText,
-			"",
 			m.commentInput.View(),
 			"",
 			selectionInfo,
@@ -395,86 +347,21 @@ func (m Model) viewAddComment() string {
 		),
 	)
 
-	// Position modal over content (centered)
-	positioned := lipgloss.Place(
-		m.width,
-		m.height-2,
-		lipgloss.Center,
-		lipgloss.Center,
-		modal,
-		lipgloss.WithWhitespaceChars(" "),
-	)
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		title,
-		lipgloss.Place(
-			m.width,
-			m.height-2,
-			lipgloss.Left,
-			lipgloss.Top,
-			content,
-		),
-		positioned,
-	)
+	return m.dialogOver(m.baseView(), modal)
 }
 
-// viewReply renders the reply modal
+// viewReply renders the reply dialog as a popup over the live document +
+// thread panel — the thread stays visible behind the input, so no thread
+// context is re-printed inside the box.
 func (m Model) viewReply() string {
 	if m.selectedThread == nil {
 		return "No thread selected"
 	}
 
-	title := m.styles.title.Render(fmt.Sprintf("Thread at Line %d", m.selectedThread.Line))
-
-	// Thread content as background
-	threadContent := m.threadViewport.View()
-
-	// Build thread context to show in modal
-	var threadContext strings.Builder
-	contextStyle := lipgloss.NewStyle().
-		Foreground(m.styles.theme.MetaText.Color()).
-		Italic(true)
-
-	threadContext.WriteString(contextStyle.Render("Thread Context:"))
-	threadContext.WriteString("\n\n")
-
-	// Root comment (selectedThread IS the root comment in v2.0)
-	fmt.Fprintf(&threadContext, "┌ @%s · %s\n",
-		m.selectedThread.Author,
-		m.selectedThread.Timestamp.Format("2006-01-02 15:04"))
-
-	// Truncate root comment if too long (rune-safe)
-	rootText := truncate(m.selectedThread.Text, 60, "...")
-	fmt.Fprintf(&threadContext, "│ %s\n", rootText)
-
-	// Show recent replies (last 2)
-	replyCount := len(m.selectedThread.Replies)
-	if replyCount > 0 {
-		startIdx := 0
-		if replyCount > 2 {
-			fmt.Fprintf(&threadContext, "│ ... (%d earlier replies)\n", replyCount-2)
-			startIdx = replyCount - 2
-		}
-
-		for i := startIdx; i < replyCount; i++ {
-			reply := m.selectedThread.Replies[i]
-			fmt.Fprintf(&threadContext, "├ @%s · %s\n",
-				reply.Author,
-				reply.Timestamp.Format("2006-01-02 15:04"))
-
-			// Truncate reply if too long (rune-safe)
-			replyText := truncate(reply.Text, 60, "...")
-			fmt.Fprintf(&threadContext, "│ %s\n", replyText)
-		}
-	}
-	threadContext.WriteString("└──────────────────────\n")
-
-	// Modal overlay for reply input
 	modalTitle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(m.styles.theme.Title.Color()).
-		Render("Reply to Thread")
+		Render(fmt.Sprintf("Reply to Thread at Line %d", m.selectedThread.Line))
 
 	modalHelp := m.styles.help.Render("Ctrl+S: save • Esc: cancel")
 
@@ -483,48 +370,21 @@ func (m Model) viewReply() string {
 			lipgloss.Left,
 			modalTitle,
 			"",
-			threadContext.String(),
-			"",
 			m.commentInput.View(),
 			"",
 			modalHelp,
 		),
 	)
 
-	// Position modal over content (centered)
-	positioned := lipgloss.Place(
-		m.width,
-		m.height-2,
-		lipgloss.Center,
-		lipgloss.Center,
-		modal,
-		lipgloss.WithWhitespaceChars(" "),
-	)
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		title,
-		lipgloss.Place(
-			m.width,
-			m.height-2,
-			lipgloss.Left,
-			lipgloss.Top,
-			threadContent,
-		),
-		positioned,
-	)
+	return m.dialogOver(m.baseView(), modal)
 }
 
-// viewResolve renders the resolve confirmation dialog
+// viewResolve renders the resolve confirmation as a popup over the live
+// document + thread panel.
 func (m Model) viewResolve() string {
 	if m.selectedThread == nil {
 		return "No thread selected"
 	}
-
-	title := m.styles.title.Render(fmt.Sprintf("Thread at Line %d", m.selectedThread.Line))
-
-	// Thread content as background
-	threadContent := m.threadViewport.View()
 
 	// Confirmation dialog
 	confirmTitle := lipgloss.NewStyle().
@@ -548,37 +408,14 @@ func (m Model) viewResolve() string {
 		),
 	)
 
-	// Position dialog over content (centered)
-	positioned := lipgloss.Place(
-		m.width,
-		m.height-2,
-		lipgloss.Center,
-		lipgloss.Center,
-		dialog,
-		lipgloss.WithWhitespaceChars(" "),
-	)
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		title,
-		lipgloss.Place(
-			m.width,
-			m.height-2,
-			lipgloss.Left,
-			lipgloss.Top,
-			threadContent,
-		),
-		positioned,
-	)
+	return m.dialogOver(m.baseView(), dialog)
 }
 
-// viewAddSuggestion renders the add suggestion modal
+// viewAddSuggestion renders the add-suggestion form as a popup over the live
+// document view (the selected range stays highlighted behind it). The
+// original-text field stays in the form: it is the suggestion's payload
+// being edited against, not re-printed document context.
 func (m Model) viewAddSuggestion() string {
-	title := m.styles.title.Render(fmt.Sprintf("Add Suggestion for Line %d", m.selectedLine))
-
-	// Document context as background
-	docContent := m.documentViewport.View()
-
 	// Suggestion creation form
 	formTitle := lipgloss.NewStyle().
 		Bold(true).
@@ -615,26 +452,5 @@ func (m Model) viewAddSuggestion() string {
 		),
 	)
 
-	// Position dialog over content
-	positioned := lipgloss.Place(
-		m.width,
-		m.height-2,
-		lipgloss.Center,
-		lipgloss.Center,
-		dialog,
-		lipgloss.WithWhitespaceChars(" "),
-	)
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		title,
-		lipgloss.Place(
-			m.width,
-			m.height-2,
-			lipgloss.Left,
-			lipgloss.Top,
-			docContent,
-		),
-		positioned,
-	)
+	return m.dialogOver(m.baseView(), dialog)
 }

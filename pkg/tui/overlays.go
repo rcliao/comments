@@ -84,10 +84,10 @@ func (m Model) handleHelpKeys(_ tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// viewHelp renders the full-screen help overlay
+// viewHelp renders the keybinding reference as a popup over the live view
 func (m Model) viewHelp() string {
 	box := m.styles.modalOverlay.Render(m.styles.renderHelpOverlay())
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	return m.dialogOver(m.baseView(), box)
 }
 
 // tocEntry is one row of the TOC overlay: a section path with its open count
@@ -195,8 +195,8 @@ func (m Model) handleTOCKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// viewTOC renders the TOC overlay
+// viewTOC renders the TOC as a popup over the live view
 func (m Model) viewTOC() string {
 	box := m.styles.modalOverlay.Render(m.styles.renderTOC(m.tocEntries, m.tocSelected))
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	return m.dialogOver(m.baseView(), box)
 }

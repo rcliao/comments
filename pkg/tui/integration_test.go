@@ -112,6 +112,48 @@ func TestIntegrationOpenNavigateThreadReturnQuit(t *testing.T) {
 	}
 }
 
+// TestIntegrationThreadReplyPopupOverLiveView drives a REAL program (teatest)
+// through open thread → reply popup over the live doc+panel → esc esc → quit.
+// The v2 renderer diffs cells between frames, so each wait asserts on the
+// newly drawn chrome; full-frame doc+dialog guarantees are covered by
+// TestDialogsShowDocumentInSameFrame, which renders complete frames.
+func TestIntegrationThreadReplyPopupOverLiveView(t *testing.T) {
+	tm := teatest.NewTestModel(t, integrationModel(t), teatest.WithInitialTermSize(100, 40))
+	waitForOutput(t, tm, "j/k: navigate")
+
+	tm.Send(keyMsg("c"))
+	waitForOutput(t, tm, "r: open thread")
+	for range 4 {
+		tm.Send(keyMsg("j"))
+	}
+	tm.Send(keyMsg("r"))
+	waitForOutput(t, tm, "Thread at Line 5", "reworded in the next pass")
+
+	// r opens the reply popup composited over the live doc + thread panel
+	tm.Send(keyMsg("r"))
+	waitForOutput(t, tm, "Reply to Thread")
+
+	// Esc pops the popup back to the panel; Esc again closes the panel
+	tm.Send(keyMsg("esc"))
+	tm.Send(keyMsg("esc"))
+	tm.Send(keyMsg("ctrl+c"))
+	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
+
+	fm, ok := tm.FinalModel(t).(Model)
+	if !ok {
+		t.Fatal("final model is not tui.Model")
+	}
+	if fm.mode != ModeLineSelect || fm.selectedLine != 5 {
+		t.Errorf("esc esc should land in line-select at line 5, got %v line %d", fm.mode, fm.selectedLine)
+	}
+	if fm.selectedThread != nil {
+		t.Error("closing the panel should clear the selected thread")
+	}
+	if fm.VerdictDecision != "" {
+		t.Errorf("ctrl+c must quit without a verdict, got %q", fm.VerdictDecision)
+	}
+}
+
 func TestIntegrationVerdictApproveRecordsSignoff(t *testing.T) {
 	tm := teatest.NewTestModel(t, integrationModel(t), teatest.WithInitialTermSize(100, 40))
 	waitForOutput(t, tm, "j/k: navigate")

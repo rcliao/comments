@@ -458,22 +458,12 @@ func (m *Model) getSectionPath(section *markdown.Section) string {
 	return section.GetFullPath(m.documentSections.SectionsByID)
 }
 
-// viewChooseTarget renders the section vs line choice modal
+// viewChooseTarget renders the section-vs-line choice as a popup over the
+// live document view.
 func (m Model) viewChooseTarget() string {
 	if !m.ready {
 		return "Loading..."
 	}
-
-	// Base layout with document
-	modeStr := "Choose Target"
-	title := m.styles.title.Render(fmt.Sprintf("📄 %s - Mode: %s", m.filename, modeStr))
-
-	// Layout: document on left, comments on right (background)
-	content := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		m.documentViewport.View(),
-		m.styles.commentPanel.Render(m.commentViewport.View()),
-	)
 
 	// Get section info
 	section := m.getSectionAtLine(m.selectedLine)
@@ -502,46 +492,15 @@ func (m Model) viewChooseTarget() string {
 		),
 	)
 
-	// Position modal over content (centered)
-	positioned := lipgloss.Place(
-		m.width,
-		m.height-2,
-		lipgloss.Center,
-		lipgloss.Center,
-		modal,
-		lipgloss.WithWhitespaceChars(" "),
-	)
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		title,
-		lipgloss.Place(
-			m.width,
-			m.height-2,
-			lipgloss.Left,
-			lipgloss.Top,
-			content,
-		),
-		positioned,
-	)
+	return m.dialogOver(m.baseView(), modal)
 }
 
-// viewSelectSuggestionType renders the suggestion type choice modal
+// viewSelectSuggestionType renders the range-vs-section choice as a popup
+// over the live document view.
 func (m Model) viewSelectSuggestionType() string {
 	if !m.ready {
 		return "Loading..."
 	}
-
-	// Base layout with document
-	modeStr := "Choose Suggestion Type"
-	title := m.styles.title.Render(fmt.Sprintf("📄 %s - Mode: %s", m.filename, modeStr))
-
-	// Layout: document on left, comments on right (background)
-	content := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		m.documentViewport.View(),
-		m.styles.commentPanel.Render(m.commentViewport.View()),
-	)
 
 	// Get section info
 	section := m.getSectionAtLine(m.selectedLine)
@@ -570,28 +529,7 @@ func (m Model) viewSelectSuggestionType() string {
 		),
 	)
 
-	// Position modal over content (centered)
-	positioned := lipgloss.Place(
-		m.width,
-		m.height-2,
-		lipgloss.Center,
-		lipgloss.Center,
-		modal,
-		lipgloss.WithWhitespaceChars(" "),
-	)
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		title,
-		lipgloss.Place(
-			m.width,
-			m.height-2,
-			lipgloss.Left,
-			lipgloss.Top,
-			content,
-		),
-		positioned,
-	)
+	return m.dialogOver(m.baseView(), modal)
 }
 
 // viewSelectRange renders the range selection view
