@@ -32,9 +32,62 @@ An unregistered mode has dead keys and renders "Unknown mode";
 
 - `model.go` — Model state, constructors, Update/View, resize, registry dispatch
 - `registry.go` — the mode-descriptor table (single registration point)
-- `keys_browse.go`, `keys_lineselect.go`, `keys_input.go`, `keys_thread.go`, `keys_verdict.go`, `keys_filepicker.go`, `overlays.go` — per-mode key handlers + views
+- `dialogs.go` — dialog composition over the live view (`baseView`, `dialogOver`)
+- `keys_browse.go`, `keys_lineselect.go`, `keys_input.go`, `keys_thread.go`, `keys_threadpanel.go`, `keys_verdict.go`, `keys_refpeek.go`, `keys_filepicker.go`, `overlays.go` — per-mode key handlers + views
 - `rendering.go` — pure render helpers (document, sidebar, thread, markdown spans)
 - `styles.go` / `theme.go` — styleSet construction and theme registry
+
+## Dialog composition (popups over the live view)
+
+No dialog erases the document. Every dialog mode (add-comment, reply,
+resolve, add-suggestion, choose-target, suggestion-type, verdict, help, TOC,
+ref peek) renders its box and composites it over the live screen with the two
+helpers in `dialogs.go`:
+
+- `baseView()` — the screen the dialog interrupts: the thread panel view
+  (doc + panel) while a thread is open (`selectedThread != nil`), otherwise
+  `viewBrowse()`. The title bar keeps announcing the dialog's mode because
+  `viewBrowse` renders `m.mode`.
+- `dialogOver(base, dialog)` — lipgloss v2 compositor, dialog layer centered
+  over the base at Z(1). The base renders at full brightness; dimming it later
+  is one style call on the base layer here. With no laid-out screen
+  (`!m.ready`) it returns the dialog alone.
+
+There is deliberately NO dialog-stack machine: dialogs never nest more than
+one deep over a base view. Modes stay modes (registry entries, key handlers),
+only their VIEW is a composition; Esc pops the one layer by returning to the
+mode underneath. Don't re-print document or thread lines inside a dialog box
+("context" blocks) — the live view behind the popup is the context.
+
+## Thread panel (the thread display)
+
+Opening a thread (`enter` from browse, `r` from line-select) never swaps the
+screen: `ModeThreadView` composites the thread over the live browse view as a
+side-panel takeover (`keys_threadpanel.go`) — the panel replaces the
+comment-sidebar region (right of the doc pane), full content height; when the
+sidebar is hidden it takes the right 40%. `applyThreadPanel()` sizes/fills the
+threadViewport (call it on open/resize); `refreshThreadPane()` re-renders
+content preserving scroll (reply added, decision queued). The panel chrome
+(`renderThreadPanelBox`) draws the thread's ONE header (icon + section path +
+line); `renderThreadWidth` renders only the thread body — no location line, no
+document-context box.
+
+## Focus rules while the panel is open
+
+The screen still reads as browse, so keys split three ways
+(`handleThreadViewKeys`):
+
+- **Thread actions stay on the panel**: `j/k` scroll the THREAD (not the
+  document), `r` opens the reply popup over doc+panel, `a`/`x` queue
+  suggestion decisions (or `x` resolves), `Esc` closes the panel back to
+  where it was opened (browse or line-select, cursor intact).
+- **Browse-shaped keys fall through with browse semantics** instead of dying:
+  `c` closes the panel and starts the comment flow at the cursor line, `q`
+  opens the verdict dialog (Esc restores the panel; `q` does NOT quit from
+  the panel), `?` opens help over the doc+panel view.
+- **Everything else is ignored** (notably `S`/`L`/`t` — close the panel
+  first). If you add a fall-through key, it must behave exactly as it does in
+  browse and must close or preserve the panel deliberately.
 
 ## Styles and themes
 
