@@ -311,10 +311,14 @@ func (m *Model) renderDocumentWithCursor() string {
 		isSelected := lineNum == m.selectedLine
 		inRange := m.rangeActive && lineNum >= m.rangeStartLine && lineNum <= m.rangeEndLine
 
-		// Apply markdown syntax highlighting (only if not selected/in range, as cursor/range style will override)
+		// Syntax styling stays on for the cursor line (subtle bg composes with spans poorly,
+		// so the cursor line keeps raw text but a gentle background; range keeps raw too)
 		styledLine := line
 		if !isSelected && !inRange {
 			styledLine = styleMarkdownLine(line)
+		}
+		if isSelected {
+			lineNumStr = cursorAccentStyle.Render(fmt.Sprintf("%d", lineNum))
 		}
 
 		// Wrap long lines
@@ -323,7 +327,7 @@ func (m *Model) renderDocumentWithCursor() string {
 			if j == 0 {
 				// First line: show cursor, line number and marker
 				if isSelected {
-					cursor = cursorStyle.Render("▶")
+					cursor = cursorAccentStyle.Render("▶")
 					wrappedLine = cursorStyle.Render(wrappedLine)
 				} else if inRange {
 					cursor = rangeMarkerStyle.Render("│")
@@ -334,7 +338,7 @@ func (m *Model) renderDocumentWithCursor() string {
 				// Continuation lines: indent with spaces
 				displayCursor := "  "
 				if isSelected {
-					displayCursor = cursorStyle.Render("  ")
+					displayCursor = cursorAccentStyle.Render("▶ ")
 					wrappedLine = cursorStyle.Render(wrappedLine)
 				} else if inRange {
 					displayCursor = rangeMarkerStyle.Render("│ ")

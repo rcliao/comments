@@ -52,10 +52,14 @@ var (
 	replyMetaStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("243"))
 
-	// Cursor (for line selection)
+	// Cursor (for line selection): subtle cursorline background, text left readable
 	cursorStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("62")).
-			Foreground(lipgloss.Color("230"))
+			Background(lipgloss.Color("237"))
+
+	// Cursor arrow + line number accent on the focused line
+	cursorAccentStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("205")).
+			Bold(true)
 
 	// Range selection
 	rangeMarkerStyle = lipgloss.NewStyle().
