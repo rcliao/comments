@@ -29,6 +29,7 @@ On a branch, port pkg/tui to charm.land v2: import paths, `tea.View` struct retu
 
 **Success Criteria**
 - automated: `go build ./...` and the full suite green under `-race` on the branch; dispatch tests still cover every mode
+- automated: integration tests via teatest (Charm's Bubbletea test harness — decided in review): drive a real program through open → navigate → thread → back, asserting frames, so the port is verified end-to-end rather than only unit-by-unit
 - manual: `comments view` runs a normal review session on the branch with no visible regressions (themes, cursor, sidebar, peek)
 
 ### Phase 2: thread-display prototype — pick by driving, not debating

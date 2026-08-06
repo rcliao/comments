@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "documentHash": "a9e8d16df2b8da6e5ac2c064182835be51d71c187eb367e0dcedd086de7e12a5",
-  "lastValidated": "2026-08-06T11:54:43.213926-07:00",
+  "lastValidated": "2026-08-06T12:01:22.880386-07:00",
   "threads": [
     {
       "ID": "c7ybw",
@@ -18,14 +18,39 @@
         "context_after": "- manual: reply to a thread and queue a suggestion verdict with the doc visibly behind both dialogs; dim-vs-full-brightness decided here by look"
       },
       "AnchorConfidence": "exact",
-      "Resolved": false,
+      "Resolved": true,
       "Blocking": false,
-      "Status": "",
-      "Priority": "",
-      "OriginalLine": 0,
+      "Status": "active",
+      "Priority": "medium",
+      "OriginalLine": 47,
       "OrphanedReason": "",
       "OrphanedAt": null,
-      "Replies": [],
+      "Replies": [
+        {
+          "ID": "c2y2i",
+          "Author": "rcliao",
+          "Timestamp": "2026-08-06T12:01:18.631053-07:00",
+          "Text": "somehow if we can verify by integration testing, it would be the best",
+          "Type": "",
+          "Line": 47,
+          "SectionID": "s9",
+          "SectionPath": "Plan: In-Context TUI (v2 compositing, dialogs over the doc, thread display) \u003e Implementation Phases \u003e Phase 3: dialog stack — the nine faux modals become popups",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "",
+          "Priority": "",
+          "OriginalLine": 0,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
       "IsSuggestion": false,
       "StartLine": 0,
       "EndLine": 0,
@@ -48,20 +73,52 @@
         "context_after": "**Success Criteria**"
       },
       "AnchorConfidence": "exact",
-      "Resolved": false,
+      "Resolved": true,
       "Blocking": false,
-      "Status": "",
-      "Priority": "",
-      "OriginalLine": 0,
+      "Status": "active",
+      "Priority": "medium",
+      "OriginalLine": 29,
       "OrphanedReason": "",
       "OrphanedAt": null,
-      "Replies": [],
+      "Replies": [
+        {
+          "ID": "cqyi6",
+          "Author": "rcliao",
+          "Timestamp": "2026-08-06T12:00:28.465475-07:00",
+          "Text": "delete is fine, I'm the only user and we are tracking changes on git anyway",
+          "Type": "",
+          "Line": 29,
+          "SectionID": "s7",
+          "SectionPath": "Plan: In-Context TUI (v2 compositing, dialogs over the doc, thread display) \u003e Implementation Phases \u003e Phase 1: v2 migration spike (verify before committing)",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "",
+          "Priority": "",
+          "OriginalLine": 0,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
       "IsSuggestion": false,
       "StartLine": 0,
       "EndLine": 0,
       "OriginalText": "",
       "ProposedText": "",
       "Accepted": null
+    }
+  ],
+  "reviews": [
+    {
+      "author": "rcliao",
+      "timestamp": "2026-08-06T12:01:22.880177-07:00",
+      "decision": "approved"
     }
   ]
 }
