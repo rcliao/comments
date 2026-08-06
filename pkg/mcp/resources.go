@@ -32,7 +32,7 @@ func (s *Server) handleDocumentResource(ctx context.Context, req *mcp.ReadResour
 	}
 
 	// Load document with comments
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		// If sidecar doesn't exist, load just the document
 		content, readErr := os.ReadFile(absPath)
@@ -45,8 +45,8 @@ func (s *Server) handleDocumentResource(ctx context.Context, req *mcp.ReadResour
 		}
 	}
 
-	// Serialize to JSON
-	jsonData, err := json.MarshalIndent(doc, "", "  ")
+	// Serialize the canonical snake_case document view
+	jsonData, err := json.MarshalIndent(comment.NewDocumentView(doc), "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize document: %w", err)
 	}
@@ -83,7 +83,7 @@ func (s *Server) handleThreadResource(ctx context.Context, req *mcp.ReadResource
 	}
 
 	// Load document with comments
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load comments: %w", err)
 	}
@@ -101,8 +101,8 @@ func (s *Server) handleThreadResource(ctx context.Context, req *mcp.ReadResource
 		return nil, mcp.ResourceNotFoundError(req.Params.URI)
 	}
 
-	// Serialize thread to JSON (includes all nested replies)
-	jsonData, err := json.MarshalIndent(thread, "", "  ")
+	// Serialize the canonical snake_case thread view (includes all nested replies)
+	jsonData, err := json.MarshalIndent(comment.NewCommentView(thread), "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize thread: %w", err)
 	}

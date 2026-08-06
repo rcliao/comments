@@ -54,8 +54,8 @@ type WatchSnapshot struct {
 	valid        bool // false when the sidecar was missing/unreadable
 }
 
-// TakeSnapshot reads a sidecar RAW (no validation side effects — validation
-// writes the sidecar back, which would make a watcher trigger itself).
+// TakeSnapshot reads a sidecar RAW: no re-anchoring or validation work, just
+// the stored threads/reviews. Keeps polling cheap and strictly side-effect-free.
 func TakeSnapshot(mdPath string) WatchSnapshot {
 	snap := WatchSnapshot{threads: map[string]threadState{}}
 	data, err := os.ReadFile(GetSidecarPath(mdPath))

@@ -1,5 +1,7 @@
 package mcp
 
+import "github.com/rcliao/comments/pkg/comment"
+
 // Tool request/response types for MCP operations
 
 // ListCommentsRequest represents a request to list/filter comments
@@ -191,8 +193,8 @@ type DocumentStatus struct {
 
 // CommentWithContext represents a comment with its surrounding context
 type CommentWithContext struct {
-	Comment      commentJSON `json:"comment"`
-	SectionPath  string      `json:"section_path,omitempty"`
-	ContextLines []string    `json:"context_lines,omitempty"`
-	IsOrphaned   bool        `json:"is_orphaned,omitempty"`
+	Comment      comment.CommentView `json:"comment"`
+	SectionPath  string              `json:"section_path,omitempty"`
+	ContextLines []string            `json:"context_lines,omitempty"`
+	IsOrphaned   bool                `json:"is_orphaned,omitempty"`
 }

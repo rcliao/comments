@@ -12,6 +12,23 @@ import (
 	"github.com/rcliao/comments/pkg/comment"
 )
 
+// loadDoc loads a document plus its comments and persists any re-anchoring or
+// orphan-status migrations discovered during the load — the write half of what
+// comment.LoadFromSidecar used to do internally. MCP surfaces load state via
+// the returned report (e.g. staleness in comments_status) rather than printing.
+func loadDoc(absPath string) (*comment.DocumentWithComments, *comment.LoadReport, error) {
+	doc, report, err := comment.LoadFromSidecar(absPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	if report.Dirty {
+		if err := comment.SaveToSidecar(absPath, doc); err != nil {
+			return nil, nil, fmt.Errorf("failed to persist re-anchored sidecar: %w", err)
+		}
+	}
+	return doc, report, nil
+}
+
 // Read tools
 
 func (s *Server) handleListComments(ctx context.Context, req *mcp.CallToolRequest, args ListCommentsRequest) (*mcp.CallToolResult, any, error) {
@@ -22,7 +39,7 @@ func (s *Server) handleListComments(ctx context.Context, req *mcp.CallToolReques
 	}
 
 	// Load document with comments
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load comments: %w", err)
 	}
@@ -83,7 +100,7 @@ func (s *Server) handleListComments(ctx context.Context, req *mcp.CallToolReques
 	result := map[string]any{
 		"filepath": absPath,
 		"total":    len(filtered),
-		"comments": toCommentJSONList(filtered),
+		"comments": comment.NewCommentViews(filtered),
 	}
 
 	// Add context if requested
@@ -92,7 +109,7 @@ func (s *Server) handleListComments(ctx context.Context, req *mcp.CallToolReques
 		contextComments := make([]CommentWithContext, len(filtered))
 		for i, c := range filtered {
 			contextComments[i] = CommentWithContext{
-				Comment:      toCommentJSON(c),
+				Comment:      comment.NewCommentView(c),
 				SectionPath:  c.SectionPath,
 				ContextLines: getContextLines(string(content), c.Line, 3),
 				IsOrphaned:   c.Status == "orphaned",
@@ -121,7 +138,7 @@ func (s *Server) handleGetComment(ctx context.Context, req *mcp.CallToolRequest,
 	}
 
 	// Load document with comments
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load comments: %w", err)
 	}
@@ -145,7 +162,7 @@ func (s *Server) handleGetComment(ctx context.Context, req *mcp.CallToolRequest,
 
 	// Build response with context
 	result := CommentWithContext{
-		Comment:      toCommentJSON(foundComment),
+		Comment:      comment.NewCommentView(foundComment),
 		SectionPath:  foundComment.SectionPath,
 		ContextLines: getContextLines(string(content), foundComment.Line, 5),
 		IsOrphaned:   foundComment.Status == "orphaned",
@@ -170,26 +187,14 @@ func (s *Server) handleStatus(ctx context.Context, req *mcp.CallToolRequest, arg
 		return nil, nil, fmt.Errorf("invalid file path: %w", err)
 	}
 
-	// Compute staleness from the raw sidecar BEFORE LoadFromSidecar, which
-	// re-validates and rewrites the sidecar with a refreshed hash. Stale means
-	// the markdown content changed since the sidecar was last written.
-	isStale := false
-	if raw, readErr := os.ReadFile(comment.GetSidecarPath(absPath)); readErr == nil {
-		var stored struct {
-			DocumentHash string `json:"documentHash"`
-		}
-		if json.Unmarshal(raw, &stored) == nil && stored.DocumentHash != "" {
-			if content, contentErr := os.ReadFile(absPath); contentErr == nil {
-				isStale = stored.DocumentHash != comment.ComputeDocumentHash(string(content))
-			}
-		}
-	}
-
-	// Load document with comments
-	doc, err := comment.LoadFromSidecar(absPath)
+	// Load document with comments. The load report tells us whether the
+	// markdown content changed since the sidecar was last written (staleness);
+	// loadDoc persists the revalidated sidecar, so a subsequent status is clean.
+	doc, report, err := loadDoc(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load comments: %w", err)
 	}
+	isStale := report.Stale
 
 	// Calculate statistics: thread counts over root threads only,
 	// comment-level counts over the flattened tree (roots + replies)
@@ -257,7 +262,7 @@ func (s *Server) handleAddComment(ctx context.Context, req *mcp.CallToolRequest,
 	}
 
 	// Load document with comments
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load comments: %w", err)
 	}
@@ -324,7 +329,7 @@ func (s *Server) handleReply(ctx context.Context, req *mcp.CallToolRequest, args
 	}
 
 	// Load document with comments
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load comments: %w", err)
 	}
@@ -365,7 +370,7 @@ func (s *Server) handleResolve(ctx context.Context, req *mcp.CallToolRequest, ar
 	}
 
 	// Load document with comments
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load comments: %w", err)
 	}
@@ -433,7 +438,7 @@ func (s *Server) handleSuggest(ctx context.Context, req *mcp.CallToolRequest, ar
 	}
 
 	// Load document with comments
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load comments: %w", err)
 	}
@@ -483,7 +488,7 @@ func (s *Server) handleAccept(ctx context.Context, req *mcp.CallToolRequest, arg
 	}
 
 	// Load document with comments
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load comments: %w", err)
 	}
@@ -557,12 +562,8 @@ func (s *Server) handleAccept(ctx context.Context, req *mcp.CallToolRequest, arg
 	comment.RecalculateCommentLines(doc.Threads, suggestion.StartLine, suggestion.EndLine,
 		comment.SuggestionLinesAdded(suggestion))
 
-	// Write the updated content
-	if err := os.WriteFile(absPath, []byte(newContent), 0644); err != nil {
-		return nil, nil, fmt.Errorf("failed to write updated document: %w", err)
-	}
-
-	// Update document content and save
+	// Update document content and save (SaveToSidecar writes the changed
+	// markdown atomically alongside the sidecar)
 	doc.Content = newContent
 	if err := comment.SaveToSidecar(absPath, doc); err != nil {
 		return nil, nil, fmt.Errorf("failed to save comments: %w", err)
@@ -594,7 +595,7 @@ func (s *Server) handleReject(ctx context.Context, req *mcp.CallToolRequest, arg
 	}
 
 	// Load document with comments
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load comments: %w", err)
 	}
@@ -637,7 +638,7 @@ func (s *Server) handleBatchAdd(ctx context.Context, req *mcp.CallToolRequest, a
 	}
 
 	// Load document with comments
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load comments: %w", err)
 	}
@@ -722,7 +723,7 @@ func (s *Server) handleBatchReply(ctx context.Context, req *mcp.CallToolRequest,
 	}
 
 	// Load document with comments
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load comments: %w", err)
 	}

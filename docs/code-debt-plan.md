@@ -2,6 +2,8 @@
 
 All findings verified against code by reviewers. Full reports in session; this is the merged priority order.
 
+**Progress**: Wave 1 (P0 #1-6) done — commit 41b98e7, 2026-08-06. P3 #14 (gofmt/lint/CI) done — a8b5c8a. Wave 2 in flight.
+
 ## P0 — Correctness bugs (fix first)
 
 1. Markdown parser treats `#` inside code fences as headings (parser.go:20) — corrupts sections/anchors/templates for any doc with code blocks. No fence test exists.

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -12,7 +11,7 @@ import (
 )
 
 // serveMCPCommand starts the MCP server over stdio
-func serveMCPCommand() {
+func serveMCPCommand() error {
 	// Create context that listens for interrupt signals
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -46,7 +45,7 @@ func serveMCPCommand() {
 	log.Println("")
 
 	if err := server.Serve(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "MCP server error: %v\n", err)
-		os.Exit(1)
+		return failf("MCP server error: %v", err)
 	}
+	return nil
 }

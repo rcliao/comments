@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -12,18 +11,16 @@ import (
 )
 
 // templateCommand handles `comments template list|show <name>`
-func templateCommand(args []string) {
+func templateCommand(args []string) error {
 	if len(args) == 0 {
-		fmt.Println("Usage: comments template list | comments template show <name>")
-		os.Exit(1)
+		return failf("Usage: comments template list | comments template show <name>")
 	}
 
 	switch args[0] {
 	case "list":
 		templates, err := comment.ListTemplates()
 		if err != nil {
-			fmt.Printf("Error listing templates: %v\n", err)
-			os.Exit(1)
+			return failf("Error listing templates: %v", err)
 		}
 		names := make([]string, 0, len(templates))
 		for name := range templates {
@@ -42,13 +39,11 @@ func templateCommand(args []string) {
 
 	case "show":
 		if len(args) < 2 {
-			fmt.Println("Usage: comments template show <name>")
-			os.Exit(1)
+			return failf("Usage: comments template show <name>")
 		}
 		t, err := comment.LoadTemplate(args[1])
 		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			os.Exit(1)
+			return failf("Error: %v", err)
 		}
 		fmt.Printf("Template: %s\n%s\n\n", t.Name, t.Description)
 		if t.Doc.MaxWords > 0 {
@@ -80,20 +75,25 @@ func templateCommand(args []string) {
 		}
 
 	default:
-		fmt.Printf("Unknown template subcommand: %s (use list or show)\n", args[0])
-		os.Exit(1)
+		return failf("Unknown template subcommand: %s (use list or show)", args[0])
 	}
+	return nil
 }
 
 // validateCommand handles `comments validate <file> --template <name> [--json]`
 // Exit codes: 0 = conforms, 1 = violations or error.
-func validateCommand(filename string, args []string) {
-	fs := flag.NewFlagSet("validate", flag.ExitOnError)
+func validateCommand(filename string, args []string) error {
+	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
 	templateName := fs.String("template", "", "Template name (defaults to template recorded in sidecar)")
 	jsonOut := fs.Bool("json", false, "Output violations as JSON")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
 
-	t, doc := loadTemplateForDoc(filename, *templateName)
+	t, doc, err := loadTemplateForDoc(filename, *templateName)
+	if err != nil {
+		return err
+	}
 	violations := comment.ValidateTemplate(doc.Content, t)
 
 	if *jsonOut {
@@ -115,29 +115,34 @@ func validateCommand(filename string, args []string) {
 	}
 
 	if len(violations) > 0 {
-		os.Exit(1)
+		return exitSilent(1)
 	}
+	return nil
 }
 
 // seedCommand handles `comments seed <file> --template <name> [--author name]`
-func seedCommand(filename string, args []string) {
-	fs := flag.NewFlagSet("seed", flag.ExitOnError)
+func seedCommand(filename string, args []string) error {
+	fs := flag.NewFlagSet("seed", flag.ContinueOnError)
 	templateName := fs.String("template", "", "Template name (defaults to template recorded in sidecar)")
 	author := fs.String("author", "template", "Author for seeded threads")
 	markersOnly := fs.Bool("markers-only", false, "Seed only NEEDS CLARIFICATION markers, not generic criteria (agent posts specific callouts instead)")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
 
-	t, doc := loadTemplateForDoc(filename, *templateName)
+	t, doc, err := loadTemplateForDoc(filename, *templateName)
+	if err != nil {
+		return err
+	}
 	added := comment.SeedTemplateThreads(doc, t, *author, *markersOnly)
 
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving document: %v\n", err)
-		os.Exit(1)
+		return failf("Error saving document: %v", err)
 	}
 
 	if len(added) == 0 {
 		fmt.Printf("✓ Nothing to seed — all template review threads already exist (template %q recorded)\n", t.Name)
-		return
+		return nil
 	}
 	fmt.Printf("✓ Seeded %d review thread(s) from template %q:\n", len(added), t.Name)
 	for _, c := range added {
@@ -148,28 +153,25 @@ func seedCommand(filename string, args []string) {
 		fmt.Printf("  %s (line %d)%s %s\n", c.ID, c.Line, marker, c.Text)
 	}
 	fmt.Println("\nReview = resolving these threads. Check progress with: comments gate", filename)
+	return nil
 }
 
 // loadTemplateForDoc resolves the template (flag > sidecar record) and loads the doc
-func loadTemplateForDoc(filename, templateName string) (*comment.Template, *comment.DocumentWithComments) {
-	doc, err := comment.LoadFromSidecar(filename)
+func loadTemplateForDoc(filename, templateName string) (*comment.Template, *comment.DocumentWithComments, error) {
+	doc, err := loadDocument(filename)
 	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
+		return nil, nil, failf("Error loading document: %v", err)
 	}
 	name := templateName
 	if name == "" {
 		name = doc.Template
 	}
 	if name == "" {
-		fmt.Println("Error: no template specified (--template <name>) and none recorded in sidecar")
-		fmt.Println("List templates with: comments template list")
-		os.Exit(1)
+		return nil, nil, failf("Error: no template specified (--template <name>) and none recorded in sidecar\nList templates with: comments template list")
 	}
 	t, err := comment.LoadTemplate(name)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
+		return nil, nil, failf("Error: %v", err)
 	}
-	return t, doc
+	return t, doc, nil
 }

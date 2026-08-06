@@ -147,7 +147,7 @@ func TestAnchorBackfillOnLoad(t *testing.T) {
 	if err := SaveToSidecar(mdPath, doc); err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := LoadFromSidecar(mdPath)
+	loaded, _, err := LoadFromSidecar(mdPath)
 	if err != nil {
 		t.Fatal(err)
 	}

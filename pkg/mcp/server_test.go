@@ -234,7 +234,7 @@ func TestNonBlockingReviewFlow(t *testing.T) {
 	}
 
 	// Human signs off the CLI way: AddReviewRecord + SaveToSidecar
-	loaded, err := comment.LoadFromSidecar(doc)
+	loaded, _, err := comment.LoadFromSidecar(doc)
 	if err != nil {
 		t.Fatal(err)
 	}

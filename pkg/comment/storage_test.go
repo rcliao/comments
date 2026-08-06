@@ -60,7 +60,7 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	}
 
 	// Load
-	loaded, err := LoadFromSidecar(mdPath)
+	loaded, _, err := LoadFromSidecar(mdPath)
 	if err != nil {
 		t.Fatalf("LoadFromSidecar failed: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestSaveAndLoadWithSuggestion(t *testing.T) {
 		t.Fatalf("SaveToSidecar failed: %v", err)
 	}
 
-	loaded, err := LoadFromSidecar(mdPath)
+	loaded, _, err := LoadFromSidecar(mdPath)
 	if err != nil {
 		t.Fatalf("LoadFromSidecar failed: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestLoadNonExistentSidecar(t *testing.T) {
 	}
 
 	// Load should succeed with empty threads
-	doc, err := LoadFromSidecar(mdPath)
+	doc, _, err := LoadFromSidecar(mdPath)
 	if err != nil {
 		t.Fatalf("LoadFromSidecar failed: %v", err)
 	}
@@ -404,7 +404,7 @@ func TestNestedRepliesSaveLoad(t *testing.T) {
 	}
 
 	// Load
-	loaded, err := LoadFromSidecar(mdPath)
+	loaded, _, err := LoadFromSidecar(mdPath)
 	if err != nil {
 		t.Fatalf("LoadFromSidecar failed: %v", err)
 	}
@@ -463,5 +463,105 @@ func TestSaveToSidecarWritesMarkdownContent(t *testing.T) {
 
 	if string(writtenContent) != content {
 		t.Errorf("Markdown content mismatch.\nExpected: %q\nGot: %q", content, string(writtenContent))
+	}
+}
+
+// TestLoadFromSidecarIsReadOnly verifies that loading never writes files, even
+// when the document changed out-of-band: the migration is reported instead.
+func TestLoadFromSidecarIsReadOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	mdPath := filepath.Join(tmpDir, "test.md")
+
+	content := "# Title\n\nAnchored line here.\n"
+	c := &Comment{ID: "c1", Author: "alice", Line: 3, Text: "note", Replies: []*Comment{}}
+	c.Anchor = CaptureAnchor(content, 3)
+	doc := &DocumentWithComments{
+		Content: content,
+		Threads: []*Comment{c},
+	}
+	if err := SaveToSidecar(mdPath, doc); err != nil {
+		t.Fatalf("SaveToSidecar failed: %v", err)
+	}
+
+	// Edit the markdown out-of-band so the load must re-anchor
+	newContent := "# Title\n\nInserted line.\n\nAnchored line here.\n"
+	if err := os.WriteFile(mdPath, []byte(newContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	sidecarPath := GetSidecarPath(mdPath)
+	before, err := os.ReadFile(sidecarPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, report, err := LoadFromSidecar(mdPath)
+	if err != nil {
+		t.Fatalf("LoadFromSidecar failed: %v", err)
+	}
+
+	after, err := os.ReadFile(sidecarPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Error("LoadFromSidecar modified the sidecar on disk; loads must be read-only")
+	}
+
+	if !report.Stale {
+		t.Error("expected report.Stale after out-of-band edit")
+	}
+	if !report.Dirty {
+		t.Error("expected report.Dirty when the load re-anchored a comment")
+	}
+	if loaded.Threads[0].Line != 5 {
+		t.Errorf("expected comment re-anchored to line 5 in memory, got %d", loaded.Threads[0].Line)
+	}
+}
+
+// TestSaveSkipsUnchangedMarkdown verifies the markdown file is rewritten only
+// when doc.Content actually differs from what is on disk.
+func TestSaveSkipsUnchangedMarkdown(t *testing.T) {
+	tmpDir := t.TempDir()
+	mdPath := filepath.Join(tmpDir, "test.md")
+
+	doc := &DocumentWithComments{
+		Content: "# Title\n\nBody.\n",
+		Threads: []*Comment{},
+	}
+	if err := SaveToSidecar(mdPath, doc); err != nil {
+		t.Fatalf("SaveToSidecar failed: %v", err)
+	}
+
+	info, err := os.Stat(mdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mtime := info.ModTime()
+
+	// Second save with identical content must not touch the markdown file
+	time.Sleep(10 * time.Millisecond)
+	if err := SaveToSidecar(mdPath, doc); err != nil {
+		t.Fatalf("second SaveToSidecar failed: %v", err)
+	}
+	info, err = os.Stat(mdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.ModTime().Equal(mtime) {
+		t.Error("markdown file was rewritten although the content did not change")
+	}
+
+	// A content change must be written
+	doc.Content = "# Title\n\nBody changed.\n"
+	if err := SaveToSidecar(mdPath, doc); err != nil {
+		t.Fatalf("third SaveToSidecar failed: %v", err)
+	}
+	written, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(written) != doc.Content {
+		t.Errorf("markdown not updated on content change: %q", string(written))
 	}
 }

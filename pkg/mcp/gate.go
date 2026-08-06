@@ -191,7 +191,7 @@ func evaluateGateForPath(path string, strict bool) (string, []gateFileResult, er
 	decision := comment.DecisionApproved
 	files := make([]gateFileResult, 0, len(targets))
 	for _, file := range targets {
-		doc, err := comment.LoadFromSidecar(file)
+		doc, _, err := loadDoc(file)
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to load %s: %w", file, err)
 		}

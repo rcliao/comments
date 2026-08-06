@@ -10,21 +10,11 @@ import (
 	"github.com/rcliao/comments/pkg/comment"
 )
 
-// gateCommentJSON is the JSON shape for a comment in gate output.
-// Matches the field naming used by `list --format json`.
+// gateCommentJSON is the canonical comment view plus gate-specific document
+// context lines.
 type gateCommentJSON struct {
-	ID          string   `json:"id"`
-	Author      string   `json:"author"`
-	Line        int      `json:"line"`
-	Timestamp   string   `json:"timestamp"`
-	Text        string   `json:"text"`
-	Type        string   `json:"type,omitempty"`
-	Status      string   `json:"status"`
-	Priority    string   `json:"priority"`
-	Blocking    bool     `json:"blocking"`
-	ReplyCount  int      `json:"reply_count"`
-	SectionPath string   `json:"section_path,omitempty"`
-	Context     []string `json:"context,omitempty"`
+	comment.CommentView
+	Context []string `json:"context,omitempty"`
 }
 
 type gateFileJSON struct {
@@ -52,31 +42,30 @@ type gateOutputJSON struct {
 
 // gateCommand evaluates the review gate for a file or directory of markdown files.
 // Exit codes: 0 = approved, 10 = changes requested, 1 = error.
-func gateCommand(target string, args []string) {
-	fs := flag.NewFlagSet("gate", flag.ExitOnError)
+func gateCommand(target string, args []string) error {
+	fs := flag.NewFlagSet("gate", flag.ContinueOnError)
 	jsonOut := fs.Bool("json", false, "Output machine-readable JSON decision")
 	strict := fs.Bool("strict", false, "Fail on any unresolved comment or pending suggestion, not just blocking ones")
 	contextSize := fs.Int("context", 2, "Lines of document context around each comment (0 to disable)")
 	templateName := fs.String("template", "", "Also validate structure against this template (defaults to template recorded in sidecar)")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
 
 	files, err := comment.FindGateTargets(target)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return failf("Error: %v", err)
 	}
 	if len(files) == 0 {
-		fmt.Fprintf(os.Stderr, "Error: no markdown files with comment sidecars found under %s\n", target)
-		os.Exit(1)
+		return failf("Error: no markdown files with comment sidecars found under %s", target)
 	}
 
 	output := gateOutputJSON{Decision: comment.DecisionApproved, Strict: *strict}
 
 	for _, file := range files {
-		doc, err := comment.LoadFromSidecar(file)
+		doc, err := loadDocument(file)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading %s: %v\n", file, err)
-			os.Exit(1)
+			return failf("Error loading %s: %v", file, err)
 		}
 		result := comment.EvaluateGate(doc, *strict)
 
@@ -97,8 +86,7 @@ func gateCommand(target string, args []string) {
 		if tName != "" {
 			t, err := comment.LoadTemplate(tName)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
+				return failf("Error: %v", err)
 			}
 			fileJSON.Template = t.Name
 			fileJSON.Violations = comment.ValidateTemplate(doc.Content, t)
@@ -119,8 +107,7 @@ func gateCommand(target string, args []string) {
 	if *jsonOut {
 		encoded, err := json.MarshalIndent(output, "", "  ")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
-			os.Exit(1)
+			return failf("Error encoding JSON: %v", err)
 		}
 		fmt.Println(string(encoded))
 	} else {
@@ -128,38 +115,37 @@ func gateCommand(target string, args []string) {
 	}
 
 	if output.Decision == comment.DecisionChangesRequested {
-		os.Exit(comment.GateExitCode)
+		return exitSilent(comment.GateExitCode)
 	}
+	return nil
 }
 
 // signoffCommand records a completed human review pass on a document.
-func signoffCommand(filename string, args []string) {
-	fs := flag.NewFlagSet("signoff", flag.ExitOnError)
+func signoffCommand(filename string, args []string) error {
+	fs := flag.NewFlagSet("signoff", flag.ContinueOnError)
 	author := fs.String("author", os.Getenv("USER"), "Reviewer name (defaults to $USER)")
 	decision := fs.String("decision", "", "Override decision: approved or changes_requested (default: derived from gate)")
 	note := fs.String("note", "", "Optional review note")
 	strict := fs.Bool("strict", false, "Derive decision using strict gate rules")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
 
 	if *author == "" {
-		fmt.Println("Error: --author is required (or set $USER)")
-		os.Exit(1)
+		return failf("Error: --author is required (or set $USER)")
 	}
 	if *decision != "" && *decision != comment.DecisionApproved && *decision != comment.DecisionChangesRequested {
-		fmt.Printf("Error: invalid --decision %q (use %s or %s)\n", *decision, comment.DecisionApproved, comment.DecisionChangesRequested)
-		os.Exit(1)
+		return failf("Error: invalid --decision %q (use %s or %s)", *decision, comment.DecisionApproved, comment.DecisionChangesRequested)
 	}
 
-	doc, err := comment.LoadFromSidecar(filename)
+	doc, err := loadDocument(filename)
 	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
+		return failf("Error loading document: %v", err)
 	}
 
 	record := comment.AddReviewRecord(doc, *author, *decision, *note, *strict)
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving document: %v\n", err)
-		os.Exit(1)
+		return failf("Error saving document: %v", err)
 	}
 
 	fmt.Printf("✓ Review recorded: %s by @%s\n", record.Decision, record.Author)
@@ -167,25 +153,14 @@ func signoffCommand(filename string, args []string) {
 		result := comment.EvaluateGate(doc, *strict)
 		fmt.Printf("  %d blocking comment(s) remain — agents waiting on request_review will now see this feedback\n", len(result.Blocking))
 	}
+	return nil
 }
 
 func toGateJSON(comments []*comment.Comment, docContent string, contextSize int) []gateCommentJSON {
 	out := []gateCommentJSON{}
 	lines := strings.Split(docContent, "\n")
 	for _, c := range comments {
-		item := gateCommentJSON{
-			ID:          c.ID,
-			Author:      c.Author,
-			Line:        c.Line,
-			Timestamp:   c.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
-			Text:        c.Text,
-			Type:        c.Type,
-			Status:      c.GetStatus(),
-			Priority:    c.GetPriority(),
-			Blocking:    c.Blocking,
-			ReplyCount:  c.CountReplies(),
-			SectionPath: c.SectionPath,
-		}
+		item := gateCommentJSON{CommentView: comment.NewCommentView(c)}
 		if contextSize > 0 {
 			start := max(1, c.Line-contextSize)
 			end := min(len(lines), c.Line+contextSize)

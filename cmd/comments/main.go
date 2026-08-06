@@ -12,149 +12,100 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		printUsage()
-		os.Exit(1)
+	os.Exit(run(os.Args[1:]))
+}
+
+// dispatch routes to the command handlers. Handlers return errors (optionally
+// carrying an exit code via exitError) instead of exiting themselves.
+func dispatch(args []string) error {
+	if len(args) < 1 {
+		return &exitError{code: 1, msg: strings.TrimRight(usageText, "\n")}
 	}
 
-	command := os.Args[1]
+	command := args[0]
+
+	// Commands that take a positional <file> argument and its usage line
+	fileUsage := map[string]string{
+		"list":        "Usage: comments list <file> [flags]",
+		"get":         "Usage: comments get <file> [flags]",
+		"add":         "Usage: comments add <file> [flags]",
+		"batch-add":   "Usage: comments batch-add <file> [flags]",
+		"reply":       "Usage: comments reply <file> [flags]",
+		"batch-reply": "Usage: comments batch-reply <file> [flags]",
+		"resolve":     "Usage: comments resolve <file> [flags]",
+		"suggest":     "Usage: comments suggest <file> [flags]",
+		"accept":      "Usage: comments accept <file> [flags]",
+		"reject":      "Usage: comments reject <file> [flags]",
+		"validate":    "Usage: comments validate <file> --template <name>",
+		"seed":        "Usage: comments seed <file> --template <name>",
+		"gate":        "Usage: comments gate <file-or-dir> [flags]",
+		"signoff":     "Usage: comments signoff <file> [flags]",
+		"watch":       "Usage: comments watch <file-or-dir> [flags]",
+	}
+	if usage, needsFile := fileUsage[command]; needsFile && len(args) < 2 {
+		return failf("%s", usage)
+	}
 
 	switch command {
 	case "view":
 		// View command can be called with or without a filename
-		viewCommand(os.Args[2:])
-
+		return viewCommand(args[1:])
 	case "list":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments list <file> [flags]")
-			os.Exit(1)
-		}
-		listCommand(os.Args[2], os.Args[3:])
-
+		return listCommand(args[1], args[2:])
 	case "get":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments get <file> [flags]")
-			os.Exit(1)
-		}
-		getCommand(os.Args[2], os.Args[3:])
-
+		return getCommand(args[1], args[2:])
 	case "add":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments add <file> [flags]")
-			os.Exit(1)
-		}
-		addCommand(os.Args[2], os.Args[3:])
-
+		return addCommand(args[1], args[2:])
 	case "batch-add":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments batch-add <file> [flags]")
-			os.Exit(1)
-		}
-		batchAddCommand(os.Args[2], os.Args[3:])
-
+		return batchAddCommand(args[1], args[2:])
 	case "reply":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments reply <file> [flags]")
-			os.Exit(1)
-		}
-		replyCommand(os.Args[2], os.Args[3:])
-
+		return replyCommand(args[1], args[2:])
 	case "batch-reply":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments batch-reply <file> [flags]")
-			os.Exit(1)
-		}
-		batchReplyCommand(os.Args[2], os.Args[3:])
-
+		return batchReplyCommand(args[1], args[2:])
 	case "resolve":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments resolve <file> [flags]")
-			os.Exit(1)
-		}
-		resolveCommand(os.Args[2], os.Args[3:])
-
+		return resolveCommand(args[1], args[2:])
 	case "suggest":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments suggest <file> [flags]")
-			os.Exit(1)
-		}
-		suggestCommand(os.Args[2], os.Args[3:])
-
+		return suggestCommand(args[1], args[2:])
 	case "accept":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments accept <file> [flags]")
-			os.Exit(1)
-		}
-		acceptCommand(os.Args[2], os.Args[3:])
-
+		return acceptCommand(args[1], args[2:])
 	case "reject":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments reject <file> [flags]")
-			os.Exit(1)
-		}
-		rejectCommand(os.Args[2], os.Args[3:])
-
+		return rejectCommand(args[1], args[2:])
 	case "template":
-		templateCommand(os.Args[2:])
-
+		return templateCommand(args[1:])
 	case "validate":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments validate <file> --template <name>")
-			os.Exit(1)
-		}
-		validateCommand(os.Args[2], os.Args[3:])
-
+		return validateCommand(args[1], args[2:])
 	case "seed":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments seed <file> --template <name>")
-			os.Exit(1)
-		}
-		seedCommand(os.Args[2], os.Args[3:])
-
+		return seedCommand(args[1], args[2:])
 	case "gate":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments gate <file-or-dir> [flags]")
-			os.Exit(1)
-		}
-		gateCommand(os.Args[2], os.Args[3:])
-
+		return gateCommand(args[1], args[2:])
 	case "signoff":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments signoff <file> [flags]")
-			os.Exit(1)
-		}
-		signoffCommand(os.Args[2], os.Args[3:])
-
+		return signoffCommand(args[1], args[2:])
 	case "watch":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: comments watch <file-or-dir> [flags]")
-			os.Exit(1)
-		}
-		watchCommand(os.Args[2], os.Args[3:])
-
+		return watchCommand(args[1], args[2:])
 	case "serve-mcp":
-		serveMCPCommand()
-
+		return serveMCPCommand()
 	case "help", "-h", "--help":
 		printUsage()
-
+		return nil
 	default:
-		fmt.Printf("Unknown command: %s\n\n", command)
-		printUsage()
-		os.Exit(1)
+		return failf("Unknown command: %s\n\n%s", command, strings.TrimRight(usageText, "\n"))
 	}
 }
 
-func viewCommand(args []string) {
+func viewCommand(args []string) error {
 	// Parse flags; the filename is positional and may come before the flags
-	fs := flag.NewFlagSet("view", flag.ExitOnError)
+	fs := flag.NewFlagSet("view", flag.ContinueOnError)
 	themeFlag := fs.String("theme", "", "Color theme: nord (default), dracula, gruvbox, ansi")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
 
 	filename := ""
 	if rest := fs.Args(); len(rest) > 0 {
 		filename = rest[0]
-		_ = fs.Parse(rest[1:]) // allow `view <file> --theme <name>` ordering
+		if err := fs.Parse(rest[1:]); err != nil { // allow `view <file> --theme <name>` ordering
+			return exitSilent(2)
+		}
 	}
 
 	// Theme selection: --theme flag wins over COMMENTS_THEME env var
@@ -174,10 +125,9 @@ func viewCommand(args []string) {
 		model = tui.NewModel()
 	} else {
 		// Filename provided - load it directly
-		doc, err := comment.LoadFromSidecar(filename)
+		doc, err := loadDocument(filename)
 		if err != nil {
-			fmt.Printf("Error loading document: %v\n", err)
-			os.Exit(1)
+			return failf("Error loading document: %v", err)
 		}
 
 		// Create model with pre-loaded file
@@ -189,8 +139,7 @@ func viewCommand(args []string) {
 
 	final, err := p.Run()
 	if err != nil {
-		fmt.Printf("Error running TUI: %v\n", err)
-		os.Exit(1)
+		return failf("Error running TUI: %v", err)
 	}
 	// Verdict exit codes: view doubles as the interactive gate
 	if fm, ok := final.(tui.Model); ok {
@@ -199,14 +148,15 @@ func viewCommand(args []string) {
 			fmt.Println("✓ Review submitted: approved")
 		case comment.DecisionChangesRequested:
 			fmt.Println("✗ Review submitted: changes requested")
-			os.Exit(comment.GateExitCode)
+			return exitSilent(comment.GateExitCode)
 		}
 	}
+	return nil
 }
 
-func listCommand(filename string, args []string) {
+func listCommand(filename string, args []string) error {
 	// Parse flags
-	fs := flag.NewFlagSet("list", flag.ExitOnError)
+	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	typeFilter := fs.String("type", "", "Filter by comment type: Q, S, B, T, E")
 	showResolved := fs.Bool("resolved", false, "Show resolved comments (default: false, only show unresolved)")
 	authorFilter := fs.String("author", "", "Filter by author name")
@@ -219,13 +169,14 @@ func listCommand(filename string, args []string) {
 	format := fs.String("format", "text", "Output format: text, json, table")
 	withContext := fs.Bool("with-context", false, "Include document context for each comment")
 
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
 
 	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
+	doc, err := loadDocument(filename)
 	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
+		return failf("Error loading document: %v", err)
 	}
 
 	// Compute section metadata for all comments if not already present
@@ -253,8 +204,7 @@ func listCommand(filename string, args []string) {
 	if *lineRange != "" {
 		filtered, err := filterByLineRange(filteredComments, *lineRange)
 		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			os.Exit(1)
+			return failf("Error: %v", err)
 		}
 		filteredComments = filtered
 	}
@@ -263,8 +213,7 @@ func listCommand(filename string, args []string) {
 	if *sectionFilter != "" {
 		// Validate section exists
 		if err := comment.ValidateSectionPath(doc.Content, *sectionFilter); err != nil {
-			fmt.Printf("Error: %v\n", err)
-			os.Exit(1)
+			return failf("Error: %v", err)
 		}
 
 		// Get all comments in this section (including nested sections)
@@ -314,27 +263,25 @@ func listCommand(filename string, args []string) {
 	switch *format {
 	case "json":
 		if err := outputJSON(filteredComments, doc.Threads, doc.Content, *withContext); err != nil {
-			fmt.Printf("Error outputting JSON: %v\n", err)
-			os.Exit(1)
+			return failf("Error outputting JSON: %v", err)
 		}
-		return
+		return nil
 
 	case "table":
 		outputTable(filteredComments, doc.Threads)
-		return
+		return nil
 
 	case "text":
 		// If --with-context is specified with text format, use context format
 		if *withContext {
 			output := formatListWithContext(filteredComments, doc.Content)
 			fmt.Print(output)
-			return
+			return nil
 		}
 		// Original text format (below)
 
 	default:
-		fmt.Printf("Error: Unknown format '%s'. Valid formats: text, json, table\n", *format)
-		os.Exit(1)
+		return failf("Error: Unknown format '%s'. Valid formats: text, json, table", *format)
 	}
 
 	// List comments (original text format)
@@ -413,27 +360,27 @@ func listCommand(filename string, args []string) {
 
 		fmt.Printf("    %s\n\n", thread.Text)
 	}
+	return nil
 }
 
-func getCommand(filename string, args []string) {
+func getCommand(filename string, args []string) error {
 	// Parse flags
-	fs := flag.NewFlagSet("get", flag.ExitOnError)
+	fs := flag.NewFlagSet("get", flag.ContinueOnError)
 	threadID := fs.String("thread", "", "Thread ID to get (required)")
 	withReplies := fs.Bool("with-replies", true, "Include replies in output (default: true)")
 
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
 
 	if *threadID == "" {
-		fmt.Println("Error: --thread flag is required")
-		fmt.Println("Usage: comments get <file> --thread <thread-id>")
-		os.Exit(1)
+		return failf("Error: --thread flag is required\nUsage: comments get <file> --thread <thread-id>")
 	}
 
 	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
+	doc, err := loadDocument(filename)
 	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
+		return failf("Error loading document: %v", err)
 	}
 
 	// Compute section metadata for all comments if not already present
@@ -444,12 +391,13 @@ func getCommand(filename string, args []string) {
 	foundComment := doc.FindCommentByID(*threadID)
 
 	if foundComment == nil {
-		fmt.Printf("Error: Thread with ID '%s' not found\n", *threadID)
-		fmt.Println("\nAvailable threads:")
+		var b strings.Builder
+		fmt.Fprintf(&b, "Error: Thread with ID '%s' not found\n", *threadID)
+		b.WriteString("\nAvailable threads:")
 		for i, thread := range doc.Threads {
-			fmt.Printf("  [%d] %s (Line %d) - @%s\n", i+1, thread.ID, thread.Line, thread.Author)
+			fmt.Fprintf(&b, "\n  [%d] %s (Line %d) - @%s", i+1, thread.ID, thread.Line, thread.Author)
 		}
-		os.Exit(1)
+		return failf("%s", b.String())
 	}
 
 	// Get context and format output
@@ -457,6 +405,7 @@ func getCommand(filename string, args []string) {
 	output := formatCommentWithContext(foundComment, ctx, *withReplies)
 
 	fmt.Print(output)
+	return nil
 }
 
 // filterCommentsByType filters comments by type prefix ([Q], [S], [B], [T], [E])
@@ -473,9 +422,9 @@ func filterCommentsByType(comments []*comment.Comment, typePrefix string) []*com
 	return filtered
 }
 
-func addCommand(filename string, args []string) {
+func addCommand(filename string, args []string) error {
 	// Parse flags
-	fs := flag.NewFlagSet("add", flag.ExitOnError)
+	fs := flag.NewFlagSet("add", flag.ContinueOnError)
 	text := fs.String("text", "", "Comment text (required)")
 	line := fs.Int("line", 0, "Line number (use either --line or --section)")
 	section := fs.String("section", "", "Section path (use either --line or --section)")
@@ -484,41 +433,34 @@ func addCommand(filename string, args []string) {
 	priority := fs.String("priority", "medium", "Priority: low, medium, high (default: medium)")
 	blocking := fs.Bool("blocking", false, "Mark comment as blocking (must be resolved before gate passes)")
 
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
+
+	const addUsage = "Usage: comments add <file> --line N --author \"name\" --text \"your comment\"\n" +
+		"   or: comments add <file> --section \"Section Path\" --author \"name\" --text \"your comment\""
 
 	if *text == "" {
-		fmt.Println("Error: --text flag is required")
-		fmt.Println("Usage: comments add <file> --line N --author \"name\" --text \"your comment\"")
-		fmt.Println("   or: comments add <file> --section \"Section Path\" --author \"name\" --text \"your comment\"")
-		os.Exit(1)
+		return failf("Error: --text flag is required\n%s", addUsage)
 	}
 
 	if *author == "" {
-		fmt.Println("Error: --author flag is required")
-		fmt.Println("Usage: comments add <file> --line N --author \"name\" --text \"your comment\"")
-		fmt.Println("   or: comments add <file> --section \"Section Path\" --author \"name\" --text \"your comment\"")
-		os.Exit(1)
+		return failf("Error: --author flag is required\n%s", addUsage)
 	}
 
 	// Validate that either line or section is provided (but not both)
 	if *line == 0 && *section == "" {
-		fmt.Println("Error: either --line or --section flag is required")
-		fmt.Println("Usage: comments add <file> --line N --author \"name\" --text \"your comment\"")
-		fmt.Println("   or: comments add <file> --section \"Section Path\" --author \"name\" --text \"your comment\"")
-		os.Exit(1)
+		return failf("Error: either --line or --section flag is required\n%s", addUsage)
 	}
 
 	if *line != 0 && *section != "" {
-		fmt.Println("Error: cannot specify both --line and --section")
-		fmt.Println("Use either --line N or --section \"Section Path\", not both")
-		os.Exit(1)
+		return failf("Error: cannot specify both --line and --section\nUse either --line N or --section \"Section Path\", not both")
 	}
 
 	// Resolve text input (supports @filename)
 	resolvedText, err := resolveTextInput(*text)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
+		return failf("Error: %v", err)
 	}
 
 	// Auto-prefix text with type if specified
@@ -528,10 +470,9 @@ func addCommand(filename string, args []string) {
 	}
 
 	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
+	doc, err := loadDocument(filename)
 	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
+		return failf("Error loading document: %v", err)
 	}
 
 	// Determine the line number to use
@@ -539,15 +480,13 @@ func addCommand(filename string, args []string) {
 	if *section != "" {
 		// Validate section exists
 		if err := comment.ValidateSectionPath(doc.Content, *section); err != nil {
-			fmt.Printf("Error: %v\n", err)
-			os.Exit(1)
+			return failf("Error: %v", err)
 		}
 
 		// Resolve section to line number (use section start line)
 		startLine, _, err := comment.ResolveSectionToLines(doc.Content, *section, false)
 		if err != nil {
-			fmt.Printf("Error resolving section: %v\n", err)
-			os.Exit(1)
+			return failf("Error resolving section: %v", err)
 		}
 		targetLine = startLine
 	}
@@ -572,8 +511,7 @@ func addCommand(filename string, args []string) {
 
 	// Save to sidecar
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving document: %v\n", err)
-		os.Exit(1)
+		return failf("Error saving document: %v", err)
 	}
 
 	// Display success message
@@ -583,110 +521,106 @@ func addCommand(filename string, args []string) {
 		fmt.Printf("✓ Comment added to line %d by @%s\n", targetLine, *author)
 	}
 	fmt.Printf("  Comment ID: %s\n", newComment.ID)
+	return nil
 }
 
-func replyCommand(filename string, args []string) {
+// availableThreadsMsg lists a document's root threads for not-found error messages
+func availableThreadsMsg(doc *comment.DocumentWithComments) string {
+	var b strings.Builder
+	b.WriteString("\nAvailable threads:")
+	for _, t := range doc.Threads {
+		fmt.Fprintf(&b, "\n  %s (Line %d, %d replies)", t.ID, t.Line, t.CountReplies())
+	}
+	return b.String()
+}
+
+func replyCommand(filename string, args []string) error {
 	// Parse flags
-	fs := flag.NewFlagSet("reply", flag.ExitOnError)
+	fs := flag.NewFlagSet("reply", flag.ContinueOnError)
 	text := fs.String("text", "", "Reply text (required)")
 	thread := fs.String("thread", "", "Thread ID (required)")
 	author := fs.String("author", "", "Author name (required)")
 
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
+
+	const replyUsage = "Usage: comments reply <file> --thread ID --author \"name\" --text \"your reply\""
 
 	if *text == "" {
-		fmt.Println("Error: --text flag is required")
-		fmt.Println("Usage: comments reply <file> --thread ID --author \"name\" --text \"your reply\"")
-		os.Exit(1)
+		return failf("Error: --text flag is required\n%s", replyUsage)
 	}
 
 	if *thread == "" {
-		fmt.Println("Error: --thread flag is required")
-		fmt.Println("Usage: comments reply <file> --thread ID --author \"name\" --text \"your reply\"")
-		os.Exit(1)
+		return failf("Error: --thread flag is required\n%s", replyUsage)
 	}
 
 	if *author == "" {
-		fmt.Println("Error: --author flag is required")
-		fmt.Println("Usage: comments reply <file> --thread ID --author \"name\" --text \"your reply\"")
-		os.Exit(1)
+		return failf("Error: --author flag is required\n%s", replyUsage)
 	}
 
 	// Resolve text input (supports @filename)
 	resolvedText, err := resolveTextInput(*text)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
+		return failf("Error: %v", err)
 	}
 
 	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
+	doc, err := loadDocument(filename)
 	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
+		return failf("Error loading document: %v", err)
 	}
 
 	// Add reply to thread using helper
 	if err := comment.AddReplyToThread(doc.Threads, *thread, *author, resolvedText); err != nil {
-		fmt.Printf("Error: %v\n", err)
-		fmt.Println("\nAvailable threads:")
-		for _, t := range doc.Threads {
-			fmt.Printf("  %s (Line %d, %d replies)\n", t.ID, t.Line, t.CountReplies())
-		}
-		os.Exit(1)
+		return failf("Error: %v\n%s", err, availableThreadsMsg(doc))
 	}
 
 	// Save to sidecar
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving document: %v\n", err)
-		os.Exit(1)
+		return failf("Error saving document: %v", err)
 	}
 
 	fmt.Printf("✓ Reply added to thread %s by @%s\n", *thread, *author)
+	return nil
 }
 
-func resolveCommand(filename string, args []string) {
+func resolveCommand(filename string, args []string) error {
 	// Parse flags
-	fs := flag.NewFlagSet("resolve", flag.ExitOnError)
+	fs := flag.NewFlagSet("resolve", flag.ContinueOnError)
 	thread := fs.String("thread", "", "Thread ID (required)")
 
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
 
 	if *thread == "" {
-		fmt.Println("Error: --thread flag is required")
-		fmt.Println("Usage: comments resolve <file> --thread ID")
-		os.Exit(1)
+		return failf("Error: --thread flag is required\nUsage: comments resolve <file> --thread ID")
 	}
 
 	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
+	doc, err := loadDocument(filename)
 	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
+		return failf("Error loading document: %v", err)
 	}
 
 	// Resolve the thread
 	if err := comment.ResolveThread(doc.Threads, *thread); err != nil {
-		fmt.Printf("Error: %v\n", err)
-		fmt.Println("\nAvailable threads:")
-		for _, t := range doc.Threads {
-			fmt.Printf("  %s (Line %d, %d replies)\n", t.ID, t.Line, t.CountReplies())
-		}
-		os.Exit(1)
+		return failf("Error: %v\n%s", err, availableThreadsMsg(doc))
 	}
 
 	// Save to sidecar
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving document: %v\n", err)
-		os.Exit(1)
+		return failf("Error saving document: %v", err)
 	}
 
 	fmt.Printf("✓ Thread %s marked as resolved\n", *thread)
+	return nil
 }
 
-func suggestCommand(filename string, args []string) {
+func suggestCommand(filename string, args []string) error {
 	// Parse flags
-	fs := flag.NewFlagSet("suggest", flag.ExitOnError)
+	fs := flag.NewFlagSet("suggest", flag.ContinueOnError)
 	startLine := fs.Int("start-line", 0, "Start line (use either line range or section)")
 	endLine := fs.Int("end-line", 0, "End line (use either line range or section)")
 	section := fs.String("section", "", "Section path (use either line range or section)")
@@ -695,66 +629,53 @@ func suggestCommand(filename string, args []string) {
 	original := fs.String("original", "", "Original text to replace")
 	proposed := fs.String("proposed", "", "Proposed replacement text (required)")
 
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
+
+	const suggestUsage = "Usage: comments suggest <file> --start-line N --end-line M --author \"name\" --text \"desc\" --proposed \"new text\"\n" +
+		"   or: comments suggest <file> --section \"Section Path\" --author \"name\" --text \"desc\" --proposed \"new text\""
 
 	// Validate required flags
 	if *author == "" {
-		fmt.Println("Error: --author flag is required")
-		fmt.Println("Usage: comments suggest <file> --start-line N --end-line M --author \"name\" --text \"desc\" --proposed \"new text\"")
-		fmt.Println("   or: comments suggest <file> --section \"Section Path\" --author \"name\" --text \"desc\" --proposed \"new text\"")
-		os.Exit(1)
+		return failf("Error: --author flag is required\n%s", suggestUsage)
 	}
 	if *text == "" {
-		fmt.Println("Error: --text flag is required")
-		fmt.Println("Usage: comments suggest <file> --start-line N --end-line M --author \"name\" --text \"desc\" --proposed \"new text\"")
-		fmt.Println("   or: comments suggest <file> --section \"Section Path\" --author \"name\" --text \"desc\" --proposed \"new text\"")
-		os.Exit(1)
+		return failf("Error: --text flag is required\n%s", suggestUsage)
 	}
 	if *proposed == "" {
-		fmt.Println("Error: --proposed flag is required")
-		fmt.Println("Usage: comments suggest <file> --start-line N --end-line M --author \"name\" --text \"desc\" --proposed \"new text\"")
-		fmt.Println("   or: comments suggest <file> --section \"Section Path\" --author \"name\" --text \"desc\" --proposed \"new text\"")
-		os.Exit(1)
+		return failf("Error: --proposed flag is required\n%s", suggestUsage)
 	}
 
 	// Validate that either line range or section is provided (but not both)
 	if *startLine == 0 && *section == "" {
-		fmt.Println("Error: either --start-line/--end-line or --section flag is required")
-		fmt.Println("Usage: comments suggest <file> --start-line N --end-line M --author \"name\" --text \"desc\" --proposed \"new text\"")
-		fmt.Println("   or: comments suggest <file> --section \"Section Path\" --author \"name\" --text \"desc\" --proposed \"new text\"")
-		os.Exit(1)
+		return failf("Error: either --start-line/--end-line or --section flag is required\n%s", suggestUsage)
 	}
 
 	if *startLine != 0 && *section != "" {
-		fmt.Println("Error: cannot specify both line range and section")
-		fmt.Println("Use either --start-line/--end-line or --section, not both")
-		os.Exit(1)
+		return failf("Error: cannot specify both line range and section\nUse either --start-line/--end-line or --section, not both")
 	}
 
 	// Resolve text inputs (supports @filename)
 	resolvedText, err := resolveTextInput(*text)
 	if err != nil {
-		fmt.Printf("Error resolving --text: %v\n", err)
-		os.Exit(1)
+		return failf("Error resolving --text: %v", err)
 	}
 
 	resolvedOriginal, err := resolveTextInput(*original)
 	if err != nil {
-		fmt.Printf("Error resolving --original: %v\n", err)
-		os.Exit(1)
+		return failf("Error resolving --original: %v", err)
 	}
 
 	resolvedProposed, err := resolveTextInput(*proposed)
 	if err != nil {
-		fmt.Printf("Error resolving --proposed: %v\n", err)
-		os.Exit(1)
+		return failf("Error resolving --proposed: %v", err)
 	}
 
 	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
+	doc, err := loadDocument(filename)
 	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
+		return failf("Error loading document: %v", err)
 	}
 
 	// Determine the line range to use
@@ -763,15 +684,13 @@ func suggestCommand(filename string, args []string) {
 	if *section != "" {
 		// Validate section exists
 		if err := comment.ValidateSectionPath(doc.Content, *section); err != nil {
-			fmt.Printf("Error: %v\n", err)
-			os.Exit(1)
+			return failf("Error: %v", err)
 		}
 
 		// Resolve section to line range
 		start, end, err := comment.ResolveSectionToLines(doc.Content, *section, false)
 		if err != nil {
-			fmt.Printf("Error resolving section: %v\n", err)
-			os.Exit(1)
+			return failf("Error resolving section: %v", err)
 		}
 		targetStartLine = start
 		targetEndLine = end
@@ -782,8 +701,7 @@ func suggestCommand(filename string, args []string) {
 		targetEndLine = targetStartLine
 	}
 	if targetStartLine > targetEndLine {
-		fmt.Printf("Error: start line (%d) must be <= end line (%d)\n", targetStartLine, targetEndLine)
-		os.Exit(1)
+		return failf("Error: start line (%d) must be <= end line (%d)", targetStartLine, targetEndLine)
 	}
 
 	// Create suggestion using helper
@@ -797,8 +715,7 @@ func suggestCommand(filename string, args []string) {
 
 	// Save
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving document: %v\n", err)
-		os.Exit(1)
+		return failf("Error saving document: %v", err)
 	}
 
 	if suggestion.SectionPath != "" {
@@ -807,26 +724,27 @@ func suggestCommand(filename string, args []string) {
 		fmt.Printf("✓ Suggestion added to lines %d-%d by @%s\n", targetStartLine, targetEndLine, *author)
 	}
 	fmt.Printf("  Suggestion ID: %s\n", suggestion.ID)
+	return nil
 }
 
-func acceptCommand(filename string, args []string) {
+func acceptCommand(filename string, args []string) error {
 	// Parse flags
-	fs := flag.NewFlagSet("accept", flag.ExitOnError)
+	fs := flag.NewFlagSet("accept", flag.ContinueOnError)
 	suggestionID := fs.String("suggestion", "", "Suggestion ID (required)")
 	preview := fs.Bool("preview", false, "Preview changes without applying")
 
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
 
 	if *suggestionID == "" {
-		fmt.Println("Error: --suggestion flag is required")
-		os.Exit(1)
+		return failf("Error: --suggestion flag is required")
 	}
 
 	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
+	doc, err := loadDocument(filename)
 	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
+		return failf("Error loading document: %v", err)
 	}
 
 	// Find suggestion in all comments (threads + replies)
@@ -840,33 +758,29 @@ func acceptCommand(filename string, args []string) {
 	}
 
 	if suggestion == nil {
-		fmt.Printf("Error: Suggestion '%s' not found\n", *suggestionID)
-		os.Exit(1)
+		return failf("Error: Suggestion '%s' not found", *suggestionID)
 	}
 
 	if !suggestion.IsSuggestion {
-		fmt.Printf("Error: Comment '%s' is not a suggestion\n", *suggestionID)
-		os.Exit(1)
+		return failf("Error: Comment '%s' is not a suggestion", *suggestionID)
 	}
 
 	// Preview if requested
 	if *preview {
 		newContent, err := comment.ApplySuggestion(doc.Content, suggestion)
 		if err != nil {
-			fmt.Printf("Error applying suggestion: %v\n", err)
-			os.Exit(1)
+			return failf("Error applying suggestion: %v", err)
 		}
 		fmt.Println("Preview of changes:")
 		fmt.Println("==================")
 		fmt.Println(newContent)
-		return
+		return nil
 	}
 
 	// Apply suggestion
 	newContent, err := comment.ApplySuggestion(doc.Content, suggestion)
 	if err != nil {
-		fmt.Printf("Error applying suggestion: %v\n", err)
-		os.Exit(1)
+		return failf("Error applying suggestion: %v", err)
 	}
 
 	// Update document content
@@ -874,8 +788,7 @@ func acceptCommand(filename string, args []string) {
 
 	// Mark suggestion as accepted using helper
 	if err := comment.AcceptSuggestion(doc.Threads, *suggestionID); err != nil {
-		fmt.Printf("Error marking suggestion as accepted: %v\n", err)
-		os.Exit(1)
+		return failf("Error marking suggestion as accepted: %v", err)
 	}
 
 	// Recalculate comment line numbers (line-only tracking)
@@ -884,49 +797,51 @@ func acceptCommand(filename string, args []string) {
 
 	// Save
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving document: %v\n", err)
-		os.Exit(1)
+		return failf("Error saving document: %v", err)
 	}
 
 	fmt.Printf("✓ Suggestion %s accepted and applied\n", *suggestionID)
+	return nil
 }
 
-func rejectCommand(filename string, args []string) {
+func rejectCommand(filename string, args []string) error {
 	// Parse flags
-	fs := flag.NewFlagSet("reject", flag.ExitOnError)
+	fs := flag.NewFlagSet("reject", flag.ContinueOnError)
 	suggestionID := fs.String("suggestion", "", "Suggestion ID (required)")
 
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
 
 	if *suggestionID == "" {
-		fmt.Println("Error: --suggestion flag is required")
-		os.Exit(1)
+		return failf("Error: --suggestion flag is required")
 	}
 
 	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
+	doc, err := loadDocument(filename)
 	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
+		return failf("Error loading document: %v", err)
 	}
 
 	// Mark suggestion as rejected using helper
 	if err := comment.RejectSuggestion(doc.Threads, *suggestionID); err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
+		return failf("Error: %v", err)
 	}
 
 	// Save
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving document: %v\n", err)
-		os.Exit(1)
+		return failf("Error saving document: %v", err)
 	}
 
 	fmt.Printf("✓ Suggestion %s rejected\n", *suggestionID)
+	return nil
 }
 
 func printUsage() {
-	usage := `comments - CLI tool for collaborative document commenting
+	fmt.Print(usageText)
+}
+
+const usageText = `comments - CLI tool for collaborative document commenting
 
 Usage:
   comments <command> [arguments]
@@ -1136,8 +1051,6 @@ Keyboard shortcuts (in view mode):
 
 For more information, visit: https://github.com/rcliao/comments
 `
-	fmt.Print(usage)
-}
 
 // resolveTextInput resolves text input that may be a file reference (@filename)
 // If the input starts with '@', reads the file at the specified path

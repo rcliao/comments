@@ -1,14 +1,14 @@
-package mcp
+package comment
 
-import (
-	"time"
+import "time"
 
-	"github.com/rcliao/comments/pkg/comment"
-)
-
-// commentJSON is the canonical snake_case wire shape for comments over MCP,
-// matching the CLI's `list --format json` field naming (schema unification, v2.1).
-type commentJSON struct {
+// CommentView is the canonical snake_case JSON shape for a comment, shared by
+// every serializer in the project: MCP tools, MCP resources, CLI
+// `list --format json`, and `gate --json`. Timestamps are RFC3339.
+//
+// The exact field-name set is pinned by TestCommentViewFieldNames — extend
+// deliberately, never fork a new shape.
+type CommentView struct {
 	ID               string        `json:"id"`
 	Author           string        `json:"author"`
 	Line             int           `json:"line"`
@@ -29,11 +29,13 @@ type commentJSON struct {
 	OriginalText     string        `json:"original_text,omitempty"`
 	ProposedText     string        `json:"proposed_text,omitempty"`
 	Accepted         *bool         `json:"accepted,omitempty"`
-	Replies          []commentJSON `json:"replies,omitempty"`
+	Replies          []CommentView `json:"replies,omitempty"`
 }
 
-func toCommentJSON(c *comment.Comment) commentJSON {
-	out := commentJSON{
+// NewCommentView builds the canonical JSON view of a comment, recursing into
+// nested replies.
+func NewCommentView(c *Comment) CommentView {
+	out := CommentView{
 		ID:               c.ID,
 		Author:           c.Author,
 		Line:             c.Line,
@@ -56,15 +58,43 @@ func toCommentJSON(c *comment.Comment) commentJSON {
 		Accepted:         c.Accepted,
 	}
 	for _, r := range c.Replies {
-		out.Replies = append(out.Replies, toCommentJSON(r))
+		out.Replies = append(out.Replies, NewCommentView(r))
 	}
 	return out
 }
 
-func toCommentJSONList(comments []*comment.Comment) []commentJSON {
-	out := make([]commentJSON, 0, len(comments))
+// NewCommentViews builds canonical views for a list of comments. The result is
+// never nil, so it marshals as [] rather than null.
+func NewCommentViews(comments []*Comment) []CommentView {
+	out := make([]CommentView, 0, len(comments))
 	for _, c := range comments {
-		out = append(out, toCommentJSON(c))
+		out = append(out, NewCommentView(c))
 	}
 	return out
+}
+
+// DocumentView is the canonical snake_case JSON shape for a document plus its
+// comment threads — used by the MCP document resource and any full-doc dumps.
+type DocumentView struct {
+	Content       string         `json:"content"`
+	DocumentHash  string         `json:"document_hash"`
+	LastValidated string         `json:"last_validated,omitempty"`
+	Template      string         `json:"template,omitempty"`
+	Reviews       []ReviewRecord `json:"reviews,omitempty"`
+	Threads       []CommentView  `json:"threads"`
+}
+
+// NewDocumentView builds the canonical JSON view of a document with comments.
+func NewDocumentView(d *DocumentWithComments) DocumentView {
+	view := DocumentView{
+		Content:      d.Content,
+		DocumentHash: d.DocumentHash,
+		Template:     d.Template,
+		Reviews:      d.Reviews,
+		Threads:      NewCommentViews(d.Threads),
+	}
+	if !d.LastValidated.IsZero() {
+		view.LastValidated = d.LastValidated.Format(time.RFC3339)
+	}
+	return view
 }

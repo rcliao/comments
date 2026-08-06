@@ -27,7 +27,7 @@ func (s *Server) handleValidate(ctx context.Context, req *mcp.CallToolRequest, a
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid file path: %w", err)
 	}
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load document: %w", err)
 	}
@@ -51,7 +51,7 @@ func (s *Server) handleSeed(ctx context.Context, req *mcp.CallToolRequest, args 
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid file path: %w", err)
 	}
-	doc, err := comment.LoadFromSidecar(absPath)
+	doc, _, err := loadDoc(absPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load document: %w", err)
 	}

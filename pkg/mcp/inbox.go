@@ -18,10 +18,10 @@ type InboxRequest struct {
 
 // inboxItem is one thread needing attention
 type inboxItem struct {
-	File      string      `json:"file"`
-	Reasons   []string    `json:"reasons"` // new_reply and/or blocking
-	Thread    commentJSON `json:"thread"`
-	LastReply *inboxReply `json:"last_reply,omitempty"`
+	File      string              `json:"file"`
+	Reasons   []string            `json:"reasons"` // new_reply and/or blocking
+	Thread    comment.CommentView `json:"thread"`
+	LastReply *inboxReply         `json:"last_reply,omitempty"`
 }
 
 // inboxReply summarizes the newest reply on a thread
@@ -58,7 +58,7 @@ func (s *Server) handleInbox(ctx context.Context, req *mcp.CallToolRequest, args
 
 	items := []inboxItem{}
 	for _, file := range targets {
-		doc, err := comment.LoadFromSidecar(file)
+		doc, _, err := loadDoc(file)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to load %s: %w", file, err)
 		}
@@ -80,7 +80,7 @@ func (s *Server) handleInbox(ctx context.Context, req *mcp.CallToolRequest, args
 			item := inboxItem{
 				File:    file,
 				Reasons: reasons,
-				Thread:  toCommentJSON(thread),
+				Thread:  comment.NewCommentView(thread),
 			}
 			if last != nil {
 				item.LastReply = &inboxReply{

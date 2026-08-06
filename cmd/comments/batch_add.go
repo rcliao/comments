@@ -29,19 +29,20 @@ type BatchComment struct {
 	ProposedText string `json:"proposed_text,omitempty"`
 }
 
-func batchAddCommand(filename string, args []string) {
+func batchAddCommand(filename string, args []string) error {
 	// Parse flags
-	fs := flag.NewFlagSet("batch-add", flag.ExitOnError)
+	fs := flag.NewFlagSet("batch-add", flag.ContinueOnError)
 	jsonInput := fs.String("json", "", "JSON file path (use '-' for stdin)")
 
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
 
 	if *jsonInput == "" {
-		fmt.Println("Error: --json flag is required")
-		fmt.Println("Usage: comments batch-add <file> --json <file|->")
-		fmt.Println("Example: comments batch-add doc.md --json reviews.json")
-		fmt.Println("Example: echo '[{\"line\":10,\"text\":\"comment\"}]' | comments batch-add doc.md --json -")
-		os.Exit(1)
+		return failf("Error: --json flag is required\n" +
+			"Usage: comments batch-add <file> --json <file|->\n" +
+			"Example: comments batch-add doc.md --json reviews.json\n" +
+			"Example: echo '[{\"line\":10,\"text\":\"comment\"}]' | comments batch-add doc.md --json -")
 	}
 
 	// Read JSON input (from file or stdin)
@@ -52,33 +53,33 @@ func batchAddCommand(filename string, args []string) {
 		// Read from stdin
 		input, err = io.ReadAll(os.Stdin)
 		if err != nil {
-			fmt.Printf("Error reading from stdin: %v\n", err)
-			os.Exit(1)
+			return failf("Error reading from stdin: %v", err)
 		}
 	} else {
 		// Read from file
 		input, err = os.ReadFile(*jsonInput)
 		if err != nil {
-			fmt.Printf("Error reading JSON file: %v\n", err)
-			os.Exit(1)
+			return failf("Error reading JSON file: %v", err)
 		}
 	}
 
 	// Parse batch comments
 	var batchComments []BatchComment
 	if err := json.Unmarshal(input, &batchComments); err != nil {
-		fmt.Printf("Error parsing JSON: %v\n", err)
-		fmt.Println("\nExpected format (regular comment with line):")
-		fmt.Println(`[
+		return failf("Error parsing JSON: %v\n%s", err, `
+Expected format (regular comment with line):
+[
   {"line": 10, "author": "alice", "text": "Add examples", "type": "S"},
   {"line": 25, "author": "bob", "text": "Great point!"}
-]`)
-		fmt.Println("\nExpected format (comment with section):")
-		fmt.Println(`[
+]
+
+Expected format (comment with section):
+[
   {"section": "Introduction > Overview", "author": "alice", "text": "Consider adding examples", "type": "S"}
-]`)
-		fmt.Println("\nExpected format (multi-line suggestion):")
-		fmt.Println(`[
+]
+
+Expected format (multi-line suggestion):
+[
   {
     "line": 15,
     "author": "claude",
@@ -90,67 +91,56 @@ func batchAddCommand(filename string, args []string) {
     "proposed_text": "new text"
   }
 ]`)
-		os.Exit(1)
 	}
 
 	if len(batchComments) == 0 {
 		fmt.Println("No comments found in JSON input")
-		os.Exit(0)
+		return nil
 	}
 
 	// Validate comments
 	for i, bc := range batchComments {
 		// Validate that either line or section is provided (but not both)
 		if bc.Line == 0 && bc.Section == "" {
-			fmt.Printf("Error: Comment %d must specify either 'line' or 'section'\n", i+1)
-			os.Exit(1)
+			return failf("Error: Comment %d must specify either 'line' or 'section'", i+1)
 		}
 		if bc.Line != 0 && bc.Section != "" {
-			fmt.Printf("Error: Comment %d cannot specify both 'line' and 'section'\n", i+1)
-			os.Exit(1)
+			return failf("Error: Comment %d cannot specify both 'line' and 'section'", i+1)
 		}
 		if bc.Text == "" {
-			fmt.Printf("Error: Comment %d has empty text\n", i+1)
-			os.Exit(1)
+			return failf("Error: Comment %d has empty text", i+1)
 		}
 		if bc.Author == "" {
-			fmt.Printf("Error: Comment %d has empty author (author is required)\n", i+1)
-			os.Exit(1)
+			return failf("Error: Comment %d has empty author (author is required)", i+1)
 		}
 		// Validate type if specified
 		if bc.Type != "" {
 			validTypes := map[string]bool{"Q": true, "S": true, "B": true, "T": true, "E": true}
 			if !validTypes[bc.Type] {
-				fmt.Printf("Error: Comment %d has invalid type '%s'. Valid types: Q, S, B, T, E\n", i+1, bc.Type)
-				os.Exit(1)
+				return failf("Error: Comment %d has invalid type '%s'. Valid types: Q, S, B, T, E", i+1, bc.Type)
 			}
 		}
 		// Validate suggestion fields if is_suggestion is true
 		if bc.IsSuggestion {
 			if bc.StartLine == 0 {
-				fmt.Printf("Error: Comment %d is a suggestion but missing 'start_line' field\n", i+1)
-				os.Exit(1)
+				return failf("Error: Comment %d is a suggestion but missing 'start_line' field", i+1)
 			}
 			if bc.EndLine == 0 {
-				fmt.Printf("Error: Comment %d is a suggestion but missing 'end_line' field\n", i+1)
-				os.Exit(1)
+				return failf("Error: Comment %d is a suggestion but missing 'end_line' field", i+1)
 			}
 			if bc.StartLine > bc.EndLine {
-				fmt.Printf("Error: Comment %d has start_line (%d) > end_line (%d)\n", i+1, bc.StartLine, bc.EndLine)
-				os.Exit(1)
+				return failf("Error: Comment %d has start_line (%d) > end_line (%d)", i+1, bc.StartLine, bc.EndLine)
 			}
 			if bc.ProposedText == "" {
-				fmt.Printf("Error: Comment %d is a suggestion but missing 'proposed_text' field\n", i+1)
-				os.Exit(1)
+				return failf("Error: Comment %d is a suggestion but missing 'proposed_text' field", i+1)
 			}
 		}
 	}
 
 	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
+	doc, err := loadDocument(filename)
 	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
+		return failf("Error loading document: %v", err)
 	}
 
 	// Resolve section paths to line numbers
@@ -158,15 +148,13 @@ func batchAddCommand(filename string, args []string) {
 		if batchComments[i].Section != "" {
 			// Validate section exists
 			if err := comment.ValidateSectionPath(doc.Content, batchComments[i].Section); err != nil {
-				fmt.Printf("Error in comment %d: %v\n", i+1, err)
-				os.Exit(1)
+				return failf("Error in comment %d: %v", i+1, err)
 			}
 
 			// Resolve section to line number (use section start line)
 			startLine, _, err := comment.ResolveSectionToLines(doc.Content, batchComments[i].Section, false)
 			if err != nil {
-				fmt.Printf("Error resolving section for comment %d: %v\n", i+1, err)
-				os.Exit(1)
+				return failf("Error resolving section for comment %d: %v", i+1, err)
 			}
 			batchComments[i].Line = startLine
 		}
@@ -225,12 +213,11 @@ func batchAddCommand(filename string, args []string) {
 
 	// Save to sidecar
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving document: %v\n", err)
-		os.Exit(1)
+		return failf("Error saving document: %v", err)
 	}
 
 	// Verify comments were added correctly by re-loading
-	verifyDoc, err := comment.LoadFromSidecar(filename)
+	verifyDoc, _, err := comment.LoadFromSidecar(filename)
 	if err == nil {
 		// Count how many of our comments are present
 		verifiedCount := 0
@@ -251,4 +238,5 @@ func batchAddCommand(filename string, args []string) {
 	}
 
 	fmt.Printf("✓ Added %d comment(s) to %s\n", addedCount, filename)
+	return nil
 }

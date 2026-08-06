@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/rcliao/comments/pkg/comment"
 )
@@ -17,19 +18,20 @@ type BatchReply struct {
 	Text   string `json:"text"`
 }
 
-func batchReplyCommand(filename string, args []string) {
+func batchReplyCommand(filename string, args []string) error {
 	// Parse flags
-	fs := flag.NewFlagSet("batch-reply", flag.ExitOnError)
+	fs := flag.NewFlagSet("batch-reply", flag.ContinueOnError)
 	jsonInput := fs.String("json", "", "JSON file path (use '-' for stdin)")
 
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitSilent(2)
+	}
 
 	if *jsonInput == "" {
-		fmt.Println("Error: --json flag is required")
-		fmt.Println("Usage: comments batch-reply <file> --json <file|->")
-		fmt.Println("Example: comments batch-reply doc.md --json replies.json")
-		fmt.Println("Example: echo '[{\"thread\":\"c123\",\"author\":\"claude\",\"text\":\"reply\"}]' | comments batch-reply doc.md --json -")
-		os.Exit(1)
+		return failf("Error: --json flag is required\n" +
+			"Usage: comments batch-reply <file> --json <file|->\n" +
+			"Example: comments batch-reply doc.md --json replies.json\n" +
+			"Example: echo '[{\"thread\":\"c123\",\"author\":\"claude\",\"text\":\"reply\"}]' | comments batch-reply doc.md --json -")
 	}
 
 	// Read JSON input (from file or stdin)
@@ -40,56 +42,49 @@ func batchReplyCommand(filename string, args []string) {
 		// Read from stdin
 		input, err = io.ReadAll(os.Stdin)
 		if err != nil {
-			fmt.Printf("Error reading from stdin: %v\n", err)
-			os.Exit(1)
+			return failf("Error reading from stdin: %v", err)
 		}
 	} else {
 		// Read from file
 		input, err = os.ReadFile(*jsonInput)
 		if err != nil {
-			fmt.Printf("Error reading JSON file: %v\n", err)
-			os.Exit(1)
+			return failf("Error reading JSON file: %v", err)
 		}
 	}
 
 	// Parse batch replies
 	var batchReplies []BatchReply
 	if err := json.Unmarshal(input, &batchReplies); err != nil {
-		fmt.Printf("Error parsing JSON: %v\n", err)
-		fmt.Println("\nExpected format:")
-		fmt.Println(`[
+		return failf("Error parsing JSON: %v\n%s", err, `
+Expected format:
+[
   {"thread": "c123", "author": "claude", "text": "This looks good"},
   {"thread": "c456", "author": "alice", "text": "I agree"}
 ]`)
-		os.Exit(1)
 	}
 
 	if len(batchReplies) == 0 {
 		fmt.Println("No replies found in JSON input")
-		os.Exit(0)
+		return nil
 	}
 
 	// Validate replies
 	for i, br := range batchReplies {
 		if br.Thread == "" {
-			fmt.Printf("Error: Reply %d has empty thread ID\n", i+1)
-			os.Exit(1)
+			return failf("Error: Reply %d has empty thread ID", i+1)
 		}
 		if br.Author == "" {
-			fmt.Printf("Error: Reply %d has empty author (author is required)\n", i+1)
-			os.Exit(1)
+			return failf("Error: Reply %d has empty author (author is required)", i+1)
 		}
 		if br.Text == "" {
-			fmt.Printf("Error: Reply %d has empty text\n", i+1)
-			os.Exit(1)
+			return failf("Error: Reply %d has empty text", i+1)
 		}
 	}
 
 	// Load document
-	doc, err := comment.LoadFromSidecar(filename)
+	doc, err := loadDocument(filename)
 	if err != nil {
-		fmt.Printf("Error loading document: %v\n", err)
-		os.Exit(1)
+		return failf("Error loading document: %v", err)
 	}
 
 	// Build thread ID lookup for validation
@@ -107,15 +102,14 @@ func batchReplyCommand(filename string, args []string) {
 	}
 
 	if len(invalidThreads) > 0 {
-		fmt.Printf("Error: The following thread IDs were not found:\n")
+		var b strings.Builder
+		b.WriteString("Error: The following thread IDs were not found:")
 		for _, tid := range invalidThreads {
-			fmt.Printf("  - %s\n", tid)
+			fmt.Fprintf(&b, "\n  - %s", tid)
 		}
-		fmt.Println("\nAvailable threads:")
-		for _, t := range doc.Threads {
-			fmt.Printf("  %s (Line %d, %d replies)\n", t.ID, t.Line, t.CountReplies())
-		}
-		os.Exit(1)
+		b.WriteString("\n")
+		b.WriteString(availableThreadsMsg(doc))
+		return failf("%s", b.String())
 	}
 
 	// Add all replies to the document structure
@@ -124,16 +118,14 @@ func batchReplyCommand(filename string, args []string) {
 	for _, br := range batchReplies {
 		// Use helper to add reply to thread
 		if err := comment.AddReplyToThread(doc.Threads, br.Thread, br.Author, br.Text); err != nil {
-			fmt.Printf("Error adding reply to thread %s: %v\n", br.Thread, err)
-			os.Exit(1)
+			return failf("Error adding reply to thread %s: %v", br.Thread, err)
 		}
 		addedCount++
 	}
 
 	// Save to sidecar
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		fmt.Printf("Error saving document: %v\n", err)
-		os.Exit(1)
+		return failf("Error saving document: %v", err)
 	}
 
 	fmt.Printf("✓ Added %d reply/replies to %s\n", addedCount, filename)
@@ -148,4 +140,5 @@ func batchReplyCommand(filename string, args []string) {
 	for threadID, count := range threadCounts {
 		fmt.Printf("  %s: %d reply/replies\n", threadID, count)
 	}
+	return nil
 }

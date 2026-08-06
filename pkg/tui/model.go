@@ -1201,10 +1201,15 @@ func (m Model) updateByMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 // loadFile loads a markdown file and transitions to browse mode
 func (m Model) loadFile(path string) (tea.Model, tea.Cmd) {
 	// Load document from sidecar
-	doc, err := comment.LoadFromSidecar(path)
+	doc, report, err := comment.LoadFromSidecar(path)
 	if err != nil {
 		m.err = err
 		return m, nil
+	}
+	if report.Dirty {
+		// Persist re-anchoring/orphan-status migrations discovered during load
+		// (best-effort; previously done inside LoadFromSidecar)
+		_ = comment.SaveToSidecar(path, doc)
 	}
 
 	// Update model
