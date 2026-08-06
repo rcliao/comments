@@ -49,5 +49,5 @@ sections:
     review_criteria:
       - "Is each question marked blocking (must be decided before approval) or non-blocking (can be settled during implementation)?"
 markers:
-  needs_clarification: "[NEEDS CLARIFICATION"
+  needs_clarification: "[NEEDS CLARIFICATION:"
   max: 3

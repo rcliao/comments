@@ -1,0 +1,40 @@
+template: plan
+version: 1
+description: RPI plan phase — ~200-line review unit; decisions made, no open questions; phases with verifiable success criteria
+doc:
+  max_words: 2000
+sections:
+  - heading: "Overview"
+    required: true
+    max_words: 100
+    review_criteria:
+      - "Can a reviewer tell from the Overview alone what will exist when this plan is done?"
+  - heading: "Current State"
+    required: true
+    review_criteria:
+      - "Does every claim about existing code carry a file:line citation the reviewer can peek (f)?"
+  - heading: "Desired End State"
+    required: true
+    zone: human
+    review_criteria:
+      - "Is the end state stated with how to verify it, not just what it is?"
+  - heading: "What We're NOT Doing"
+    required: true
+    zone: human
+    review_criteria:
+      - "Is the scope fence concrete enough to settle a mid-implementation 'should we also...' without a meeting?"
+  - heading: "Implementation Phases"
+    required: true
+    min_subsections: 2
+    review_criteria:
+      - "Does every phase carry Success Criteria split automated (a command or test) vs manual (human judgment)?"
+      - "Is each phase independently verifiable before the next begins?"
+      - "Is the plan free of real code? Plans decide and point (file:line); code belongs to implementation."
+  - heading: "Risks"
+    required: false
+    max_words: 150
+    review_criteria:
+      - "Are only genuine risks listed, each mitigated or explicitly accepted?"
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION:"
+  max: 1

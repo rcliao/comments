@@ -20,7 +20,9 @@ Add two built-in templates — `research` and `plan` — plus flow documentation
 - No directory convention enforcement — placement stays free; same-directory is recommended, not required (open question in research-rpi-templates.md:56).
 - No Options Considered in plans — alternatives live in design docs; plans record decisions already made (research-rpi-templates.md:22).
 
-## Phase 1: `research` built-in template
+## Implementation Phases
+
+### Phase 1: `research` built-in template
 
 Mirror the HumanLayer research shape (research-rpi-templates.md:26) with our guardrails, following the design-doc YAML pattern (pkg/comment/templates/design-doc.yaml):
 
@@ -32,7 +34,7 @@ Mirror the HumanLayer research shape (research-rpi-templates.md:26) with our gua
 - automated: `TestLoadBuiltinTemplates` covers `research`; a conforming fixture validates clean and a findings-as-prose fixture fails min_subsections; suite green under -race
 - manual: this plan's own research doc, retrofitted, validates against the template
 
-## Phase 2: `plan` built-in template
+### Phase 2: `plan` built-in template
 
 Mirror the HumanLayer plan shape (research-rpi-templates.md:18) with the discipline rules as enforced structure (research-rpi-templates.md:22):
 
@@ -44,7 +46,7 @@ Mirror the HumanLayer plan shape (research-rpi-templates.md:18) with the discipl
 - automated: template loads + conforming/violating fixtures as in Phase 1; a fixture with 2+ markers fails the cap
 - manual: this plan doc itself validates against the new template
 
-## Phase 3: Flow documentation
+### Phase 3: Flow documentation
 
 - CLAUDE.md: add the RPI recipe to the review-flow section — research (template `research`) → signoff → plan (template `plan`, citing research file:line) → review with `f`-peek → gate → implement.
 - skills/review-comments/SKILL.md: drafting-mode note — when writing a plan, cite the research doc by `file:line` so the reviewer can peek every claim; open questions go to the research doc's Open Questions, never the plan.

@@ -25,4 +25,4 @@ sections:
     review_criteria:
       - "Are negative consequences listed, not only positive ones?"
 markers:
-  needs_clarification: "[NEEDS CLARIFICATION"
+  needs_clarification: "[NEEDS CLARIFICATION:"

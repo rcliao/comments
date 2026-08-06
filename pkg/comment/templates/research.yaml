@@ -1,0 +1,33 @@
+template: research
+version: 1
+description: RPI research phase — documentarian findings with file:line evidence; open questions live HERE, not in the plan
+doc:
+  max_words: 1500
+sections:
+  - heading: "Research Question"
+    required: true
+    max_words: 100
+    zone: human
+    review_criteria:
+      - "Is the question specific enough that the Summary can answer it in a few sentences?"
+  - heading: "Summary"
+    required: true
+    max_words: 150
+    review_criteria:
+      - "Does the Summary actually answer the Research Question, readable on its own?"
+  - heading: "Findings"
+    required: true
+    min_subsections: 2
+    review_criteria:
+      - "Does each finding carry file:line or source evidence a reviewer can peek (f) or follow?"
+      - "Is the tone documentarian — describing what IS, without prescribing what to build?"
+  - heading: "Code References"
+    required: true
+    review_criteria:
+      - "Are the references the load-bearing ones (what a plan would cite), not an exhaustive dump?"
+  - heading: "Open Questions"
+    required: true
+    zone: human
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION:"
+  max: 3

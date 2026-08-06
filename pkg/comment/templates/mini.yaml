@@ -23,5 +23,5 @@ sections:
     review_criteria:
       - "Is every criterion verifiable (a command, a test, an observable behavior), labeled automated or manual?"
 markers:
-  needs_clarification: "[NEEDS CLARIFICATION"
+  needs_clarification: "[NEEDS CLARIFICATION:"
   max: 2

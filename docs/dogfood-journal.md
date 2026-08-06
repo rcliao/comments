@@ -200,3 +200,12 @@ Convention: newest entry first. Tag friction items `[friction]`, validated wins 
 - `[win]` Adopted the best of what we lacked, same day: markers.max cap (Spec Kit's max-3 → agents spend questions on what genuinely needs the human), `mini` built-in template (escape hatch for small changes), DoD automated/manual labeling (HumanLayer), MADR pro/con bullet grammar for options, blocking/non-blocking marking for unresolved questions (Eric's call: conventional-comments style over Rust's three-bucket split).
 - `[friction]` First marker-cap implementation counted lines, not occurrences — three markers on one line slipped under a cap of 2. Caught by CLI smoke, not unit tests; smoke with adversarial docs stays worth the minute.
 - `[idea]` Still open from the research: implementation-time discoveries don't flow back into the doc (Kent Beck's critique). Watch for it in real use before building anything.
+
+## 2026-08-06 (evening) — reference peek shipped + first full RPI pass
+
+- `[win]` Reference peek designed, reviewed, and built in one loop — and Eric's review made it smaller: peek-first stayed, but the in-TUI jump/stack/breadcrumb died in favor of enter→$EDITOR at file:line. Review deleting scope is the system working.
+- `[win]` First real RPI pass ran end to end AS the peek manual test: research doc (F1-F7 with real file:line refs) → plan citing research-rpi-templates.md:NN → Eric reviewed the plan in the TUI peeking citations → signoff → research/plan built-in templates implemented same session. The tool now natively supports the flow it was benchmarked against.
+- `[win]` Dogfood found a real validator bug: prose *about* the marker convention ("capping [NEEDS CLARIFICATION] markers at 3") tripped unresolved_marker. Fix: marker prefix now requires the colon — real markers always have one, mentions rarely do.
+- `[friction]` The plan doc was drafted with phases as H2s; the plan template needs them nested under "## Implementation Phases" for min_subsections to bite. Retrofit was one edit; the skill now states the shape.
+- `[idea]` Eric: ship agent-skill support to "utilize research/plan template in the pipeline better" — partially addressed (SKILL.md RPI mode section); watch whether agents actually follow it or need harder scaffolding.
+- `[idea]` Eric: expand the CLI so plans' automated success criteria can be "tested by agent" — a comments-native check runner (DoD criteria as executable checks?). Unscoped; revisit after the templates see real use.

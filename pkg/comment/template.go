@@ -76,7 +76,7 @@ type TemplateSection struct {
 }
 
 type TemplateMarkers struct {
-	NeedsClarification string `yaml:"needs_clarification"` // default "[NEEDS CLARIFICATION"
+	NeedsClarification string `yaml:"needs_clarification"` // default "[NEEDS CLARIFICATION:" (colon distinguishes real markers from prose mentions)
 	// Max caps how many markers a doc may carry (0 = unlimited). Above the
 	// cap the agent must decide the less consequential ambiguities itself and
 	// record them as assumptions, keeping open questions to the few that
@@ -104,7 +104,7 @@ func (t *Template) markerPrefix() string {
 	if t.Markers.NeedsClarification != "" {
 		return t.Markers.NeedsClarification
 	}
-	return "[NEEDS CLARIFICATION"
+	return "[NEEDS CLARIFICATION:"
 }
 
 // ListTemplates returns built-in and project template names (project wins on

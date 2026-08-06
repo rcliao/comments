@@ -122,6 +122,27 @@ Only list comments whose target text you moved, rewrote, or deleted-and-replaced
 untouched comments keep their anchors. The load-time re-anchor cascade is a
 safety net for edits made outside this loop, not a substitute for this step.
 
+## RPI mode (Research → Plan → Implement)
+
+For feature-sized work, split drafting into two phase docs with the dedicated
+templates, and treat the human signoff between them as a hard gate:
+
+1. **Research** (`comments template show research` is your brief): produce a
+   documentarian findings doc — discrete findings (F1, F2, ...) each carrying
+   file:line evidence, a Code References section a plan can cite, and every
+   open question in Open Questions (zone: human). Request review; do not start
+   the plan until the research is signed off.
+2. **Plan** (`comments template show plan`): decisions only — the marker cap
+   is 1 because open questions belong to the research phase. Cite the research
+   doc by `file:line` (e.g. `research-foo.md:23`) for every Current State and
+   design claim: the human reviews the plan in the TUI and peeks each citation
+   with `f`, so an uncited claim is an unverifiable claim. Keep the plan near
+   200 lines; no code blocks — decide and point (file:line) instead.
+3. Every phase in Implementation Phases carries Success Criteria split
+   **automated** (a command or test) vs **manual** (human judgment).
+4. Gate green + signoff on the plan → implement, phase by phase, verifying
+   each phase's criteria before the next.
+
 ## Conventions
 
 - Author yourself as `claude` (or your agent name) in every comment/reply.

@@ -266,7 +266,7 @@ func TestComputeSeedTargetsSegmentBoundary(t *testing.T) {
 }
 
 func TestLoadBuiltinTemplates(t *testing.T) {
-	for _, name := range []string{"design-doc", "adr", "rfc", "mini"} {
+	for _, name := range []string{"design-doc", "adr", "rfc", "mini", "research", "plan"} {
 		tmpl, err := LoadTemplate(name)
 		if err != nil {
 			t.Errorf("built-in template %q failed to load: %v", name, err)
@@ -426,4 +426,48 @@ func TestMiniTemplateWorkflow(t *testing.T) {
 	if !found {
 		t.Errorf("mini must require Definition of Done, got %v", vs)
 	}
+}
+
+func TestRPITemplates(t *testing.T) {
+	research, err := LoadTemplate("research")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := LoadTemplate("plan")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if research.Markers.Max != 3 || plan.Markers.Max != 1 {
+		t.Errorf("marker caps: research want 3 got %d, plan want 1 got %d",
+			research.Markers.Max, plan.Markers.Max)
+	}
+
+	conformingResearch := "# R\n\n## Research Question\n\nWhat?\n\n## Summary\n\nThis.\n\n## Findings\n\n### F1\n\nOne, per a.go:1.\n\n### F2\n\nTwo.\n\n## Code References\n\n- a.go:1\n\n## Open Questions\n\nNone.\n"
+	if vs := ValidateTemplate(conformingResearch, research); len(vs) != 0 {
+		t.Errorf("conforming research doc should validate clean, got %v", vs)
+	}
+	// findings as one wall of prose (no subsections) must fail
+	prose := "# R\n\n## Research Question\n\nWhat?\n\n## Summary\n\nThis.\n\n## Findings\n\nJust prose.\n\n## Code References\n\n- a.go:1\n\n## Open Questions\n\nNone.\n"
+	if vs := ValidateTemplate(prose, research); !hasRule(vs, "min_subsections") {
+		t.Errorf("prose findings must fail min_subsections, got %v", vs)
+	}
+
+	conformingPlan := "# P\n\n## Overview\n\nBuild X.\n\n## Current State\n\nY exists (y.go:3).\n\n## Desired End State\n\nX works; verify by test.\n\n## What We're NOT Doing\n\nNo Z.\n\n## Implementation Phases\n\n### Phase 1\n\nDo A. Success: automated go test; manual eyeball.\n\n### Phase 2\n\nDo B. Success: automated lint; manual review.\n"
+	if vs := ValidateTemplate(conformingPlan, plan); len(vs) != 0 {
+		t.Errorf("conforming plan doc should validate clean, got %v", vs)
+	}
+	// two markers exceed the plan cap of 1
+	twoMarkers := strings.Replace(conformingPlan, "Do A.", "Do A [NEEDS CLARIFICATION: a?]\nand [NEEDS CLARIFICATION: b?].", 1)
+	if vs := ValidateTemplate(twoMarkers, plan); !hasRule(vs, "too_many_markers") {
+		t.Errorf("2 markers must exceed plan cap of 1, got %v", vs)
+	}
+}
+
+func hasRule(vs []Violation, rule string) bool {
+	for _, v := range vs {
+		if v.Rule == rule {
+			return true
+		}
+	}
+	return false
 }

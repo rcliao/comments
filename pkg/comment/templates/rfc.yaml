@@ -32,4 +32,4 @@ sections:
     required: true
     zone: human
 markers:
-  needs_clarification: "[NEEDS CLARIFICATION"
+  needs_clarification: "[NEEDS CLARIFICATION:"
