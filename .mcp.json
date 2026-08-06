@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "comments": {
+      "type": "stdio",
+      "command": "comments",
+      "args": ["serve-mcp"]
+    }
+  }
+}

@@ -1,144 +1,67 @@
 # Comments
 
-A CLI tool for collaborative document writing with inline comments and suggestions, designed for seamless LLM integration.
+Google-Docs-style review for markdown, in the terminal. Inline comment threads and edit suggestions live in sidecar JSON files next to your docs — a TUI for the human, a CLI + MCP server for agents, and a machine-readable review gate between them.
 
 [![asciicast](https://asciinema.org/a/z6fSaof32MYS36NOtZ5Oj84Lf.svg)](https://asciinema.org/a/z6fSaof32MYS36NOtZ5Oj84Lf)
 
 ## Overview
 
-`comments` brings Google Doc-style commenting and track-changes functionality to terminal-based markdown editing, enabling better collaboration between humans and LLM agents. Instead of having LLMs rewrite entire documents, you can add contextual comments at specific lines to guide iteration and discussion, or propose edits as suggestions with preview and accept/reject workflow.
+`comments` is built for human↔agent doc collaboration (spec-driven development). Instead of having an LLM rewrite entire documents, the agent drafts under a template that keeps docs short and reviewable, the human walks the comment threads in the TUI and signs off, and the agent addresses feedback one comment at a time until the gate opens.
 
 ## Features
 
-- **Inline Comments**: Add comments to specific lines or markdown sections
-- **Edit Suggestions**: Propose multi-line changes with preview and accept/reject workflow
-- **Thread Support**: Reply to comments and suggestions to build conversation threads
-- **Section-Based Addressing**: Reference comments by markdown heading hierarchy
-- **Terminal UI**: Beautiful, keyboard-driven interface built with Bubbletea
-- **LLM Integration**: Collaborate with AI agents using contextual comments and suggestions
-- **JSON Sidecar Storage**: Clean separation with `.md.comments.json` files
-- **Document Staleness Detection**: Automatic hash-based validation prevents data corruption
-- **@filename Support**: Read comment text from external files (great for LLM agents)
-- **Batch Operations**: Efficient JSON-based bulk comment and reply operations
+- **Inline comments & threads**: anchored to lines or markdown sections, with nested replies and content-based re-anchoring when the doc changes
+- **Edit suggestions**: multi-line proposals with preview and accept/reject; queued decisions apply atomically at review verdict
+- **Review gate**: `comments gate` exits 0 (approved) or 10 (changes requested); `signoff` records the human pass agents block on
+- **Doc templates as guardrails**: required sections, word caps, forced alternatives, human-owned zones, `[NEEDS CLARIFICATION:]` marker caps — built-ins: `design-doc`, `mini`, `research`, `plan`, `adr`, `rfc`
+- **RPI flow**: research docs with file:line evidence → plans citing the research → reviewed in the TUI where `f` peeks any citation and Enter opens `$EDITOR` there
+- **Watch**: `comments watch --until signoff` streams NDJSON review events so agents can wait on humans
+- **MCP server**: 19 tools over stdio for agent integration; batch operations; `@filename` text input
 
-## Installation
+## Install
 
 ```bash
+# the binary (required)
 go install github.com/rcliao/comments/cmd/comments@latest
+
+# the Claude Code plugin: review-comments skill + MCP server, one install
+/plugin marketplace add rcliao/comments
+/plugin install comments@comments
 ```
 
-## Quick Start
+## The core loop
 
 ```bash
-# Open interactive viewer
-comments view document.md
-
-# Add a comment from command line
-comments add document.md --line 10 --author "alice" --text "What about edge cases?" --type Q
-
-# Add a comment to a section
-comments add document.md --section "Introduction > Overview" --author "bob" --text "Expand this"
-
-# Create a multi-line suggestion
-comments suggest document.md --start-line 15 --end-line 17 --author "claude" \
-  --text "Improve clarity" --original "old text" --proposed "new text"
-
-# Use @filename to read text from file
-comments add document.md --line 25 --author "alice" --text @comment.txt
-
-# Accept suggestion with preview
-comments accept document.md --suggestion c123 --preview
-comments accept document.md --suggestion c123
-
-# List all comments and suggestions
-comments list document.md
-
-# List with filters
-comments list document.md --section "Implementation" --author "alice"
-
-# Batch operations (great for LLM agents)
-echo '[{"line":10,"author":"claude","text":"Good point","type":"Q"}]' | \
-  comments batch-add document.md --json -
+comments view doc.md            # TUI review; q opens the verdict dialog
+comments add doc.md --line 10 --author eric --text "Fix this first" --blocking
+comments gate doc.md            # exit 0 = approved, 10 = changes requested
+comments signoff doc.md         # record the review pass agents wait on
+comments watch specs/ --until signoff     # NDJSON event stream, exits on signoff
 ```
 
-## Usage
-
-### Interactive Mode (TUI)
-
-**Navigation:**
-- `↑/↓` or `j/k`: Navigate comments
-- `Enter`: View thread details
-- `c`: Add new comment
-- `r`: Reply to thread
-- `R`: Toggle resolved comments
-- `q`: Quit
-
-**Suggestion Review:**
-- `a`: Accept suggestion (shows preview)
-- `x`: Reject suggestion
-- `y/Enter`: Confirm acceptance
-- `n/Esc`: Cancel
-
-### Command Line
+Agent-side drafting under a template:
 
 ```bash
-# Comments
-comments view <file>                      # Open interactive TUI
-comments add <file> [options]             # Add a comment
-comments list <file> [options]            # List all comments
-comments reply <file> [options]           # Reply to thread
-comments resolve <file> --thread <id>     # Mark thread as resolved
-
-# Suggestions
-comments suggest <file> [options]         # Create multi-line suggestion
-comments accept <file> --suggestion <id>  # Accept and apply suggestion
-comments reject <file> --suggestion <id>  # Reject suggestion
-
-# Batch Operations
-comments batch-add <file> --json <file>   # Batch add comments from JSON
-comments batch-reply <file> --json <file> # Batch reply to threads from JSON
+comments template list                        # when to use which, per description
+comments template show design-doc             # the writing brief
+comments validate draft.md --template design-doc
+comments seed draft.md --template design-doc  # criteria + markers become review threads
 ```
 
-## Storage Format (v2.0)
+## TUI keys
 
-Comments and suggestions are stored in JSON sidecar files (`.md.comments.json`) alongside your markdown files. This approach:
-- Keeps markdown files clean and readable
-- Enables structured metadata and advanced features
-- Separates content from collaboration data
-- Supports independent version control of comments
-- Provides automatic staleness detection via document hashing
+`j/k` move · `r` dive into thread at cursor · `Tab` cycle stacked threads · `n/N` next/prev NEW since your last signoff · `f` peek citation (Enter → `$EDITOR` at file:line) · `t` table of contents · `a`/`x` queue accept/reject on suggestions · `q` verdict (approve / request changes) · `?` full keybinding help
 
-### Example Storage Format
+## Storage
 
-```json
-{
-  "version": "2.0",
-  "documentHash": "sha256_hash",
-  "threads": [
-    {
-      "ID": "c123",
-      "Author": "alice",
-      "Text": "[Q] What about edge cases?",
-      "Line": 10,
-      "SectionPath": "Introduction > Overview",
-      "Replies": [
-        {
-          "ID": "c124",
-          "Author": "bob",
-          "Text": "Good point, let me add tests",
-          "Replies": []
-        }
-      ]
-    }
-  ]
-}
-```
+Comments live in `doc.md.comments.json` sidecars: markdown stays clean, collaboration data versions independently, and a SHA-256 document hash drives staleness detection and the re-anchoring cascade (exact → text → fuzzy → section → orphan).
 
 ## Documentation
 
-- **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System design and data model
-- **Development Guide**: [CLAUDE.md](CLAUDE.md) - Implementation details for contributors
-- **Usage Guide**: [USAGE.md](USAGE.md) - Complete command reference
+- [CLAUDE.md](CLAUDE.md) — command reference, architecture, agent workflow
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system design and data model
+- [USAGE.md](USAGE.md) — complete command reference
+- [skills/review-comments/SKILL.md](skills/review-comments/SKILL.md) — the agent skill (bundled by the plugin)
 
 ## License
 

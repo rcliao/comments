@@ -1,0 +1,16 @@
+{
+  "name": "comments",
+  "owner": {
+    "name": "Eric Liao",
+    "url": "https://github.com/rcliao"
+  },
+  "description": "Google-Docs-style review for markdown in the terminal — inline comment threads, suggestions, review gates, and RPI phase templates for human-agent doc collaboration.",
+  "plugins": [
+    {
+      "name": "comments",
+      "source": "./",
+      "description": "Review workflow for agent-written docs: the review-comments skill (one-comment-at-a-time loop, RPI research/plan phases) plus the comments MCP server (19 tools: threads, suggestions, review gate, templates, watch-for-signoff). Requires the comments binary on PATH: go install github.com/rcliao/comments/cmd/comments@latest",
+      "category": "productivity"
+    }
+  ]
+}

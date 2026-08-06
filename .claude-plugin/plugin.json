@@ -1,0 +1,21 @@
+{
+  "name": "comments",
+  "version": "2.1.0",
+  "description": "Review workflow for agent-written docs: inline comment threads on markdown, edit suggestions with accept/reject, a machine-readable review gate (exit 0/10), doc templates as guardrails (design-doc, mini, RPI research/plan), and citation peek in the TUI. Bundles the review-comments skill and the comments MCP server.",
+  "author": {
+    "name": "Eric Liao",
+    "url": "https://github.com/rcliao"
+  },
+  "homepage": "https://github.com/rcliao/comments",
+  "repository": "https://github.com/rcliao/comments",
+  "keywords": [
+    "review",
+    "markdown",
+    "comments",
+    "spec-driven-development",
+    "rpi",
+    "human-in-the-loop",
+    "mcp",
+    "agent-tools"
+  ]
+}
