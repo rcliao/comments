@@ -193,3 +193,10 @@ Convention: newest entry first. Tag friction items `[friction]`, validated wins 
 - `[win]` design-doc template now requires a zone-human "Definition of Done" section — verifiable done-criteria + explicit out-of-scope as the handoff contract before an agent implements.
 - `[friction]` Two review items were already half-fixed by earlier sessions (usage-text phantoms, CLAUDE.md drift) — reviewers flagged docs the trim had just rewritten. Plan docs should record what the review snapshot was taken against.
 - `[idea]` The empty-ProposedText off-by-one existed in three copies (cmd, tui, mcp) and only the shared ApplyAndAcceptSuggestion killed it for good — dedupe is bug-fixing, not just hygiene.
+
+## 2026-08-06 (later) — SDD landscape research → template adoptions
+
+- `[win]` 3-agent research sweep (Spec Kit, HumanLayer, Kiro/OpenSpec/BMAD/prior art) confirmed the core bets are rare in the field: machine-enforced max_words and a machine-readable review gate exist nowhere else surveyed; the ecosystem's loudest critiques (2,577 md lines to review 689 code lines; "I'd rather review code than these markdown files") are the exact problem comments solves.
+- `[win]` Adopted the best of what we lacked, same day: markers.max cap (Spec Kit's max-3 → agents spend questions on what genuinely needs the human), `mini` built-in template (escape hatch for small changes), DoD automated/manual labeling (HumanLayer), MADR pro/con bullet grammar for options, blocking/non-blocking marking for unresolved questions (Eric's call: conventional-comments style over Rust's three-bucket split).
+- `[friction]` First marker-cap implementation counted lines, not occurrences — three markers on one line slipped under a cap of 2. Caught by CLI smoke, not unit tests; smoke with adversarial docs stays worth the minute.
+- `[idea]` Still open from the research: implementation-time discoveries don't flow back into the doc (Kent Beck's critique). Watch for it in real use before building anything.
