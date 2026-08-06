@@ -10,7 +10,33 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 )
+
+func TestTitleBarTruncatesLongPathKeepsMode(t *testing.T) {
+	m := *testModel(nil)
+	m.filename = "/very/deep/" + strings.Repeat("dir/", 20) + "doc.md"
+	m = drive(t, m, tea.WindowSizeMsg{Width: 60, Height: 20})
+
+	// JoinVertical pads rows with trailing spaces; measure the bar text itself
+	first := strings.TrimRight(strings.SplitN(frame(m), "\n", 2)[0], " ")
+	if !strings.Contains(first, "BROWSE") {
+		t.Errorf("mode indicator must survive a long path, got %q", first)
+	}
+	if !strings.Contains(first, "…") {
+		t.Errorf("long path should be truncated with an ellipsis, got %q", first)
+	}
+	if w := lipgloss.Width(first); w > 60 {
+		t.Errorf("title bar must fit the terminal width (60), got %d: %q", w, first)
+	}
+
+	// Short paths render untouched
+	m.filename = "doc.md"
+	first = strings.SplitN(frame(m), "\n", 2)[0]
+	if !strings.Contains(first, "doc.md - BROWSE") {
+		t.Errorf("short path should render whole, got %q", first)
+	}
+}
 
 func TestDialogsShowDocumentInSameFrame(t *testing.T) {
 	cases := []struct {

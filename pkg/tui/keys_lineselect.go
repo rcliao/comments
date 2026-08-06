@@ -539,8 +539,7 @@ func (m Model) viewSelectRange() string {
 	}
 
 	// Base layout with document (showing range highlighting)
-	modeStr := fmt.Sprintf("Range Selection: Lines %d-%d", m.rangeStartLine, m.rangeEndLine)
-	title := m.styles.title.Render(fmt.Sprintf("📄 %s - Mode: %s", m.filename, modeStr))
+	title := m.titleBar(fmt.Sprintf("Range Selection: Lines %d-%d", m.rangeStartLine, m.rangeEndLine))
 
 	// Layout: document on left, comments on right (background)
 	content := lipgloss.JoinHorizontal(

@@ -125,14 +125,26 @@ func (m *Model) scrollToComment(c *comment.Comment) {
 	m.documentViewport.SetYOffset(max(displayRow-m.documentViewport.Height()/2, 0))
 }
 
+// titleBar renders the `📄 path - MODE` bar. Long paths are truncated
+// (rune-safe) so the mode indicator stays visible — the v2 renderer clips
+// rows at the terminal width, which used to push the mode suffix off screen.
+func (m Model) titleBar(modeStr string) string {
+	prefix := "📄 "
+	suffix := " - " + modeStr
+	name := m.filename
+	if avail := m.width - lipgloss.Width(prefix) - lipgloss.Width(suffix); m.width > 0 && lipgloss.Width(name) > avail {
+		name = truncate(name, max(avail, 1), "…")
+	}
+	return m.styles.title.Render(prefix + name + suffix)
+}
+
 // viewBrowse renders the browse/line-select view
 func (m Model) viewBrowse() string {
 	if !m.ready {
 		return "Loading..."
 	}
 
-	modeStr := m.mode.String()
-	title := m.styles.title.Render(fmt.Sprintf("📄 %s - %s", m.filename, modeStr))
+	title := m.titleBar(m.mode.String())
 
 	var helpText string
 	if m.mode == ModeLineSelect {
