@@ -252,6 +252,39 @@ func (st *styleSet) lineSummary(threads []*comment.Comment, since time.Time) str
 	return summary
 }
 
+// threadTypeIcon maps a thread to its sidebar icon by comment type:
+// edit suggestions and typed comments read at a glance; untyped fall back
+// to the plain bubble.
+func threadTypeIcon(c *comment.Comment) string {
+	if c.IsSuggestion {
+		return "\U0001F4DD" // 📝 edit suggestion
+	}
+	switch c.Type {
+	case "Q":
+		return "\u2753" // ❓ question
+	case "S":
+		return "\U0001F4A1" // 💡 suggestion
+	case "B":
+		return "\U0001F41B" // 🐛 bug
+	case "T":
+		return "\U0001F4CB" // 📋 todo
+	case "E":
+		return "\u2728" // ✨ enhancement
+	}
+	return "\U0001F4AC" // 💬 untyped
+}
+
+// groupIcon is the icon for a sidebar line-group: the first open thread's
+// type icon (open threads outrank resolved ones), else the first thread's.
+func groupIcon(group []*comment.Comment) string {
+	for _, c := range group {
+		if isOpenThread(c) {
+			return threadTypeIcon(c)
+		}
+	}
+	return threadTypeIcon(group[0])
+}
+
 // lineSummarySuffix returns the end-of-line summary (with leading space) for
 // a line's threads, honoring the L toggle
 func (m *Model) lineSummarySuffix(threads []*comment.Comment) string {
@@ -534,11 +567,12 @@ func (m *Model) renderComments() string {
 			i++
 		}
 
-		// Group header: location + count badge
-		header := fmt.Sprintf("📍 Line %d", line)
+		// Group header: location + count badge, icon keyed to the group's
+		// first open thread's comment type
+		header := fmt.Sprintf("%s Line %d", groupIcon(group), line)
 		if sp := group[0].SectionPath; sp != "" {
 			parts := strings.Split(sp, " > ")
-			header = fmt.Sprintf("📍 %s (Line %d)", parts[len(parts)-1], line)
+			header = fmt.Sprintf("%s %s (Line %d)", groupIcon(group), parts[len(parts)-1], line)
 		}
 		if len(group) > 1 {
 			header += fmt.Sprintf(" · %d threads", len(group))

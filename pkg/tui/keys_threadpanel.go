@@ -107,10 +107,9 @@ func (m Model) viewThreadPanel() string {
 func (m Model) renderThreadPanelBox(lay panelLayout) string {
 	inner := lay.w - 2
 
-	icon := "💬"
+	icon := threadTypeIcon(m.selectedThread)
 	locationStr := fmt.Sprintf("Line %d", m.threadAnchorLine())
 	if m.selectedThread.SectionPath != "" {
-		icon = "📍"
 		locationStr = fmt.Sprintf("%s (Line %d)", m.selectedThread.SectionPath, m.threadAnchorLine())
 	}
 	headerText := fmt.Sprintf("%s Thread at %s", icon, locationStr)
