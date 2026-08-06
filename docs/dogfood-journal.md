@@ -184,3 +184,12 @@ Convention: newest entry first. Tag friction items `[friction]`, validated wins 
 **State at entry close:** anchoring design doc approved (gate green); 2 non-blocking human-zone threads awaiting Eric's resolve + `signoff`. Implementation queue: content anchors + cascade, `comments_reanchor`, short display IDs, focus-follows-cursor view, schema unification.
 
 ---
+
+## 2026-08-06 — code-debt plan executed end to end (3 waves, 5+3 agents)
+
+- `[win]` The 3-agent review's plan survived contact: all 17 items landed in one day across 4 commits (41b98e7, 613937f, 07251c5 + CI hardening a8b5c8a). Six P0 correctness bugs fixed with tests — the code-fence heading parser bug alone was corrupting sections/anchors/templates for any doc with a code block, which is every doc this tool targets.
+- `[win]` Disjoint-file agent parallelism held again (5 Wave-1 agents, 3 Wave-3 agents, zero merge conflicts). The one stall (serializer agent) left a clean half-done state — the new json.go was complete, so finishing inline was cheap.
+- `[win]` Wave 2's layering split immediately paid for itself: cmd/ got its first tests ever (gate exit-10 contract, JSON-stdout purity now pinned), and the MCP dedupe that followed deleted ~300 lines against the new seams.
+- `[win]` design-doc template now requires a zone-human "Definition of Done" section — verifiable done-criteria + explicit out-of-scope as the handoff contract before an agent implements.
+- `[friction]` Two review items were already half-fixed by earlier sessions (usage-text phantoms, CLAUDE.md drift) — reviewers flagged docs the trim had just rewritten. Plan docs should record what the review snapshot was taken against.
+- `[idea]` The empty-ProposedText off-by-one existed in three copies (cmd, tui, mcp) and only the shared ApplyAndAcceptSuggestion killed it for good — dedupe is bug-fixing, not just hygiene.
