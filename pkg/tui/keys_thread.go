@@ -1,7 +1,16 @@
 package tui
 
-// Thread-view mode: an expanded thread with replies, plus queueing
-// accept/reject decisions on pending suggestions.
+// Thread-view mode: the thread panel over the live document, with replies
+// and queueing accept/reject decisions on pending suggestions.
+//
+// Focus model (fall-through): while the panel is open the screen still reads
+// as browse, so keys split three ways —
+//   - thread actions stay on the panel: j/k scroll the THREAD, r replies,
+//     a/x queue decisions or resolve, Esc closes the panel;
+//   - browse-shaped keys fall through with browse semantics instead of dying:
+//     c closes the panel and starts the comment flow at the cursor line,
+//     q opens the verdict dialog (Esc returns to the panel), ? opens help;
+//   - everything else is panel-scoped or ignored (see pkg/tui/CLAUDE.md).
 
 import (
 	"charm.land/bubbles/v2/textarea"
@@ -24,18 +33,28 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.selectedThread = nil
 		return m, nil
 
-	case "q":
-		// If file was provided directly, quit the app
-		// Otherwise, go back to file picker
-		if m.startedWithFile {
-			m.saveViewStateNow()
-			return m, tea.Quit
-		}
-		m.mode = ModeFilePicker
+	case "c":
+		// Fall-through: close the panel and start the comment flow at the
+		// cursor line, exactly as c does in browse
 		m.selectedThread = nil
-		m.doc = nil
-		m.filename = ""
-		m.ready = false
+		m.returnToLineSelect = false
+		m.mode = ModeLineSelect
+		m.selectedLine = max(m.selectedLine, 1)
+		m.documentViewport = newViewport(m.docPaneWidth(), m.height-2)
+		m.refreshCursorView()
+		return m, nil
+
+	case "q":
+		// Fall-through: q reads as browse's verdict entry, not app-quit;
+		// Esc from the verdict returns to the open panel
+		m.verdictReturnMode = ModeThreadView
+		m.mode = ModeVerdict
+		return m, nil
+
+	case "?":
+		// Fall-through: help overlay over the doc+panel view
+		m.helpReturnMode = m.mode
+		m.mode = ModeHelp
 		return m, nil
 
 	case "r":

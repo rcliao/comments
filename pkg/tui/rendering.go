@@ -584,16 +584,17 @@ func (m *Model) renderComments() string {
 	return rendered.String()
 }
 
-// renderThread renders an expanded thread view
 // renderThread renders the expanded thread at the full terminal width (the
-// legacy full-screen thread layout).
+// legacy full-screen thread layout, still used by unlaid-out unit tests).
 func (m *Model) renderThread() string { return m.renderThreadWidth(m.width) }
 
 // renderThreadWidth renders the expanded thread as if the screen were `width`
-// columns wide — the same content at any width, so the thread-shape prototypes
-// (keys_threadshapes.go) can reuse this renderer inside narrower panes. The
+// columns wide — the same content at any width, so the thread panel
+// (keys_threadpanel.go) can reuse this renderer inside a narrower pane. The
 // widest inner box renders at width-8 content + 2 border columns, i.e.
-// width-6 total (see threadRenderPad).
+// width-6 total (see threadRenderPad). The thread's location header lives in
+// the panel chrome (renderThreadPanelBox), and the live document beside the
+// panel is the context — neither is repeated in here.
 func (m *Model) renderThreadWidth(width int) string {
 	if m.selectedThread == nil {
 		return "No thread selected"
@@ -601,92 +602,6 @@ func (m *Model) renderThreadWidth(width int) string {
 
 	theme := m.styles.theme
 	var rendered strings.Builder
-
-	// Thread header with section context
-	locationStr := fmt.Sprintf("Line %d", m.selectedThread.Line)
-	icon := "💬"
-	if m.selectedThread.SectionPath != "" {
-		locationStr = fmt.Sprintf("%s (Line %d)", m.selectedThread.SectionPath, m.selectedThread.Line)
-		icon = "📍"
-	}
-
-	rendered.WriteString(lipgloss.NewStyle().Bold(true).Render(
-		fmt.Sprintf("%s Thread at %s\n", icon, locationStr)))
-	rendered.WriteString("\n")
-
-	// Document context - show lines around the comment
-	contextLines := m.getContextLines(m.selectedThread.Line, 2) // 2 lines before/after
-	if len(contextLines) > 0 {
-		contextStyle := lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(theme.Border.Color()).
-			Padding(0, 1).
-			Width(width - 8)
-
-		// Calculate width for context text wrapping
-		// Account for borders, padding, line numbers, markers
-		contextWidth := max(width-22, 20)
-
-		var contextText strings.Builder
-		contextText.WriteString(lipgloss.NewStyle().
-			Foreground(theme.DimSyntax.Color()).
-			Render("Document Context:"))
-		contextText.WriteString("\n\n")
-
-		for _, cl := range contextLines {
-			marker := " "
-			lineNumStyle := lipgloss.NewStyle().Foreground(theme.LineNumber.Color())
-			lineStyle := lipgloss.NewStyle()
-
-			// Apply markdown syntax highlighting to context lines
-			styledText := m.styles.styleMarkdownLine(cl.Text)
-
-			// Wrap the line text
-			wrappedLines := strings.Split(wordwrap.String(styledText, contextWidth), "\n")
-
-			for i, wrappedLine := range wrappedLines {
-				if cl.LineNum == m.selectedThread.Line {
-					if i == 0 {
-						marker = lipgloss.NewStyle().
-							Foreground(theme.Title.Color()).
-							Bold(true).
-							Render("►")
-						lineNumStyle = lineNumStyle.Bold(true).Foreground(theme.Title.Color())
-						lineStyle = lineStyle.
-							Background(theme.SelectionBg.Color()).
-							Foreground(theme.SelectionFg.Color()).
-							Bold(true)
-						fmt.Fprintf(&contextText, "%s %s │ %s\n",
-							marker,
-							lineNumStyle.Render(fmt.Sprintf("%4d", cl.LineNum)),
-							lineStyle.Render(wrappedLine))
-					} else {
-						// Continuation lines for highlighted line
-						fmt.Fprintf(&contextText, "%s %s │ %s\n",
-							" ",
-							strings.Repeat(" ", 4),
-							lineStyle.Render(wrappedLine))
-					}
-				} else {
-					if i == 0 {
-						fmt.Fprintf(&contextText, "%s %s │ %s\n",
-							marker,
-							lineNumStyle.Render(fmt.Sprintf("%4d", cl.LineNum)),
-							wrappedLine)
-					} else {
-						// Continuation lines for non-highlighted line
-						fmt.Fprintf(&contextText, "%s %s │ %s\n",
-							" ",
-							strings.Repeat(" ", 4),
-							wrappedLine)
-					}
-				}
-			}
-		}
-
-		rendered.WriteString(contextStyle.Render(contextText.String()))
-		rendered.WriteString("\n\n")
-	}
 
 	// Root comment
 	rootStyle := lipgloss.NewStyle().
@@ -789,34 +704,4 @@ func (m *Model) renderThreadWidth(width int) string {
 	}
 
 	return rendered.String()
-}
-
-// ContextLine represents a line with its line number for context display
-type ContextLine struct {
-	LineNum int
-	Text    string
-}
-
-// getContextLines extracts lines around a specific line number for context
-func (m *Model) getContextLines(lineNum int, contextSize int) []ContextLine {
-	if m.doc == nil {
-		return nil
-	}
-
-	lines := strings.Split(m.doc.Content, "\n")
-	var result []ContextLine
-
-	// Calculate range (-1 for 0-based indexing; end inclusive)
-	start := max(lineNum-contextSize-1, 0)
-	end := min(lineNum+contextSize, len(lines))
-
-	// Extract lines
-	for i := start; i < end; i++ {
-		result = append(result, ContextLine{
-			LineNum: i + 1, // 1-based for display
-			Text:    lines[i],
-		})
-	}
-
-	return result
 }

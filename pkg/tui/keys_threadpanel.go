@@ -102,21 +102,24 @@ func (m Model) viewThreadPanel() string {
 }
 
 // renderThreadPanelBox draws the panel chrome: header, the thread viewport,
-// and a hint line, inside a rounded border.
+// and a hint line, inside a rounded border. This is the thread's ONE header —
+// renderThreadWidth draws no location line of its own.
 func (m Model) renderThreadPanelBox(lay panelLayout) string {
 	inner := lay.w - 2
 
 	icon := "💬"
+	locationStr := fmt.Sprintf("Line %d", m.threadAnchorLine())
 	if m.selectedThread.SectionPath != "" {
 		icon = "📍"
+		locationStr = fmt.Sprintf("%s (Line %d)", m.selectedThread.SectionPath, m.threadAnchorLine())
 	}
-	headerText := fmt.Sprintf("%s Thread at Line %d", icon, m.threadAnchorLine())
+	headerText := fmt.Sprintf("%s Thread at %s", icon, locationStr)
 
 	actionText := "x: resolve"
 	if m.selectedThread.IsSuggestion && m.selectedThread.IsPending() {
 		actionText = "a/x: queue accept/reject"
 	}
-	helpText := fmt.Sprintf("r: reply • %s • Esc: close", actionText)
+	helpText := fmt.Sprintf("r: reply • %s • c: comment • Esc: close", actionText)
 
 	header := m.styles.title.Render(truncate(headerText, max(inner-1, 1), "…"))
 	help := m.styles.help.Render(truncate(helpText, max(inner-1, 1), "…"))

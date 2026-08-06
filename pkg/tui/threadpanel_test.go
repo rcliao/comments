@@ -163,6 +163,75 @@ func TestThreadPanelReplyRoundTrip(t *testing.T) {
 	}
 }
 
+func TestThreadPanelSingleHeader(t *testing.T) {
+	m := openThreadAtLine5(t, panelTestModel(t))
+	got := frame(m)
+	if n := strings.Count(got, "Thread at "); n != 1 {
+		t.Errorf("panel must draw exactly one thread header, found %d:\n%s", n, got)
+	}
+	if strings.Contains(got, "Document Context:") {
+		t.Errorf("panel must not re-print document context — the doc beside it IS the context:\n%s", got)
+	}
+}
+
+func TestThreadPanelCFallThroughStartsCommentFlow(t *testing.T) {
+	m := openThreadAtLine5(t, panelTestModel(t))
+
+	// c closes the panel and lands in the comment flow at the cursor line
+	m = drive(t, m, keyMsg("c"))
+	if m.mode != ModeLineSelect {
+		t.Fatalf("c with the panel open should fall through to line-select, got %v", m.mode)
+	}
+	if m.selectedThread != nil {
+		t.Error("c should close the panel (selected thread cleared)")
+	}
+	if m.selectedLine != 5 {
+		t.Errorf("comment flow should start at the cursor line 5, got %d", m.selectedLine)
+	}
+
+	// and the flow continues as usual: c on the (non-heading) cursor line
+	// opens the add-comment popup
+	m = drive(t, m, keyMsg("c"))
+	if m.mode != ModeAddComment {
+		t.Fatalf("second c should open add-comment, got %v", m.mode)
+	}
+	if got := frame(m); !strings.Contains(got, "Add Comment at Line 5") {
+		t.Errorf("add-comment popup should target line 5:\n%s", got)
+	}
+}
+
+func TestThreadPanelQFallThroughOpensVerdict(t *testing.T) {
+	m := openThreadAtLine5(t, panelTestModel(t))
+
+	m = drive(t, m, keyMsg("q"))
+	if m.mode != ModeVerdict {
+		t.Fatalf("q with the panel open should open the verdict dialog, got %v", m.mode)
+	}
+	got := frame(m)
+	if !strings.Contains(got, "Submit review for") || !strings.Contains(got, "Thread at Line 5") {
+		t.Errorf("verdict popup should layer over the doc+panel view:\n%s", got)
+	}
+
+	// Esc returns to the open panel, not to browse
+	m = drive(t, m, keyMsg("esc"))
+	if m.mode != ModeThreadView || m.selectedThread == nil {
+		t.Errorf("esc from verdict should restore the open panel, got %v", m.mode)
+	}
+}
+
+func TestThreadPanelHelpFallThrough(t *testing.T) {
+	m := openThreadAtLine5(t, panelTestModel(t))
+
+	m = drive(t, m, keyMsg("?"))
+	if m.mode != ModeHelp {
+		t.Fatalf("? with the panel open should open help, got %v", m.mode)
+	}
+	m = drive(t, m, keyMsg("z"))
+	if m.mode != ModeThreadView || m.selectedThread == nil {
+		t.Errorf("closing help should restore the open panel, got %v", m.mode)
+	}
+}
+
 func TestThreadPanelResolveRoundTrip(t *testing.T) {
 	m := openThreadAtLine5(t, panelTestModel(t))
 	m = drive(t, m, keyMsg("x"))
