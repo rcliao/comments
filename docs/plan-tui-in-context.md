@@ -1,5 +1,7 @@
 # Plan: In-Context TUI (v2 compositing, dialogs over the doc, thread display)
 
+**Progress**: Phase 1 done 2026-08-06 — branch `tui-v2-spike` (61e68d2, 4d4b7f1): port was mechanical, all criteria green (suite + teatest integration + lint), compositor proven by test, human pass "identical so far". Discoveries: v2 clips rows at terminal width (title-bar mode indicator already invisible with long paths — fix in Phase 3); frame assertions must target composed content. Phase 2 in flight on `tui-v2-proto`.
+
 ## Overview
 
 Convert every screen-swapping action into in-context display: migrate pkg/tui to Bubbletea/Lipgloss v2 for native compositing, verify by prototype before committing (review decision on research-tui-in-context.md:38), let the human pick the thread-display shape by driving three live candidates, then convert all dialogs to layered popups over the visible document.
