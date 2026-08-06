@@ -924,16 +924,13 @@ Resolve Command Flags:
   --thread <id>               Thread ID (required)
 
 Suggest Command Flags:
-  --line <number>             Line number (required for line/diff-hunk types)
+  --start-line <number>       Start line of the edit (required)
+  --end-line <number>         End line of the edit (required)
   --author <name>             Author name (required)
-  --text <text>               Suggestion description (required)
-  --type <type>               Suggestion type: line (default), char-range, multi-line, diff-hunk
-  --original <text>           Original text to replace (required)
-  --proposed <text>           Proposed replacement text (required)
-  --start-line <number>       Start line (for multi-line type)
-  --end-line <number>         End line (for multi-line type)
-  --offset <number>           Byte offset (for char-range type)
-  --length <number>           Length in bytes (for char-range type)
+  --text <text>               Suggestion description (required, supports @filename)
+  --original <text>           Original text being replaced (optional verification, supports @filename)
+  --proposed <text>           Proposed replacement text (required, supports @filename)
+  --section <path>            Target a section instead of a line range
 
 Accept Command Flags:
   --suggestion <id>           Suggestion ID (required)
