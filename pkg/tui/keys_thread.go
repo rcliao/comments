@@ -4,11 +4,8 @@ package tui
 // accept/reject decisions on pending suggestions.
 
 import (
-	"fmt"
-
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
-	lipgloss "charm.land/lipgloss/v2"
 )
 
 // handleThreadViewKeys handles keys in thread view mode
@@ -48,12 +45,19 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.commentInput.Focus()
 		return m, textarea.Blink
 
+	case "D", "shift+d":
+		// PROTOTYPE: cycle the thread display shape live
+		// (floating → panel → drawer → floating; keys_threadshapes.go)
+		m.threadShape = (m.threadShape + 1) % threadShapeCount
+		m.applyThreadShape()
+		return m, nil
+
 	case "a":
 		// Queue an accept for this pending suggestion; nothing mutates
 		// until the verdict dialog applies the queue ("queue until verdict")
 		if m.selectedThread != nil && m.selectedThread.IsSuggestion && m.selectedThread.IsPending() {
 			m.queueDecision(m.selectedThread.ID, true)
-			m.threadViewport.SetContent(m.renderThread())
+			m.refreshThreadPane()
 		}
 		return m, nil
 
@@ -61,7 +65,7 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Queue a reject for a pending suggestion; otherwise resolve thread
 		if m.selectedThread != nil && m.selectedThread.IsSuggestion && m.selectedThread.IsPending() {
 			m.queueDecision(m.selectedThread.ID, false)
-			m.threadViewport.SetContent(m.renderThread())
+			m.refreshThreadPane()
 			return m, nil
 		}
 		// Otherwise, enter resolve mode for regular threads
@@ -73,32 +77,4 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.threadViewport, cmd = m.threadViewport.Update(msg)
 	return m, cmd
-}
-
-// viewThread renders the thread view
-func (m Model) viewThread() string {
-	if m.selectedThread == nil {
-		return "No thread selected"
-	}
-
-	title := m.styles.title.Render(fmt.Sprintf("Thread at Line %d", m.selectedThread.Line))
-
-	quitText := "file picker"
-	if m.startedWithFile {
-		quitText = "quit"
-	}
-	actionText := "x: resolve"
-	if m.selectedThread.IsSuggestion && m.selectedThread.IsPending() {
-		actionText = "a/x: queue accept/reject"
-	}
-	help := m.styles.help.Render(fmt.Sprintf("r: reply • %s • Esc: back • q: %s", actionText, quitText))
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		title,
-		"",
-		m.threadViewport.View(),
-		"",
-		help,
-	)
 }

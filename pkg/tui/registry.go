@@ -46,8 +46,10 @@ var modeRegistry = map[ViewMode]modeDescriptor{
 		updateViewport: updateCommentInput,
 	},
 	ModeThreadView: {
-		handleKeys:     Model.handleThreadViewKeys,
-		view:           Model.viewThread,
+		handleKeys: Model.handleThreadViewKeys,
+		// PROTOTYPE: thread composited over the live document in one of
+		// three shapes (keys_threadshapes.go) instead of a screen swap
+		view:           Model.viewThreadShaped,
 		updateViewport: updateThreadViewport,
 	},
 	ModeReply: {

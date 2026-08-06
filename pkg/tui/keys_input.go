@@ -148,7 +148,7 @@ func (m Model) handleReplyKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		// Refresh views
-		m.threadViewport.SetContent(m.renderThread())
+		m.refreshThreadPane()
 		m.commentViewport.SetContent(m.renderComments())
 
 		// Return to thread view
