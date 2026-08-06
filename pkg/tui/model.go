@@ -1338,12 +1338,12 @@ func (m Model) viewAddComment() string {
 		var builder strings.Builder
 
 		contextStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("242")).
+			Foreground(activeTheme.MetaText).
 			Italic(true)
-		lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+		lineNumStyle := lipgloss.NewStyle().Foreground(activeTheme.LineNumber)
 		highlightStyle := lipgloss.NewStyle().
-			Background(lipgloss.Color("235")).
-			Foreground(lipgloss.Color("255")).
+			Background(activeTheme.SelectionBg).
+			Foreground(activeTheme.SelectionFg).
 			Bold(true)
 
 		builder.WriteString(contextStyle.Render("Document Context:"))
@@ -1365,7 +1365,7 @@ func (m Model) viewAddComment() string {
 
 	// Current selection display
 	selectionStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("170")).
+		Foreground(activeTheme.Title).
 		Bold(true)
 
 	priorityLabel := selectionStyle.Render(fmt.Sprintf("Priority: %s", strings.ToUpper(m.priority)))
@@ -1389,7 +1389,7 @@ func (m Model) viewAddComment() string {
 	typeDisplay := selectionStyle.Render(fmt.Sprintf("Type: %s", typeLabel))
 
 	selectionInfo := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("242")).
+		Foreground(activeTheme.MetaText).
 		Render(fmt.Sprintf("%s  •  %s", priorityLabel, typeDisplay))
 
 	// Modal overlay for comment input
@@ -1407,7 +1407,7 @@ func (m Model) viewAddComment() string {
 
 	modalTitle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("170")).
+		Foreground(activeTheme.Title).
 		Render(titleText)
 
 	modalHelp := helpStyle.Render("Ctrl+S: save • Ctrl+P: cycle priority • Ctrl+T: cycle type • Esc: cancel")
@@ -1493,7 +1493,7 @@ func (m Model) viewReply() string {
 	// Build thread context to show in modal
 	var threadContext strings.Builder
 	contextStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("242")).
+		Foreground(activeTheme.MetaText).
 		Italic(true)
 
 	threadContext.WriteString(contextStyle.Render("Thread Context:"))
@@ -1539,7 +1539,7 @@ func (m Model) viewReply() string {
 	// Modal overlay for reply input
 	modalTitle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("170")).
+		Foreground(activeTheme.Title).
 		Render("Reply to Thread")
 
 	modalHelp := helpStyle.Render("Ctrl+S: save • Esc: cancel")
@@ -1595,7 +1595,7 @@ func (m Model) viewResolve() string {
 	// Confirmation dialog
 	confirmTitle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("170")).
+		Foreground(activeTheme.Title).
 		Render("Resolve this thread?")
 
 	confirmText := lipgloss.NewStyle().
@@ -1648,20 +1648,20 @@ func (m Model) viewAddSuggestion() string {
 	// Suggestion creation form
 	formTitle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("3")).
+		Foreground(activeTheme.Warning).
 		Render("Create Edit Suggestion")
 
 	originalLabel := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")).
+		Foreground(activeTheme.DimSyntax).
 		Render("Original text:")
 
 	originalText := lipgloss.NewStyle().
-		Background(lipgloss.Color("235")).
+		Background(activeTheme.SelectionBg).
 		Padding(0, 1).
 		Render(m.suggestionOriginalText)
 
 	proposedLabel := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")).
+		Foreground(activeTheme.DimSyntax).
 		Render("Proposed text (edit below):")
 
 	help := helpStyle.Render("Ctrl+S or Ctrl+D: submit • Esc: cancel")
@@ -1799,7 +1799,7 @@ func (m Model) viewChooseTarget() string {
 	// Build choice modal
 	modalTitle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("170")).
+		Foreground(activeTheme.Title).
 		Render("Add comment to:")
 
 	var choices strings.Builder
@@ -1867,7 +1867,7 @@ func (m Model) viewSelectSuggestionType() string {
 	// Build choice modal
 	modalTitle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("170")).
+		Foreground(activeTheme.Title).
 		Render("Create suggestion for:")
 
 	var choices strings.Builder

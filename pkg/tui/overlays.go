@@ -62,9 +62,9 @@ func helpGroups() []helpGroup {
 // renderHelpOverlay renders the grouped keybinding reference as plain text
 func renderHelpOverlay() string {
 	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("170")).Render("Keybindings"))
+	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(activeTheme.Title).Render("Keybindings"))
 	b.WriteString("\n")
-	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(activeTheme.Accent)
 	for _, g := range helpGroups() {
 		b.WriteString("\n")
 		b.WriteString(groupHeaderStyle.Render(g.title))
@@ -74,7 +74,7 @@ func renderHelpOverlay() string {
 		}
 	}
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("press any key to close"))
+	b.WriteString(helpStyle.Render("press any key to close · themes: view --theme nord|dracula|gruvbox|ansi (or COMMENTS_THEME)"))
 	return b.String()
 }
 
@@ -128,9 +128,9 @@ func buildTOC(ds *markdown.DocumentStructure, threads []*comment.Comment) []tocE
 // renderTOC renders the TOC rows with the selected row highlighted
 func renderTOC(entries []tocEntry, selected int) string {
 	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("170")).Render("Table of Contents"))
+	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(activeTheme.Title).Render("Table of Contents"))
 	b.WriteString("\n\n")
-	openStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
+	openStyle := lipgloss.NewStyle().Foreground(activeTheme.Marker)
 	for i, e := range entries {
 		cursor := "  "
 		style := lipgloss.NewStyle()

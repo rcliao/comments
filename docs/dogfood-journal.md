@@ -6,6 +6,20 @@ Convention: newest entry first. Tag friction items `[friction]`, validated wins 
 
 ---
 
+## 2026-08-05 — Color themes: every TUI color is now a named role, Nord by default
+
+**What we did:** Extracted every hardcoded ANSI-256 color in `pkg/tui` into a `Theme` struct of named roles (`pkg/tui/theme.go`) and rebuilt all package-level styles from the active theme via `applyTheme`. Shipped four themes: **nord** (new default, official palette hexes), **dracula**, **gruvbox**, and **ansi** (the exact legacy 256-color look, for anyone attached to it). Selection via `comments view <file> --theme <name>` or `COMMENTS_THEME` (flag wins); unknown names warn on stderr with the valid list and fall back to nord.
+
+- `[win]` The refactor kept every call site untouched for the package-level styles — `applyTheme` just reassigns the same vars — so the diff is concentrated in styles.go plus the ~25 inline `lipgloss.Color("...")` literals scattered through model.go/rendering.go/overlays.go, which now read roles off `activeTheme` (a grep for `lipgloss.Color("` in non-test tui code returns nothing).
+- `[win]` Roles, not widgets: headings H1-H4, dim syntax glyphs, cursor accent/cursorline, selection bg/fg, blocking/marker/resolved gutter states, NEW badge, virtual text, group headers, borders, and the five comment-type colors (Q/S/B/T/E) each get one named color a theme must define — a reflection test fails any theme with a zero-value role.
+- `[win]` Hex colors degrade automatically under `termenv.ANSI256`, so the width-invariant rendering tests stayed green unmodified; only the one test asserting exact legacy escape codes needed pinning to the `ansi` theme.
+- `[friction]` `flag` stops parsing at the first positional, so `view <file> --theme x` needed a second `fs.Parse` on the remainder — worth remembering when other commands grow flags-after-filename expectations.
+- `[idea]` Themes are dark-background palettes; a light theme (e.g. gruvbox-light) would just be one more map entry now. Persisting the chosen theme in view state is another cheap follow-up.
+
+**State at entry close:** `go build`, `go vet ./pkg/tui/`, full `go test ./...` green; TUI suite 44 → 50 tests; root binary rebuilt.
+
+---
+
 ## 2026-08-05 — Thread tracking (rounds/NEW) + in-place span styling shipped together
 
 **What we did:** Implemented `docs/design-markdown-render.md` as decided in review: Phase A thread tracking (round markers, thread timeline, `]r`/`[r` motions) and Phase B step 4 (in-place markdown span styling), one batch. Step 5 (full rendered mode) stays parked behind the lived-experience off-ramp.

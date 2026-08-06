@@ -22,11 +22,7 @@ func main() {
 	switch command {
 	case "view":
 		// View command can be called with or without a filename
-		var filename string
-		if len(os.Args) >= 3 {
-			filename = os.Args[2]
-		}
-		viewCommand(filename)
+		viewCommand(os.Args[2:])
 
 	case "list":
 		if len(os.Args) < 3 {
@@ -149,7 +145,28 @@ func main() {
 	}
 }
 
-func viewCommand(filename string) {
+func viewCommand(args []string) {
+	// Parse flags; the filename is positional and may come before the flags
+	fs := flag.NewFlagSet("view", flag.ExitOnError)
+	themeFlag := fs.String("theme", "", "Color theme: nord (default), dracula, gruvbox, ansi")
+	fs.Parse(args)
+
+	filename := ""
+	if rest := fs.Args(); len(rest) > 0 {
+		filename = rest[0]
+		fs.Parse(rest[1:]) // allow `view <file> --theme <name>` ordering
+	}
+
+	// Theme selection: --theme flag wins over COMMENTS_THEME env var
+	themeName := *themeFlag
+	if themeName == "" {
+		themeName = os.Getenv("COMMENTS_THEME")
+	}
+	if themeName != "" && !tui.SetTheme(themeName) {
+		fmt.Fprintf(os.Stderr, "Unknown theme %q. Valid themes: %s. Using default (%s).\n",
+			themeName, strings.Join(tui.ThemeNames(), ", "), tui.DefaultThemeName)
+	}
+
 	var model tui.Model
 
 	if filename == "" {
@@ -929,7 +946,7 @@ Usage:
   comments <command> [arguments]
 
 Commands:
-  view <file>                 Open interactive TUI viewer
+  view <file> [flags]         Open interactive TUI viewer
   list <file> [flags]         List all comments in a file
   get <file> [flags]          Get detailed comment with context
   add <file> [flags]          Add a comment to a specific line
@@ -948,6 +965,10 @@ Commands:
   watch <file-or-dir> [flags] Emit review-state change events as NDJSON (poll-based; --until exits on a matching event)
   serve-mcp                   Start Model Context Protocol server (for LLM integration)
   help                        Show this help message
+
+View Command Flags:
+  --theme <name>              Color theme: nord (default), dracula, gruvbox, ansi
+                              (COMMENTS_THEME env var also works; the flag wins)
 
 List Command Flags:
   --type <type>               Filter by comment type: Q, S, B, T, E

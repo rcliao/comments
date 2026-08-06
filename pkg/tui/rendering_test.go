@@ -339,6 +339,9 @@ func TestStyleMarkdownLinePreservesWidth(t *testing.T) {
 
 func TestStyleMarkdownLineStylesSpansWithDimmedGlyphs(t *testing.T) {
 	withANSIProfile(t)
+	// Pin the legacy palette: this test asserts exact 256-color codes
+	resetTheme(t)
+	applyTheme(themes["ansi"])
 	out := styleMarkdownLine("mix of **bold**, *ital*, and `code` spans")
 
 	if !strings.Contains(out, "\x1b[") {

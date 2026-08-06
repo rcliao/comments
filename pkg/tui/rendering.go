@@ -137,28 +137,16 @@ func styleLinePrefix(line string) (string, string) {
 func styleMarkdownLine(line string) string {
 	// Headers - color them for better scannability
 	if strings.HasPrefix(line, "# ") {
-		return lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("99")). // Purple
-			Render(line)
+		return heading1Style.Render(line)
 	}
 	if strings.HasPrefix(line, "## ") {
-		return lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("33")). // Blue
-			Render(line)
+		return heading2Style.Render(line)
 	}
 	if strings.HasPrefix(line, "### ") {
-		return lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("39")). // Cyan
-			Render(line)
+		return heading3Style.Render(line)
 	}
 	if strings.HasPrefix(line, "#### ") || strings.HasPrefix(line, "##### ") || strings.HasPrefix(line, "###### ") {
-		return lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("45")). // Light cyan
-			Render(line)
+		return heading4Style.Render(line)
 	}
 
 	prefix, rest := styleLinePrefix(line)
@@ -361,15 +349,15 @@ func getCommentTypeColor(text string) string {
 	prefix := text[:3]
 	switch prefix {
 	case "[B]": // Blocker
-		return "196" // Red
+		return string(activeTheme.TypeB)
 	case "[Q]": // Question
-		return "220" // Yellow
+		return string(activeTheme.TypeQ)
 	case "[S]": // Suggestion
-		return "33"  // Blue
+		return string(activeTheme.TypeS)
 	case "[T]": // Technical
-		return "13"  // Magenta
+		return string(activeTheme.TypeT)
 	case "[E]": // Editorial
-		return "14"  // Cyan
+		return string(activeTheme.TypeE)
 	default:
 		return ""
 	}
@@ -589,7 +577,7 @@ func (m *Model) renderThread() string {
 	if len(contextLines) > 0 {
 		contextStyle := lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("240")).
+			BorderForeground(activeTheme.Border).
 			Padding(0, 1).
 			Width(m.width - 8)
 
@@ -601,13 +589,13 @@ func (m *Model) renderThread() string {
 
 		var contextText strings.Builder
 		contextText.WriteString(lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
+			Foreground(activeTheme.DimSyntax).
 			Render("Document Context:"))
 		contextText.WriteString("\n\n")
 
 		for _, cl := range contextLines {
 			marker := " "
-			lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+			lineNumStyle := lipgloss.NewStyle().Foreground(activeTheme.LineNumber)
 			lineStyle := lipgloss.NewStyle()
 
 			// Apply markdown syntax highlighting to context lines
@@ -620,13 +608,13 @@ func (m *Model) renderThread() string {
 				if cl.LineNum == m.selectedThread.Line {
 					if i == 0 {
 						marker = lipgloss.NewStyle().
-							Foreground(lipgloss.Color("170")).
+							Foreground(activeTheme.Title).
 							Bold(true).
 							Render("►")
-						lineNumStyle = lineNumStyle.Bold(true).Foreground(lipgloss.Color("170"))
+						lineNumStyle = lineNumStyle.Bold(true).Foreground(activeTheme.Title)
 						lineStyle = lineStyle.
-							Background(lipgloss.Color("235")).
-							Foreground(lipgloss.Color("255")).
+							Background(activeTheme.SelectionBg).
+							Foreground(activeTheme.SelectionFg).
 							Bold(true)
 						contextText.WriteString(fmt.Sprintf("%s %s │ %s\n",
 							marker,
@@ -663,7 +651,7 @@ func (m *Model) renderThread() string {
 	// Root comment
 	rootStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("63")).
+		BorderForeground(activeTheme.GroupHeader).
 		Padding(1).
 		Width(m.width - 8)
 
@@ -707,7 +695,7 @@ func (m *Model) renderThread() string {
 	if m.selectedThread.IsSuggestion {
 		suggestionStyle := lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("3")).
+			BorderForeground(activeTheme.Warning).
 			Padding(0, 1).
 			Width(m.width - 8)
 
@@ -733,8 +721,8 @@ func (m *Model) renderThread() string {
 			fmt.Sprintf("Replies (%d):", len(m.selectedThread.Replies))))
 		rendered.WriteString("\n\n")
 
-		borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-		authorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
+		borderStyle := lipgloss.NewStyle().Foreground(activeTheme.Border)
+		authorStyle := lipgloss.NewStyle().Foreground(activeTheme.MetaText)
 
 		// Calculate available width for reply text: width - padding - border characters
 		replyWidth := m.width - 12
@@ -825,23 +813,23 @@ func (m *Model) getSectionContext(lineNum int) string {
 
 	// Styles
 	sectionStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("39")).
+		Foreground(activeTheme.Accent).
 		Bold(true)
-	
+
 	headingStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("170")).
+		Foreground(activeTheme.Title).
 		Bold(true)
-	
+
 	lineNumStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240"))
-	
+		Foreground(activeTheme.LineNumber)
+
 	highlightStyle := lipgloss.NewStyle().
-		Background(lipgloss.Color("235")).
-		Foreground(lipgloss.Color("255")).
+		Background(activeTheme.SelectionBg).
+		Foreground(activeTheme.SelectionFg).
 		Bold(true)
-	
+
 	dimStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("242"))
+		Foreground(activeTheme.MetaText)
 
 	// Show section path
 	sectionPath := m.getSectionPath(section)
