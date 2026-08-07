@@ -49,13 +49,28 @@ The `comments` binary must be on PATH, or the `comments` MCP server connected
 3. **Re-check the gate** after processing all comments (`comments gate <doc.md>`).
 
 4. **Request another human pass** when you have addressed everything or need
-   decisions. Via MCP call `comments_request_review` (blocks until the human
-   runs `comments signoff <doc.md>`); without MCP, tell the human you are ready
-   for re-review and ask them to run:
+   decisions. Via MCP call `comments_request_review` (blocks until a signoff
+   lands). Without MCP, ask the human for **one** command — the TUI review ends
+   in a signoff, so do not also ask them to run `comments signoff`:
 
    ```bash
-   comments signoff <doc.md>            # records approved/changes_requested
+   comments view <doc.md>     # review, then q -> a/c (n adds a note for you)
    ```
+
+   Then wait on the signoff instead of asking them to tell you they are done:
+
+   ```bash
+   comments watch <doc.md> --until signoff
+   # {"event":"signoff","file":"doc.md","author":"rcliao",
+   #  "decision":"changes_requested","note":"pin the prompt, don't hash it"}
+   ```
+
+   `watch` exits 0 on the first matching event, so it is a blocking wait you can
+   run directly; the event carries the decision and the reviewer's note. It sees
+   every writer of the sidecar, so it fires whether the human signed off from
+   the TUI verdict or from `comments signoff`. Point it at a directory to wait on
+   a whole spec folder, and `--until signoff,gate_changed` to also wake on gate
+   flips.
 
 5. **Repeat** until the gate passes (exit 0 / decision "approved").
 
@@ -89,15 +104,18 @@ small changes, or a project template):
 
    A criterion your draft clearly satisfies needs no comment — silence is the
    signal that you checked it. The human reviews your specific doubts, not a
-   generic checklist.
+   generic checklist. For feature-sized docs, follow with the fresh-context
+   reviewer pass (see RPI mode) before requesting human review.
 4. **Seed the ambiguity markers**: `comments seed <doc.md> --template <name> --markers-only`
    — turns each NEEDS CLARIFICATION marker into a blocking Q thread at its line
    and records the template so the gate enforces structure. (Full `seed` without
    the flag also posts the generic criteria threads — for human-only workflows
    with no agent to do step 3.)
-4. Request review: call `comments_request_review` (MCP) with the file path, or
-   ask the human to review with `comments view <doc.md>` and sign off with
-   `comments signoff <doc.md>`. While waiting, do not modify the document.
+5. Request review: call `comments_request_review` (MCP) with the file path, or
+   ask the human to review with `comments view <doc.md>` (the verdict on exit
+   records the signoff) and wait on it with
+   `comments watch <doc.md> --until signoff`. While waiting, do not modify the
+   document.
 
 Zone rule: threads in sections the template marks `zone: human` cannot be
 resolved by you over MCP — reply with your input and leave resolution to the
@@ -125,13 +143,29 @@ safety net for edits made outside this loop, not a substitute for this step.
 ## RPI mode (Research → Plan → Implement)
 
 For feature-sized work, split drafting into two phase docs with the dedicated
-templates, and treat the human signoff between them as a hard gate:
+templates, and treat the human signoff between them as a hard gate. These steps
+are opinionated about what makes a quality artifact, not a ceremony to perform:
+scale them to the work.
+
+0. **Interview before drafting** (each phase doc): present your understanding
+   of the question and the relevant code, plus only the questions you genuinely
+   cannot answer from the codebase — then WAIT for answers before writing.
+   Confirming your understanding IS the wait-for-question gate; answers land in
+   the first draft (no separate write-back step), and questions that surface
+   mid-draft use `[NEEDS CLARIFICATION]` markers as usual. A bad line of
+   understanding becomes a bad plan section becomes hundreds of bad lines of
+   code — redirecting you is cheapest before prose exists. Fast path: a trivial
+   doc may state "no questions — drafting" and proceed.
+
+   **Verify, don't trust**: read cited files yourself before delegating
+   searches to subagents; when the human corrects you, verify the correction
+   in code before building on it — do not just accept it.
 
 1. **Research** (`comments template show research` is your brief): produce a
    documentarian findings doc — discrete findings (F1, F2, ...) each carrying
    file:line evidence, a Code References section a plan can cite, and every
-   open question in Open Questions (zone: human). Request review; do not start
-   the plan until the research is signed off.
+   open question in Open Questions (zone: human). Then the reviewer pass
+   (below); do not start the plan until the research is signed off.
 2. **Plan** (`comments template show plan`): decisions only — the marker cap
    is 1 because open questions belong to the research phase. Cite the research
    doc by `file:line` (e.g. `research-foo.md:23`) for every Current State and
@@ -142,6 +176,38 @@ templates, and treat the human signoff between them as a hard gate:
    **automated** (a command or test) vs **manual** (human judgment).
 4. Gate green + signoff on the plan → implement, phase by phase, verifying
    each phase's criteria before the next.
+
+### Fresh-context reviewer pass (before requesting human review)
+
+Your context wrote the doc, so it finds the doc's prose convincing — that is
+the failure mode, not a safeguard. After your self-review callouts, spawn a
+reviewer with fresh context and a strict input allowlist: the doc path, its
+template criteria (`comments template show <name>`), and — for a plan — the
+research doc path. Nothing else; a reviewer that inherits your drafting
+context is theater, and if you cannot spawn subagents, a fresh session given
+the same allowlist is an equally valid reviewer.
+
+The reviewer posts findings as comments under its own author (blocking only
+for what would mislead implementation), including the coverage question you
+structurally cannot ask yourself: which research findings does the plan
+silently drop, and which claims cite nothing. Process its findings through
+the normal comment loop (apply / propose / push back), then re-run
+`comments gate`:
+
+- **Terminate on gate green** — a clean doc converges in one pass; this is
+  not a fixed number of rounds.
+- **Cap at 2 reviewer passes** (provisional default, tuned by dogfood
+  metrics); leave survivors open for the human rather than spinning.
+
+### Attention budget and thought-trace
+
+Open threads are the human's reading list — keep them few enough to actually
+read (~5, provisional default), priority-ordered; if more survive the
+reviewer pass, consolidate before requesting review. Your working notes,
+iteration rationale, and processed-feedback trace belong in threads you
+resolve yourself immediately: the human reads them on demand (`R` toggles
+resolved threads in the TUI), and the open set stays reserved for decisions
+that are genuinely theirs.
 
 ## Conventions
 
