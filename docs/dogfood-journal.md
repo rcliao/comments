@@ -209,3 +209,11 @@ Convention: newest entry first. Tag friction items `[friction]`, validated wins 
 - `[friction]` The plan doc was drafted with phases as H2s; the plan template needs them nested under "## Implementation Phases" for min_subsections to bite. Retrofit was one edit; the skill now states the shape.
 - `[idea]` Eric: ship agent-skill support to "utilize research/plan template in the pipeline better" — partially addressed (SKILL.md RPI mode section); watch whether agents actually follow it or need harder scaffolding.
 - `[idea]` Eric: expand the CLI so plans' automated success criteria can be "tested by agent" — a comments-native check runner (DoD criteria as executable checks?). Unscoped; revisit after the templates see real use.
+
+## 2026-08-07 — in-context TUI shipped (RPI loop closed end to end)
+
+- `[win]` The full RPI loop closed on a real feature: research (audit + ecosystem) → Eric's review reshaped it (prototype-first, integration tests) → plan → 4 phases with a human gate between each → merged. Bubbletea v2 port, thread side panel, nine dialogs as popups over the live doc, peek in-context.
+- `[win]` "Pick by driving, not debating" worked exactly as designed: Eric drove three thread shapes with a cycle key and picked panel in minutes — the same shape the builder's implementation experience predicted. Losers deleted same day.
+- `[win]` Live verification produced five refinements in one sitting (focus sync, type icons, gutter reorder, line-number toggle, centered peek) — each request → committed → rebuilt binary in minutes. The fast loop IS the review tool working on itself.
+- `[friction]` Two agent stalls mid-build (watchdog); both recovered — one via SendMessage resume with full context, one had actually finished. Worktree diagnostics noise (gopls cross-module) made real errors harder to spot all day.
+- `[idea]` The c-fall-through insight generalizes: in-context displays make every mode "look like browse," so users expect browse keys everywhere. Focus rules are now documented in pkg/tui/CLAUDE.md; watch for more fall-through requests.

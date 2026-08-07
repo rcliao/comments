@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "documentHash": "ce0fa839f7cc973da0e63157b0a35564c243440bb60fd37fbbfde1d9c43cf21e",
-  "lastValidated": "2026-08-06T13:54:07.359078-07:00",
+  "lastValidated": "2026-08-06T14:35:54.0105-07:00",
   "threads": [
     {
       "ID": "c7afd",
@@ -35,6 +35,9 @@
           "Line": 26,
           "SectionID": "s7",
           "SectionPath": "Plan: In-Context TUI (v2 compositing, dialogs over the doc, thread display) \u003e Implementation Phases \u003e Phase 1: v2 migration spike (verify before committing)",
+          "Anchor": {
+            "selected_text": "### Phase 1: v2 migration spike (verify before committing)"
+          },
           "AnchorConfidence": "section-level",
           "Resolved": false,
           "Blocking": false,
@@ -91,6 +94,9 @@
           "Line": 43,
           "SectionID": "s9",
           "SectionPath": "Plan: In-Context TUI (v2 compositing, dialogs over the doc, thread display) \u003e Implementation Phases \u003e Phase 3: dialog stack — the nine faux modals become popups",
+          "Anchor": {
+            "selected_text": "### Phase 3: dialog stack — the nine faux modals become popups"
+          },
           "AnchorConfidence": "section-level",
           "Resolved": false,
           "Blocking": false,
@@ -125,6 +131,11 @@
     {
       "author": "rcliao",
       "timestamp": "2026-08-06T13:54:07.358103-07:00",
+      "decision": "approved"
+    },
+    {
+      "author": "rcliao",
+      "timestamp": "2026-08-06T14:35:54.010297-07:00",
       "decision": "approved"
     }
   ]

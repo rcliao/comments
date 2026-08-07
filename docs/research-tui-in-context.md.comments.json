@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "documentHash": "ba7d4b5734d269a28923e3bdf88862744bc3514b4304d6f09f3403b5ff17f7af",
-  "lastValidated": "2026-08-06T11:31:04.629678-07:00",
+  "lastValidated": "2026-08-06T11:52:48.671-07:00",
   "threads": [
     {
       "ID": "ccem3",
@@ -18,14 +18,39 @@
         "context_after": "- pkg/tui/registry.go — mode table a dialog stack would slot into"
       },
       "AnchorConfidence": "exact",
-      "Resolved": false,
+      "Resolved": true,
       "Blocking": false,
       "Status": "active",
       "Priority": "medium",
       "OriginalLine": 47,
       "OrphanedReason": "",
       "OrphanedAt": null,
-      "Replies": [],
+      "Replies": [
+        {
+          "ID": "crplh",
+          "Author": "rcliao",
+          "Timestamp": "2026-08-06T11:52:42.994675-07:00",
+          "Text": "we can prototype it to verify how it renders first",
+          "Type": "",
+          "Line": 47,
+          "SectionID": "s11",
+          "SectionPath": "Research: In-Context TUI Display (overlays, panels, rendering) \u003e Code References",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "",
+          "Priority": "",
+          "OriginalLine": 0,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
       "IsSuggestion": false,
       "StartLine": 0,
       "EndLine": 0,
@@ -46,14 +71,39 @@
         "selected_text": "## Code References"
       },
       "AnchorConfidence": "exact",
-      "Resolved": false,
+      "Resolved": true,
       "Blocking": false,
       "Status": "active",
       "Priority": "medium",
       "OriginalLine": 42,
       "OrphanedReason": "",
       "OrphanedAt": null,
-      "Replies": [],
+      "Replies": [
+        {
+          "ID": "c6wo2",
+          "Author": "rcliao",
+          "Timestamp": "2026-08-06T11:52:09.214751-07:00",
+          "Text": "not really sure what this means but we can go with recomendation!",
+          "Type": "",
+          "Line": 42,
+          "SectionID": "s11",
+          "SectionPath": "Research: In-Context TUI Display (overlays, panels, rendering) \u003e Code References",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "",
+          "Priority": "",
+          "OriginalLine": 0,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
       "IsSuggestion": false,
       "StartLine": 0,
       "EndLine": 0,
@@ -74,20 +124,52 @@
         "selected_text": "Because the doc vanishes, the input modals rebuild \"context\" inside themselves — reply and add-comment construct contextText blocks of document lines (pkg/tui/keys_input.go) and the reply modal re-prints recent replies. This is compensation for the missing background, and it duplicates rendering logic per dialog."
       },
       "AnchorConfidence": "exact",
-      "Resolved": false,
+      "Resolved": true,
       "Blocking": false,
       "Status": "active",
       "Priority": "medium",
       "OriginalLine": 24,
       "OrphanedReason": "",
       "OrphanedAt": null,
-      "Replies": [],
+      "Replies": [
+        {
+          "ID": "cv1zb",
+          "Author": "rcliao",
+          "Timestamp": "2026-08-06T11:49:10.814793-07:00",
+          "Text": "This comment/question reminds me that since our focus is line based, we don't have a way to peek all references (probably only peeking on the first one on the line",
+          "Type": "",
+          "Line": 24,
+          "SectionID": "s6",
+          "SectionPath": "Research: In-Context TUI Display (overlays, panels, rendering) \u003e Findings \u003e F2 — The tell: dialogs re-print the context they erased",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "",
+          "Priority": "",
+          "OriginalLine": 0,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
       "IsSuggestion": false,
       "StartLine": 0,
       "EndLine": 0,
       "OriginalText": "",
       "ProposedText": "",
       "Accepted": null
+    }
+  ],
+  "reviews": [
+    {
+      "author": "rcliao",
+      "timestamp": "2026-08-06T11:52:48.670704-07:00",
+      "decision": "approved"
     }
   ],
   "template": "research"
