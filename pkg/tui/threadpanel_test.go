@@ -309,3 +309,44 @@ func lineHasFocusBg(frame string, n int) bool {
 	}
 	return false
 }
+
+// # toggles the line-number column in both document renders; wrap width and
+// scroll math follow the narrower gutter so nothing reflows inconsistently.
+func TestHideLineNumbersToggle(t *testing.T) {
+	m := testModel([]*comment.Comment{{ID: "c1", Line: 3, Text: "note", Author: "a"}})
+	m.width, m.height = 100, 40
+	m.handleResize()
+	m.mode = ModeBrowse
+
+	if !strings.Contains(stripANSI(m.renderDocument()), " 3 ") {
+		t.Fatal("line numbers should show by default")
+	}
+
+	next, _ := m.handleBrowseKeys(keyMsg("#"))
+	nm := next.(Model)
+	if !nm.hideLineNumbers {
+		t.Fatal("# should hide line numbers")
+	}
+	frame := stripANSI(nm.renderDocument())
+	for _, row := range strings.Split(frame, "\n") {
+		fields := strings.Fields(row)
+		if len(fields) > 0 && fields[0] == "3" {
+			t.Errorf("hidden mode must not render the number column: %q", row)
+		}
+	}
+	if nm.gutterWidth() != 8 {
+		t.Errorf("hidden gutter should be 8, got %d", nm.gutterWidth())
+	}
+
+	// toggle back in line-select too
+	nm.mode = ModeLineSelect
+	nm.selectedLine = 3
+	back, _ := nm.handleLineSelectKeys(keyMsg("#"))
+	bm := back.(Model)
+	if bm.hideLineNumbers {
+		t.Fatal("# in line-select should toggle numbers back on")
+	}
+	if !strings.Contains(stripANSI(bm.renderDocumentWithCursor()), " 3 ") {
+		t.Error("numbers should be visible again after toggling back")
+	}
+}

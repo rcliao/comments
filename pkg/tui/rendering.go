@@ -306,7 +306,17 @@ func (m *Model) lineSummarySuffix(threads []*comment.Comment) string {
 // identical across modes, so entering/leaving line-select never reflows the
 // document under a saved scroll offset.
 func (m *Model) docWrapWidth() int {
-	return max(m.documentViewport.Width()-12, 40)
+	return max(m.documentViewport.Width()-m.gutterWidth(), 40)
+}
+
+// gutterWidth is the fixed left-gutter width shared by both document renders
+// and the scroll math: cursor (2) + space + marker (4) + line number (4) +
+// space = 12, shrinking by the number column when line numbers are hidden.
+func (m *Model) gutterWidth() int {
+	if m.hideLineNumbers {
+		return 8
+	}
+	return 12
 }
 
 // renderDocument renders the document pane without a cursor (browse mode)
@@ -379,16 +389,22 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 			}
 
 			// Marker column sits LEFT of the line number (fixed 4 cells)
-			// so text alignment never shifts on commented lines
+			// so text alignment never shifts on commented lines. The number
+			// column disappears entirely when hidden (# toggles).
 			markerCell := marker + strings.Repeat(" ", max(0, 4-lipgloss.Width(marker)))
+			numCell := lineNumStr + " "
+			if m.hideLineNumbers {
+				numCell = ""
+			}
+			contPad := strings.Repeat(" ", m.gutterWidth()-4)
 
 			if !withCursor {
 				if j == 0 {
 					// First line: marker, line number, then text + summary
-					fmt.Fprintf(&rendered, "%s%s %s%s\n", markerCell, lineNumStr, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
+					fmt.Fprintf(&rendered, "%s%s%s%s\n", markerCell, numCell, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
 				} else {
 					// Continuation lines: indent with spaces
-					fmt.Fprintf(&rendered, "%s %s\n", strings.Repeat(" ", 8), wrappedLine)
+					fmt.Fprintf(&rendered, "%s%s\n", contPad, wrappedLine)
 				}
 				continue
 			}
@@ -401,7 +417,7 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 				} else if inRange {
 					cursor = m.styles.rangeMarker.Render("│")
 				}
-				fmt.Fprintf(&rendered, "%s %s%s %s%s\n", cursor, markerCell, lineNumStr, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
+				fmt.Fprintf(&rendered, "%s %s%s%s%s\n", cursor, markerCell, numCell, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
 			} else {
 				// Continuation lines: indent with spaces
 				displayCursor := "  "
@@ -410,7 +426,7 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 				} else if inRange {
 					displayCursor = m.styles.rangeMarker.Render("│ ")
 				}
-				fmt.Fprintf(&rendered, "%s %s %s\n", displayCursor, strings.Repeat(" ", 8), wrappedLine)
+				fmt.Fprintf(&rendered, "%s %s%s\n", displayCursor, contPad, wrappedLine)
 			}
 		}
 	}

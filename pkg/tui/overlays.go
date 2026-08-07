@@ -31,6 +31,7 @@ func helpGroups() []helpGroup {
 			{"n / N", "next / previous NEW activity (since last signoff)"},
 			{"t", "table of contents (jump to section)"},
 			{"f", "follow citation on line (peek; Enter opens $EDITOR)"},
+			{"#", "toggle line numbers"},
 		}},
 		{"Threads", [][2]string{
 			{"Enter", "expand selected thread"},

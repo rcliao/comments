@@ -59,6 +59,11 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.openTOC()
 		return m, nil
 
+	case "#":
+		m.hideLineNumbers = !m.hideLineNumbers
+		m.refreshDocumentPane()
+		return m, nil
+
 	case "j", "down":
 		// Navigate comments
 		visibleComments := m.visibleComments()

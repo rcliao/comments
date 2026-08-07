@@ -54,6 +54,11 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Follow a citation on the cursor line: peek the referenced file
 		return m.openRefPeek()
 
+	case "#":
+		m.hideLineNumbers = !m.hideLineNumbers
+		m.refreshCursorView()
+		return m, nil
+
 	case "j", "down":
 		// Move cursor down
 		if m.selectedLine < totalLines {

@@ -75,6 +75,7 @@ type Model struct {
 	suggestionQueue   map[string]bool // suggestion ID -> accept(true)/reject(false); applied at verdict
 	sidebarDensity    int             // densityFull / densityCondensed / densityHidden (S cycles)
 	showLineSummaries bool            // dimmed end-of-line thread summaries (L toggles)
+	hideLineNumbers   bool            // line-number column hidden (# toggles)
 	helpReturnMode    ViewMode        // mode to restore when closing the help overlay
 	tocReturnMode     ViewMode        // mode to restore when closing the TOC overlay
 	tocEntries        []tocEntry      // flattened section list for the TOC overlay
@@ -167,6 +168,7 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 	if st, ok := loadViewState(filename); ok {
 		m.selectedLine = st.SelectedLine
 		m.restoredYOffset = st.YOffset
+		m.hideLineNumbers = st.HideLineNumbers
 	}
 
 	return m
