@@ -61,10 +61,12 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "r":
-		// Enter reply mode
+		// Enter reply mode: the composer docks inside this panel, under the
+		// thread it replies to
 		m.mode = ModeReply
 		m.commentInput.Reset()
 		m.commentInput.Focus()
+		m.applyComposerLayout()
 		return m, textarea.Blink
 
 	case "a":

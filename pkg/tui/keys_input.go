@@ -120,9 +120,11 @@ func (m Model) handleAddCommentKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleReplyKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		// Cancel reply
+		// Cancel reply: hand the composer's rows back to the thread, keeping
+		// the reader's scroll position
 		m.mode = ModeThreadView
 		m.commentInput.Reset()
+		m.closeComposer()
 		return m, nil
 
 	case "ctrl+s":
@@ -132,6 +134,7 @@ func (m Model) handleReplyKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Empty reply, just cancel
 			m.mode = ModeThreadView
 			m.commentInput.Reset()
+			m.closeComposer()
 			return m, nil
 		}
 
@@ -147,13 +150,17 @@ func (m Model) handleReplyKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Refresh views
-		m.refreshThreadPane()
-		m.commentViewport.SetContent(m.renderComments())
-
-		// Return to thread view
+		// Return to thread view first, then re-derive the panel geometry:
+		// the composer's rows go back to the thread and the viewport lands
+		// on the newest activity — the reply just posted
 		m.mode = ModeThreadView
 		m.commentInput.Reset()
+		m.closeComposer()
+		m.applyThreadPanel()
+		// applyThreadPanel is a no-op without a laid-out screen (unit tests
+		// drive handlers directly), so the pane still needs its content set
+		m.refreshThreadPane()
+		m.commentViewport.SetContent(m.renderComments())
 		return m, nil
 	}
 
@@ -350,33 +357,33 @@ func (m Model) viewAddComment() string {
 	return m.dialogOver(m.baseView(), modal)
 }
 
-// viewReply renders the reply dialog as a popup over the live document +
-// thread panel — the thread stays visible behind the input, so no thread
-// context is re-printed inside the box.
+// viewReply renders the reply composer docked inside the thread panel rather
+// than floating over the middle of the screen: you write the reply in the same
+// column as the thread you are replying to, with the document still beside it.
+// The panel draws the composer itself (renderThreadPanelBox), so there is no
+// second box and no repeated "Reply to thread…" title — the panel header is
+// still the thread's one header.
 func (m Model) viewReply() string {
 	if m.selectedThread == nil {
 		return "No thread selected"
 	}
-
-	modalTitle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(m.styles.theme.Title.Color()).
-		Render(fmt.Sprintf("Reply to Thread at Line %d", m.selectedThread.Line))
-
-	modalHelp := m.styles.help.Render("Ctrl+S: save • Esc: cancel")
-
-	modal := m.styles.modalOverlay.Render(
-		lipgloss.JoinVertical(
-			lipgloss.Left,
-			modalTitle,
-			"",
-			m.commentInput.View(),
-			"",
-			modalHelp,
-		),
-	)
-
-	return m.dialogOver(m.baseView(), modal)
+	if !m.ready {
+		// No laid-out screen to dock into (unit tests, startup)
+		return m.styles.modalOverlay.Render(
+			lipgloss.JoinVertical(
+				lipgloss.Left,
+				lipgloss.NewStyle().
+					Bold(true).
+					Foreground(m.styles.theme.Title.Color()).
+					Render(fmt.Sprintf("Reply to Thread at Line %d", m.selectedThread.Line)),
+				"",
+				m.commentInput.View(),
+				"",
+				m.styles.help.Render("Ctrl+S: save • Esc: cancel"),
+			),
+		)
+	}
+	return m.viewThreadPanel()
 }
 
 // viewResolve renders the resolve confirmation as a popup over the live

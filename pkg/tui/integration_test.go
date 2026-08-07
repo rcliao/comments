@@ -112,12 +112,12 @@ func TestIntegrationOpenNavigateThreadReturnQuit(t *testing.T) {
 	}
 }
 
-// TestIntegrationThreadReplyPopupOverLiveView drives a REAL program (teatest)
-// through open thread → reply popup over the live doc+panel → esc esc → quit.
-// The v2 renderer diffs cells between frames, so each wait asserts on the
-// newly drawn chrome; full-frame doc+dialog guarantees are covered by
+// TestIntegrationThreadReplyDocksInPanel drives a REAL program (teatest)
+// through open thread → reply composer docked inside the panel → esc esc →
+// quit. The v2 renderer diffs cells between frames, so each wait asserts on
+// the newly drawn chrome; full-frame doc+dialog guarantees are covered by
 // TestDialogsShowDocumentInSameFrame, which renders complete frames.
-func TestIntegrationThreadReplyPopupOverLiveView(t *testing.T) {
+func TestIntegrationThreadReplyDocksInPanel(t *testing.T) {
 	tm := teatest.NewTestModel(t, integrationModel(t), teatest.WithInitialTermSize(100, 40))
 	waitForOutput(t, tm, "j/k: navigate")
 
@@ -129,11 +129,11 @@ func TestIntegrationThreadReplyPopupOverLiveView(t *testing.T) {
 	tm.Send(keyMsg("r"))
 	waitForOutput(t, tm, "Thread at Line 5", "reworded in the next pass")
 
-	// r opens the reply popup composited over the live doc + thread panel
+	// r docks the reply composer inside the panel, under the thread
 	tm.Send(keyMsg("r"))
-	waitForOutput(t, tm, "Reply to Thread")
+	waitForOutput(t, tm, "Ctrl+S: save reply")
 
-	// Esc pops the popup back to the panel; Esc again closes the panel
+	// Esc drops the composer back to the panel; Esc again closes the panel
 	tm.Send(keyMsg("esc"))
 	tm.Send(keyMsg("esc"))
 	tm.Send(keyMsg("ctrl+c"))

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/rcliao/comments/pkg/comment"
 )
@@ -161,6 +162,91 @@ func TestThreadPanelReplyRoundTrip(t *testing.T) {
 	}
 	if !strings.Contains(frame(m), "sounds good") {
 		t.Error("new reply should be visible in the thread frame (newest activity in view)")
+	}
+}
+
+// The reply composer docks inside the panel instead of floating over the
+// middle of the screen: one frame carries the document, the thread it replies
+// to, and the composer — and the panel still draws exactly one header.
+func TestThreadPanelReplyDocksInPanel(t *testing.T) {
+	m := drive(t, openThreadAtLine5(t, panelTestModel(t)), keyMsg("r"))
+	got := frame(m)
+
+	for _, want := range []string{"# Title", "reworded in the next pass", "Enter your comment...", "Ctrl+S: save reply"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("composing frame missing %q (doc + thread + composer must share the frame):\n%s", want, got)
+		}
+	}
+	if n := strings.Count(got, "Thread at "); n != 1 {
+		t.Errorf("composing must not add a second header, found %d:\n%s", n, got)
+	}
+
+	// The composer takes its rows from the thread viewport, so the panel box
+	// keeps its height rather than spilling past the screen.
+	lay := m.threadPanelLayout()
+	if h := lipgloss.Height(m.renderThreadPanelBox(lay)); h != lay.h {
+		t.Errorf("panel height with composer = %d, want %d (composer must take rows from the thread)", h, lay.h)
+	}
+	if w := lipgloss.Width(m.renderThreadPanelBox(lay)); w > lay.w {
+		t.Errorf("panel width with composer = %d, want <= %d (nothing may wrap past the box)", w, lay.w)
+	}
+}
+
+// Esc and Ctrl+S both hand the composer's rows back to the thread.
+func TestThreadPanelComposerReleasesRowsOnClose(t *testing.T) {
+	m := openThreadAtLine5(t, panelTestModel(t))
+	full := m.threadViewport.Height()
+
+	m = drive(t, m, keyMsg("r"))
+	if got := m.threadViewport.Height(); got >= full {
+		t.Fatalf("thread viewport should shrink for the composer: %d -> %d", full, got)
+	}
+	m = drive(t, m, keyMsg("esc"))
+	if got := m.threadViewport.Height(); got != full {
+		t.Errorf("esc should restore the thread viewport to %d rows, got %d", full, got)
+	}
+}
+
+// commentInput is shared with the centered add-comment dialog, so the docked
+// composer must hand back the size it borrowed — otherwise the next `c` after
+// a reply renders panel-narrow and four rows tall.
+func TestComposerRestoresSharedTextareaOnExit(t *testing.T) {
+	base := openThreadAtLine5(t, panelTestModel(t))
+	wantW, wantH := base.commentInput.Width(), base.commentInput.Height()
+
+	for _, tc := range []struct {
+		name string
+		exit []tea.Msg
+	}{
+		{"esc", []tea.Msg{keyMsg("esc")}},
+		{"empty save", []tea.Msg{tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}}},
+		{"save", []tea.Msg{keyMsg("o"), keyMsg("k"), tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := drive(t, openThreadAtLine5(t, panelTestModel(t)), keyMsg("r"))
+			m = drive(t, m, tc.exit...)
+			if got := m.commentInput.Width(); got != wantW {
+				t.Errorf("textarea width after %s = %d, want %d (add-comment dialog would render narrow)", tc.name, got, wantW)
+			}
+			if got := m.commentInput.Height(); got != wantH {
+				t.Errorf("textarea height after %s = %d, want %d (add-comment dialog would render short)", tc.name, got, wantH)
+			}
+		})
+	}
+}
+
+// A short terminal must not produce a negative-height viewport or a box that
+// outgrows the screen.
+func TestThreadPanelComposerOnShortTerminal(t *testing.T) {
+	m := drive(t, openThreadAtLine5(t, panelTestModel(t)),
+		tea.WindowSizeMsg{Width: 80, Height: 10}, keyMsg("r"))
+
+	if got := m.threadViewport.Height(); got < 1 {
+		t.Errorf("thread viewport height must stay >= 1 on a short terminal, got %d", got)
+	}
+	lay := m.threadPanelLayout()
+	if h := lipgloss.Height(m.renderThreadPanelBox(lay)); h > m.height {
+		t.Errorf("panel height %d overflows the %d-row screen", h, m.height)
 	}
 }
 

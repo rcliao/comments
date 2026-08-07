@@ -11,6 +11,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	lipgloss "charm.land/lipgloss/v2"
 )
@@ -25,6 +26,11 @@ const threadRenderPad = 6
 // panel box: top+bottom border, header line, help line.
 const panelChromeRows = 4
 
+// composerTextareaRows is how many text rows the in-panel reply composer gets.
+// The composer docks inside the panel rather than floating over the middle of
+// the screen, so the thread you are replying to stays beside your reply.
+const composerTextareaRows = 4
+
 // panelLayout is the outer geometry of the thread panel on the screen.
 type panelLayout struct {
 	x, y, w, h int
@@ -38,6 +44,54 @@ func (m *Model) threadPanelLayout() panelLayout {
 	w := max(m.width-m.docPaneWidth(), m.width*2/5)
 	w = min(w, m.width)
 	return panelLayout{m.width - w, 1, w, max(m.height-2, 3)}
+}
+
+// composerRows is the vertical space the docked reply composer takes inside
+// the panel: a separator rule plus the textarea's own rows. Zero when not
+// composing. Derived from the textarea so the two cannot drift.
+func (m Model) composerRows() int {
+	if m.mode != ModeReply {
+		return 0
+	}
+	return 1 + m.commentInput.Height()
+}
+
+// threadPaneRows is the height left for the threadViewport inside the panel
+// once chrome and (when composing) the composer have taken their rows.
+func (m Model) threadPaneRows(lay panelLayout) int {
+	return max(lay.h-panelChromeRows-m.composerRows(), 1)
+}
+
+// applyComposerLayout sizes the reply composer to the panel and gives the
+// thread viewport the rows that are left. Scroll position is preserved (the
+// viewport clamps its own offset), so entering reply keeps your place in the
+// thread. Call it on reply open, on resize while replying, and after leaving
+// reply mode to hand the rows back.
+func (m *Model) applyComposerLayout() {
+	if !m.ready || m.selectedThread == nil {
+		return
+	}
+	lay := m.threadPanelLayout()
+	m.commentInput.SetHeight(composerTextareaRows)
+	// -4: two border columns and the two columns lipgloss v2 counts inside
+	// the panel's Width() (see renderThreadPanelBox)
+	m.commentInput.SetWidth(max(lay.w-4, 1))
+	m.threadViewport.SetHeight(m.threadPaneRows(lay))
+}
+
+// closeComposer undoes applyComposerLayout: the composer's rows go back to the
+// thread (scroll survives — the viewport clamps its own offset) and the shared
+// textarea returns to the size the centered dialogs expect. Call it with the
+// mode already off ModeReply.
+func (m *Model) closeComposer() {
+	m.commentInput.SetWidth(m.dialogTextareaWidth())
+	if m.dialogInputRows > 0 {
+		m.commentInput.SetHeight(m.dialogInputRows)
+	}
+	if !m.ready || m.selectedThread == nil {
+		return
+	}
+	m.threadViewport.SetHeight(m.threadPaneRows(m.threadPanelLayout()))
 }
 
 // threadAnchorLine is the document line the open thread anchors to.
@@ -58,7 +112,7 @@ func (m *Model) applyThreadPanel() {
 	}
 	lay := m.threadPanelLayout()
 	m.threadViewport.SetWidth(lay.w - 2)
-	m.threadViewport.SetHeight(max(lay.h-panelChromeRows, 1))
+	m.threadViewport.SetHeight(m.threadPaneRows(lay))
 	m.threadViewport.SetContent(m.renderThreadWidth(lay.w - 2 + threadRenderPad))
 	// When the thread doesn't fit the panel, land on the newest activity
 	// (the bottom of the timeline); j/k still scroll back up
@@ -106,6 +160,10 @@ func (m Model) viewThreadPanel() string {
 // renderThreadWidth draws no location line of its own.
 func (m Model) renderThreadPanelBox(lay panelLayout) string {
 	inner := lay.w - 2
+	// lipgloss v2 Width() counts the border, so the text inside the box is
+	// two columns narrower than the box width — truncate/rule to that or the
+	// last characters wrap onto their own line.
+	content := max(inner-2, 1)
 
 	icon := threadTypeIcon(m.selectedThread)
 	locationStr := fmt.Sprintf("Line %d", m.threadAnchorLine())
@@ -120,8 +178,20 @@ func (m Model) renderThreadPanelBox(lay panelLayout) string {
 	}
 	helpText := fmt.Sprintf("r: reply • %s • c: comment • Esc: close", actionText)
 
-	header := m.styles.title.Render(truncate(headerText, max(inner-1, 1), "…"))
-	help := m.styles.help.Render(truncate(helpText, max(inner-1, 1), "…"))
+	header := m.styles.title.Render(truncate(headerText, content, "…"))
+
+	// Composing: the reply docks below the thread inside this panel, and the
+	// panel keys it replaces (r/x/c) are dead until it closes, so its help
+	// line takes over the panel's.
+	rows := []string{header, m.threadViewport.View()}
+	if m.mode == ModeReply {
+		rows = append(rows,
+			m.styles.help.Render(strings.Repeat("─", content)),
+			m.commentInput.View(),
+		)
+		helpText = "Ctrl+S: save reply • Esc: cancel"
+	}
+	rows = append(rows, m.styles.help.Render(truncate(helpText, content, "…")))
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -130,5 +200,5 @@ func (m Model) renderThreadPanelBox(lay panelLayout) string {
 		Height(lay.h - 2).
 		MaxWidth(lay.w).
 		MaxHeight(lay.h).
-		Render(lipgloss.JoinVertical(lipgloss.Left, header, m.threadViewport.View(), help))
+		Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
 }

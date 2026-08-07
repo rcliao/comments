@@ -39,10 +39,12 @@ An unregistered mode has dead keys and renders "Unknown mode";
 
 ## Dialog composition (popups over the live view)
 
-No dialog erases the document. Every dialog mode (add-comment, reply,
-resolve, add-suggestion, choose-target, suggestion-type, verdict, help, TOC,
-ref peek) renders its box and composites it over the live screen with the two
-helpers in `dialogs.go`:
+No dialog erases the document. Every dialog mode (add-comment, resolve,
+add-suggestion, choose-target, suggestion-type, verdict, help, TOC, ref peek)
+renders its box and composites it over the live screen with the two helpers in
+`dialogs.go`. **Reply is the exception**: it docks inside the thread panel
+(see below) instead of floating, because the reply belongs beside the thread
+it answers, not over the middle of the document.
 
 - `baseView()` — the screen the dialog interrupts: the thread panel view
   (doc + panel) while a thread is open (`selectedThread != nil`), otherwise
@@ -72,13 +74,29 @@ content preserving scroll (reply added, decision queued). The panel chrome
 line); `renderThreadWidth` renders only the thread body — no location line, no
 document-context box.
 
+**The reply composer docks in the panel.** `ModeReply` is not a floating
+dialog: `renderThreadPanelBox` is mode-aware and, while composing, draws a
+separator + the textarea under the thread and swaps the panel hint line for
+`Ctrl+S: save reply • Esc: cancel` (the panel keys it replaces are dead
+anyway). No second box, no repeated title — the panel header is still the
+thread's one header. `composerRows()` derives the space from the textarea, and
+`threadPaneRows()` takes it out of the thread viewport, so the panel never
+grows past its layout. Call `applyComposerLayout()` on reply open, on resize,
+and on both exits (Esc restores rows keeping scroll; Ctrl+S goes through
+`applyThreadPanel()` so the view lands on the reply just posted).
+
+**Box widths**: lipgloss v2 `Width(n)` counts the border, so text inside the
+panel must fit `lay.w - 4`, not `lay.w - 2`. Truncating to the wrong width
+wraps the last characters onto their own line (this bit the header with long
+section paths).
+
 ## Focus rules while the panel is open
 
 The screen still reads as browse, so keys split three ways
 (`handleThreadViewKeys`):
 
 - **Thread actions stay on the panel**: `j/k` scroll the THREAD (not the
-  document), `r` opens the reply popup over doc+panel, `a`/`x` queue
+  document), `r` docks the reply composer inside the panel, `a`/`x` queue
   suggestion decisions (or `x` resolves), `Esc` closes the panel back to
   where it was opened (browse or line-select, cursor intact).
 - **Browse-shaped keys fall through with browse semantics** instead of dying:

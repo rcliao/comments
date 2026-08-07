@@ -34,6 +34,11 @@ type Model struct {
 	commentViewport  viewport.Model
 	threadViewport   viewport.Model
 	commentInput     textarea.Model
+	// dialogInputRows is commentInput's height in the centered dialogs
+	// (add-comment, suggestion). The panel-docked reply composer borrows the
+	// same textarea at a shorter height, so its size is snapshotted here and
+	// restored when the composer closes.
+	dialogInputRows int
 
 	// Selection state
 	selectedLine       int              // For line selection mode
@@ -115,6 +120,7 @@ func NewModel() Model {
 		styles:            newStyleSet(currentStartupTheme()),
 		filePicker:        fp,
 		commentInput:      ta,
+		dialogInputRows:   ta.Height(),
 		proposedTextInput: proposedTA,
 		author:            author,
 		priority:          "medium",
@@ -147,6 +153,7 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 		doc:               doc,
 		filename:          filename,
 		commentInput:      ta,
+		dialogInputRows:   ta.Height(),
 		proposedTextInput: proposedTA,
 		author:            author,
 		priority:          "medium",
@@ -223,11 +230,12 @@ func (m *Model) handleResize() {
 	docWidth := m.docPaneWidth()
 	panelWidth := max(m.width-docWidth-4, 0)
 
-	// Set textarea width to use most of the screen width
-	// Account for modal borders (2), padding (4), and some margin (10);
-	// clamp to a minimum width
-	textareaWidth := max(m.width-16, 40)
-	m.commentInput.SetWidth(textareaWidth)
+	// Size the textarea for the centered dialogs (see dialogTextareaWidth).
+	// The reply composer is the exception: it docks inside the thread panel
+	// and is sized to the panel below.
+	if m.mode != ModeReply {
+		m.commentInput.SetWidth(m.dialogTextareaWidth())
+	}
 
 	if !m.ready {
 		m.documentViewport = newViewport(docWidth, m.height-2)
@@ -252,10 +260,20 @@ func (m *Model) handleResize() {
 	}
 
 	// An open thread panel re-derives its geometry at the new size
-	// (keys_threadpanel.go)
+	// (keys_threadpanel.go); a docked reply composer re-sizes with it
+	if m.mode == ModeReply {
+		m.applyComposerLayout()
+	}
 	if m.selectedThread != nil {
 		m.applyThreadPanel()
 	}
+}
+
+// dialogTextareaWidth is commentInput's width in the centered dialogs: most of
+// the screen, less modal borders (2), padding (4) and margin (10), clamped to
+// a usable minimum.
+func (m Model) dialogTextareaWidth() int {
+	return max(m.width-16, 40)
 }
 
 // newViewport constructs a viewport at the given size. Bubbles v2 made the
