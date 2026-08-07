@@ -88,7 +88,7 @@ func TestDialogsShowDocumentInSameFrame(t *testing.T) {
 			mode: ModeReply,
 			// the composer docks INSIDE the panel (no second box, no repeated
 			// title): the doc, the thread and its header all stay visible
-			chrome: []string{"Ctrl+S: save reply", "Thread at Line 5", "Enter your comment..."},
+			chrome: []string{"Ctrl+S: save reply", "Thread at Line 5", "Enter your reply..."},
 		},
 		{
 			name: "resolve",

@@ -47,6 +47,44 @@ func TestWatchSnapshotDiff(t *testing.T) {
 	}
 }
 
+// An agent waiting on `watch --until signoff` must get the reviewer's message
+// in the event itself, not just the decision — the note is the whole point of
+// signoff --note and the TUI verdict note.
+func TestSignoffEventCarriesAuthorAndNote(t *testing.T) {
+	dir := t.TempDir()
+	mdPath := filepath.Join(dir, "d.md")
+	content := "# T\n\nBody line.\n"
+	must(t, os.WriteFile(mdPath, []byte(content), 0644))
+
+	doc := &DocumentWithComments{Content: content, Threads: []*Comment{
+		{ID: "c1", Author: "rcliao", Line: 3, Text: "note"},
+	}}
+	must(t, SaveToSidecar(mdPath, doc))
+	base := TakeSnapshot(mdPath)
+
+	AddReviewRecord(doc, "rcliao", DecisionChangesRequested, "pin the prompt, don't hash it", false)
+	must(t, SaveToSidecar(mdPath, doc))
+
+	var signoff *WatchEvent
+	for _, e := range DiffSnapshots("d.md", base, TakeSnapshot(mdPath)) {
+		if e.Event == "signoff" {
+			signoff = &e
+		}
+	}
+	if signoff == nil {
+		t.Fatal("no signoff event emitted")
+	}
+	if signoff.Decision != DecisionChangesRequested {
+		t.Errorf("decision = %q, want %q", signoff.Decision, DecisionChangesRequested)
+	}
+	if signoff.Author != "rcliao" {
+		t.Errorf("author = %q, want rcliao", signoff.Author)
+	}
+	if signoff.Note != "pin the prompt, don't hash it" {
+		t.Errorf("note = %q, want the reviewer's note", signoff.Note)
+	}
+}
+
 func TestMatchesUntil(t *testing.T) {
 	cases := []struct {
 		event, spec string

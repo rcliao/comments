@@ -138,7 +138,7 @@ func (s *Server) registerGateTool() {
 func (s *Server) registerRequestReviewTool() {
 	tool := &mcp.Tool{
 		Name:        "comments_request_review",
-		Description: "Request human review of a document. Default: block until the reviewer records a signoff (via 'comments signoff') or the timeout elapses, returning the review decision and remaining comments. With blocking=false: return immediately with a durable since handle for comments_check_review polling",
+		Description: "Request human review of a document. Default: block until the reviewer signs off or the timeout elapses, then return the review (decision + the reviewer's note) and the remaining comments. A signoff is recorded either by the human's TUI review ('comments view' -> q -> approve/request changes) or by 'comments signoff' — ask for ONE of them, not both. With blocking=false: return immediately with a durable since handle for comments_check_review polling. Without MCP an agent can wait the same way with 'comments watch <file> --until signoff'",
 	}
 	mcp.AddTool(s.mcp, tool, s.handleRequestReview)
 }
@@ -146,7 +146,7 @@ func (s *Server) registerRequestReviewTool() {
 func (s *Server) registerCheckReviewTool() {
 	tool := &mcp.Tool{
 		Name:        "comments_check_review",
-		Description: "Check a pending review handle: given the since timestamp from a non-blocking comments_request_review, returns pending or review_completed (with the review decision and gate state) by comparing the sidecar's newest signoff against since",
+		Description: "Check a pending review handle: given the since timestamp from a non-blocking comments_request_review, returns pending or review_completed (the review — decision, author and the reviewer's note — plus gate state) by comparing the sidecar's newest signoff against since. Sees signoffs from the TUI verdict and from 'comments signoff' alike",
 	}
 	mcp.AddTool(s.mcp, tool, s.handleCheckReview)
 }

@@ -172,7 +172,7 @@ func TestThreadPanelReplyDocksInPanel(t *testing.T) {
 	m := drive(t, openThreadAtLine5(t, panelTestModel(t)), keyMsg("r"))
 	got := frame(m)
 
-	for _, want := range []string{"# Title", "reworded in the next pass", "Enter your comment...", "Ctrl+S: save reply"} {
+	for _, want := range []string{"# Title", "reworded in the next pass", "Enter your reply...", "Ctrl+S: save reply"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("composing frame missing %q (doc + thread + composer must share the frame):\n%s", want, got)
 		}
@@ -207,10 +207,10 @@ func TestThreadPanelComposerReleasesRowsOnClose(t *testing.T) {
 	}
 }
 
-// commentInput is shared with the centered add-comment dialog, so the docked
-// composer must hand back the size it borrowed — otherwise the next `c` after
-// a reply renders panel-narrow and four rows tall.
-func TestComposerRestoresSharedTextareaOnExit(t *testing.T) {
+// The reply composer is its own textarea, so the reply flow must leave the
+// add-comment textarea completely untouched — no borrowed width or height to
+// hand back, nothing to leak.
+func TestReplyFlowNeverTouchesCommentInput(t *testing.T) {
 	base := openThreadAtLine5(t, panelTestModel(t))
 	wantW, wantH := base.commentInput.Width(), base.commentInput.Height()
 
@@ -224,14 +224,117 @@ func TestComposerRestoresSharedTextareaOnExit(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := drive(t, openThreadAtLine5(t, panelTestModel(t)), keyMsg("r"))
+			m = drive(t, m, keyMsg("x"), keyMsg("y")) // typing lands in the composer
+			if m.commentInput.Value() != "" {
+				t.Errorf("reply text leaked into the add-comment textarea: %q", m.commentInput.Value())
+			}
 			m = drive(t, m, tc.exit...)
 			if got := m.commentInput.Width(); got != wantW {
-				t.Errorf("textarea width after %s = %d, want %d (add-comment dialog would render narrow)", tc.name, got, wantW)
+				t.Errorf("commentInput width after %s = %d, want %d (untouched)", tc.name, got, wantW)
 			}
 			if got := m.commentInput.Height(); got != wantH {
-				t.Errorf("textarea height after %s = %d, want %d (add-comment dialog would render short)", tc.name, got, wantH)
+				t.Errorf("commentInput height after %s = %d, want %d (untouched)", tc.name, got, wantH)
 			}
 		})
+	}
+}
+
+// The composer grows as you type and the thread gives up exactly those rows,
+// so the panel box never changes size.
+func TestComposerGrowsWithContent(t *testing.T) {
+	m := openThreadAtLine5(t, panelTestModel(t))
+	fullThread := m.threadViewport.Height() // no composer docked yet
+	m = drive(t, m, keyMsg("r"))
+	lay := m.threadPanelLayout()
+	startRows, startThread := m.replyInput.Height(), m.threadViewport.Height()
+	if startRows != composerMinRows {
+		t.Fatalf("composer should rest at %d rows, got %d", composerMinRows, startRows)
+	}
+
+	// Enough newlines to push past the resting height
+	for range composerMinRows + 3 {
+		m = drive(t, m, keyMsg("a"), tea.KeyPressMsg{Code: tea.KeyEnter})
+	}
+
+	grownRows, grownThread := m.replyInput.Height(), m.threadViewport.Height()
+	if grownRows <= startRows {
+		t.Errorf("composer should grow with the text: %d -> %d", startRows, grownRows)
+	}
+	if grownThread >= startThread {
+		t.Errorf("thread pane should give up the rows the composer took: %d -> %d", startThread, grownThread)
+	}
+	if got := startRows - grownRows + startThread - grownThread; got != 0 {
+		t.Errorf("rows must move between composer and thread, not appear: delta %d", got)
+	}
+	if h := lipgloss.Height(m.renderThreadPanelBox(lay)); h != lay.h {
+		t.Errorf("panel height with a grown composer = %d, want %d", h, lay.h)
+	}
+	if !strings.Contains(frame(m), "Ctrl+S: save reply") {
+		t.Error("composer help line should survive growth")
+	}
+
+	// Esc shrinks it back: Reset() recalculates the height, and the thread
+	// reclaims every row — the composer's and the separator's
+	m = drive(t, m, keyMsg("esc"))
+	if got := m.replyInput.Height(); got != composerMinRows {
+		t.Errorf("composer should reset to %d rows on cancel, got %d", composerMinRows, got)
+	}
+	if got := m.threadViewport.Height(); got != fullThread {
+		t.Errorf("thread pane should be back to its full %d rows, got %d", fullThread, got)
+	}
+}
+
+// Growth stops before it eats the thread: past the cap the composer scrolls
+// internally, and long text stays typable (MaxContentHeight, not MaxHeight,
+// is what bounds content).
+func TestComposerGrowthCapLeavesThreadVisible(t *testing.T) {
+	m := drive(t, openThreadAtLine5(t, panelTestModel(t)), keyMsg("r"))
+	lay := m.threadPanelLayout()
+
+	for range 60 {
+		m = drive(t, m, keyMsg("z"), tea.KeyPressMsg{Code: tea.KeyEnter})
+	}
+
+	if got := m.threadViewport.Height(); got < composerMinThreadRows {
+		t.Errorf("thread must keep at least %d rows visible, got %d", composerMinThreadRows, got)
+	}
+	if h := lipgloss.Height(m.renderThreadPanelBox(lay)); h != lay.h {
+		t.Errorf("panel height past the growth cap = %d, want %d", h, lay.h)
+	}
+	// The text past the cap is still there — the composer scrolls, it does not
+	// refuse input
+	if n := m.replyInput.LineCount(); n < 60 {
+		t.Errorf("long replies must stay typable past the visible cap, got %d lines", n)
+	}
+	if !strings.Contains(frame(m), "reworded in the next pass") {
+		t.Error("thread content should still be visible beside a long reply")
+	}
+}
+
+// A bracketed paste is a NON-key message: it reaches the composer through the
+// registry's updateViewport, not the key handler, and can add many rows at
+// once. The thread pane has to re-fit there too or the panel overflows.
+func TestComposerGrowsOnPaste(t *testing.T) {
+	m := drive(t, openThreadAtLine5(t, panelTestModel(t)), keyMsg("r"))
+	lay := m.threadPanelLayout()
+	startRows := m.replyInput.Height()
+
+	m = drive(t, m, tea.PasteMsg{Content: "one\ntwo\nthree\nfour\nfive\nsix\nseven"})
+
+	if got := m.replyInput.Height(); got <= startRows {
+		t.Errorf("paste should grow the composer: %d -> %d", startRows, got)
+	}
+	// The pane must have re-fitted around the grown composer. Asserting the
+	// rendered height would not catch this: the box clips at MaxHeight, so an
+	// unsynced pane silently swallows thread rows instead of overflowing.
+	if got, want := m.threadViewport.Height(), m.threadPaneRows(lay); got != want {
+		t.Errorf("thread pane height after paste = %d, want %d (paste path must re-fit the pane)", got, want)
+	}
+	if h := lipgloss.Height(m.renderThreadPanelBox(lay)); h != lay.h {
+		t.Errorf("panel height after paste = %d, want %d", h, lay.h)
+	}
+	if !strings.Contains(m.replyInput.Value(), "seven") {
+		t.Errorf("pasted text missing from the composer: %q", m.replyInput.Value())
 	}
 }
 

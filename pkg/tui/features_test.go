@@ -164,6 +164,68 @@ func TestVerdictDialogShowsQueueCount(t *testing.T) {
 	}
 }
 
+// The TUI verdict records the same ReviewRecord `comments signoff` writes,
+// note included — an agent polling check_review or watching --until signoff
+// gets the human's message either way.
+func TestVerdictRecordsNoteLikeSignoff(t *testing.T) {
+	m := testModel([]*comment.Comment{{ID: "c1", Line: 5, Text: "note", Author: "rcliao"}})
+	m.filename = filepath.Join(t.TempDir(), "doc.md")
+	if err := os.WriteFile(m.filename, []byte(tuiTestDoc), 0644); err != nil {
+		t.Fatal(err)
+	}
+	m.width, m.height = 100, 40
+	m.handleResize()
+	m.verdictReturnMode = ModeBrowse
+	m.mode = ModeVerdict
+
+	// n opens the note; "a" and "c" are letters there, not verdicts
+	noted, _ := m.handleVerdictKeys(keyMsg("n"))
+	nm := noted.(Model)
+	if nm.mode != ModeVerdictNote {
+		t.Fatalf("n should focus the review note, got %v", nm.mode)
+	}
+	for _, ch := range "back to a case" {
+		next, _ := nm.handleVerdictNoteKeys(keyMsg(string(ch)))
+		nm = next.(Model)
+	}
+	if nm.VerdictDecision != "" {
+		t.Fatalf("typing in the note must not submit a verdict, got %q", nm.VerdictDecision)
+	}
+	if nm.mode != ModeVerdictNote {
+		t.Fatalf("typing should stay in the note, got %v", nm.mode)
+	}
+
+	// Esc returns to the dialog keeping the text, which the box shows back
+	back, _ := nm.handleVerdictNoteKeys(keyMsg("esc"))
+	bm := back.(Model)
+	if bm.mode != ModeVerdict {
+		t.Fatalf("esc should return to the verdict dialog, got %v", bm.mode)
+	}
+	if out := bm.renderVerdictBox(); !strings.Contains(out, "back to a case") {
+		t.Errorf("verdict dialog should show the note it will record:\n%s", out)
+	}
+
+	done, _ := bm.handleVerdictKeys(keyMsg("c"))
+	dm := done.(Model)
+	if len(dm.doc.Reviews) != 1 {
+		t.Fatalf("expected one review record, got %v", dm.doc.Reviews)
+	}
+	rec := dm.doc.Reviews[0]
+	if rec.Decision != comment.DecisionChangesRequested || rec.Note != "back to a case" {
+		t.Errorf("review record = %+v, want changes_requested with the typed note", rec)
+	}
+
+	// And it survives the round trip through the sidecar, where signoff,
+	// gate and check_review read it from
+	reloaded, _, err := comment.LoadFromSidecar(dm.filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reloaded.Reviews) != 1 || reloaded.Reviews[0].Note != "back to a case" {
+		t.Errorf("note not persisted to the sidecar: %+v", reloaded.Reviews)
+	}
+}
+
 // --- Sidebar density cycle --------------------------------------------------
 
 func TestSidebarDensityCycle(t *testing.T) {

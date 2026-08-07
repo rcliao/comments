@@ -37,11 +37,11 @@ go install github.com/rcliao/comments/cmd/comments@latest
 ## The core loop
 
 ```bash
-comments view doc.md            # TUI review; q opens the verdict dialog
+comments view doc.md            # TUI review; q -> a/c signs off (n adds a note)
 comments add doc.md --line 10 --author eric --text "Fix this first" --blocking
 comments gate doc.md            # exit 0 = approved, 10 = changes requested
-comments signoff doc.md         # record the review pass agents wait on
-comments watch specs/ --until signoff     # NDJSON event stream, exits on signoff
+comments signoff doc.md         # same review record, non-interactively (CI, --note)
+comments watch specs/ --until signoff     # block until signed off, either way
 ```
 
 Agent-side drafting under a template:
@@ -55,7 +55,7 @@ comments seed draft.md --template design-doc  # criteria + markers become review
 
 ## TUI keys
 
-`j/k` move · `r` dive into thread at cursor · `Tab` cycle stacked threads · `n/N` next/prev NEW since your last signoff · `f` peek citation (Enter → `$EDITOR` at file:line) · `t` table of contents · `a`/`x` queue accept/reject on suggestions · `q` verdict (approve / request changes) · `?` full keybinding help
+`j/k` move · `r` dive into thread at cursor · `Tab` cycle stacked threads · `n/N` next/prev NEW since your last signoff · `f` peek citation (Enter → `$EDITOR` at file:line) · `t` table of contents · `a`/`x` queue accept/reject on suggestions · `q` verdict (approve / request changes, `n` for a review note) · `?` full keybinding help
 
 ## Storage
 

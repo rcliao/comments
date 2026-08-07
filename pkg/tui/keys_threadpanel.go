@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/textarea"
 	lipgloss "charm.land/lipgloss/v2"
 )
 
@@ -26,10 +27,36 @@ const threadRenderPad = 6
 // panel box: top+bottom border, header line, help line.
 const panelChromeRows = 4
 
-// composerTextareaRows is how many text rows the in-panel reply composer gets.
-// The composer docks inside the panel rather than floating over the middle of
-// the screen, so the thread you are replying to stays beside your reply.
-const composerTextareaRows = 4
+// composerMinRows is the resting height of the in-panel reply composer. It
+// docks inside the panel rather than floating over the middle of the screen,
+// so the thread you are replying to stays beside your reply, and it grows from
+// here as you type (see newReplyTextarea).
+const composerMinRows = 4
+
+// composerMinThreadRows is how much thread the composer must always leave
+// visible: the composer grows with your reply, but never to the point where
+// the thread you are answering is gone.
+const composerMinThreadRows = 3
+
+// composerMaxContentRows caps how much text a single reply can hold. It has to
+// be set explicitly and generously: with MaxContentHeight at 0 the textarea
+// falls back to blocking input at MaxHeight logical lines, which would make
+// any reply longer than the visible composer impossible to type.
+const composerMaxContentRows = 500
+
+// newReplyTextarea builds the reply composer: it grows with the text (bubbles
+// recalculates on every Update, soft wraps included) between composerMinRows
+// and the cap applyComposerLayout derives from the panel height.
+func newReplyTextarea() textarea.Model {
+	ta := textarea.New()
+	ta.Placeholder = "Enter your reply..."
+	ta.ShowLineNumbers = false
+	ta.DynamicHeight = true
+	ta.MinHeight = composerMinRows
+	ta.MaxContentHeight = composerMaxContentRows
+	ta.SetHeight(composerMinRows)
+	return ta
+}
 
 // panelLayout is the outer geometry of the thread panel on the screen.
 type panelLayout struct {
@@ -53,7 +80,7 @@ func (m Model) composerRows() int {
 	if m.mode != ModeReply {
 		return 0
 	}
-	return 1 + m.commentInput.Height()
+	return 1 + m.replyInput.Height()
 }
 
 // threadPaneRows is the height left for the threadViewport inside the panel
@@ -72,11 +99,35 @@ func (m *Model) applyComposerLayout() {
 		return
 	}
 	lay := m.threadPanelLayout()
-	m.commentInput.SetHeight(composerTextareaRows)
 	// -4: two border columns and the two columns lipgloss v2 counts inside
-	// the panel's Width() (see renderThreadPanelBox)
-	m.commentInput.SetWidth(max(lay.w-4, 1))
-	m.threadViewport.SetHeight(m.threadPaneRows(lay))
+	// the panel's Width() (see renderThreadPanelBox). Width first: it rewraps
+	// the text, which is what the height is derived from.
+	m.replyInput.SetWidth(max(lay.w-4, 1))
+	// MaxHeight is the visible cap; past it the composer scrolls internally
+	// instead of eating the thread. -1 for the separator row.
+	m.replyInput.MaxHeight = max(lay.h-panelChromeRows-composerMinThreadRows-1, composerMinRows)
+	m.syncComposerLayout()
+}
+
+// syncComposerLayout re-fits the thread viewport to whatever height the
+// composer has grown to. The textarea recalculates its own height inside
+// Update, so this must run on every path that feeds it a message — keystrokes
+// AND non-key messages like a bracketed paste — or the panel overflows.
+func (m *Model) syncComposerLayout() {
+	if !m.ready || m.selectedThread == nil {
+		return
+	}
+	rows := m.threadPaneRows(m.threadPanelLayout())
+	if rows == m.threadViewport.Height() {
+		return
+	}
+	// SetHeight keeps YOffset, so a shrinking pane would cut off the newest
+	// activity — exactly what the panel deliberately lands on
+	atBottom := m.threadViewport.AtBottom()
+	m.threadViewport.SetHeight(rows)
+	if atBottom {
+		m.threadViewport.GotoBottom()
+	}
 }
 
 // closeComposer undoes applyComposerLayout: the composer's rows go back to the
@@ -84,14 +135,9 @@ func (m *Model) applyComposerLayout() {
 // textarea returns to the size the centered dialogs expect. Call it with the
 // mode already off ModeReply.
 func (m *Model) closeComposer() {
-	m.commentInput.SetWidth(m.dialogTextareaWidth())
-	if m.dialogInputRows > 0 {
-		m.commentInput.SetHeight(m.dialogInputRows)
-	}
-	if !m.ready || m.selectedThread == nil {
-		return
-	}
-	m.threadViewport.SetHeight(m.threadPaneRows(m.threadPanelLayout()))
+	// Reset() already shrank the textarea back to composerMinRows (bubbles
+	// recalculates on reset), so this only hands the rows back to the thread
+	m.syncComposerLayout()
 }
 
 // threadAnchorLine is the document line the open thread anchors to.
@@ -187,7 +233,7 @@ func (m Model) renderThreadPanelBox(lay panelLayout) string {
 	if m.mode == ModeReply {
 		rows = append(rows,
 			m.styles.help.Render(strings.Repeat("─", content)),
-			m.commentInput.View(),
+			m.replyInput.View(),
 		)
 		helpText = "Ctrl+S: save reply • Esc: cancel"
 	}

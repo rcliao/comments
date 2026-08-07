@@ -17,8 +17,8 @@ import (
 var allModes = []ViewMode{
 	ModeFilePicker, ModeBrowse, ModeLineSelect, ModeAddComment, ModeThreadView,
 	ModeReply, ModeResolve, ModeAddSuggestion, ModeChooseTarget,
-	ModeSelectSuggestionType, ModeSelectRange, ModeVerdict, ModeHelp, ModeTOC,
-	ModeRefPeek,
+	ModeSelectSuggestionType, ModeSelectRange, ModeVerdict, ModeVerdictNote,
+	ModeHelp, ModeTOC, ModeRefPeek,
 }
 
 // dispatchModel builds a ready model in the given mode with enough state for

@@ -836,7 +836,8 @@ Usage:
   comments <command> [arguments]
 
 Commands:
-  view <file> [flags]         Open interactive TUI viewer
+  view <file> [flags]         Open interactive TUI viewer (q submits the review: records
+                              the signoff, exit 0 approved / 10 changes requested)
   list <file> [flags]         List all comments in a file
   get <file> [flags]          Get detailed comment with context
   add <file> [flags]          Add a comment to a specific line
@@ -848,11 +849,13 @@ Commands:
   accept <file> [flags]       Accept a suggestion and apply changes
   reject <file> [flags]       Reject a suggestion
   gate <file-or-dir> [flags]  Evaluate review gate (exit 0 = approved, 10 = changes requested)
-  signoff <file> [flags]      Record a completed human review pass
+  signoff <file> [flags]      Record a review pass non-interactively (view's verdict
+                              already records one; use this for CI/scripts/--note)
   template list|show <name>   List or inspect doc templates (guardrails for agent-written docs)
   validate <file> [flags]     Check document structure against a template (exit 1 on violations)
   seed <file> [flags]         Create review threads from a template's criteria and markers
-  watch <file-or-dir> [flags] Emit review-state change events as NDJSON (poll-based; --until exits on a matching event)
+  watch <file-or-dir> [flags] Emit review-state change events as NDJSON (poll-based; --until
+                              exits 0 on a match, e.g. --until signoff to block until reviewed)
   serve-mcp                   Start Model Context Protocol server (for LLM integration)
   help                        Show this help message
 

@@ -55,7 +55,7 @@ var modeRegistry = map[ViewMode]modeDescriptor{
 	ModeReply: {
 		handleKeys:     Model.handleReplyKeys,
 		view:           Model.viewReply,
-		updateViewport: updateCommentInput,
+		updateViewport: updateReplyInput,
 	},
 	ModeResolve: {
 		handleKeys: Model.handleResolveKeys,
@@ -80,6 +80,11 @@ var modeRegistry = map[ViewMode]modeDescriptor{
 	ModeVerdict: {
 		handleKeys: Model.handleVerdictKeys,
 		view:       Model.viewVerdict,
+	},
+	ModeVerdictNote: {
+		handleKeys:     Model.handleVerdictNoteKeys,
+		view:           Model.viewVerdictNote,
+		updateViewport: updateVerdictNote,
 	},
 	ModeHelp: {
 		handleKeys: Model.handleHelpKeys,
@@ -113,6 +118,24 @@ func updateDocumentViewport(m *Model, msg tea.Msg) tea.Cmd {
 func updateCommentInput(m *Model, msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	m.commentInput, cmd = m.commentInput.Update(msg)
+	return cmd
+}
+
+// updateVerdictNote forwards non-key messages (cursor blink) to the review
+// note textarea in the verdict dialog
+func updateVerdictNote(m *Model, msg tea.Msg) tea.Cmd {
+	var cmd tea.Cmd
+	m.verdictNote, cmd = m.verdictNote.Update(msg)
+	return cmd
+}
+
+// updateReplyInput forwards non-key messages to the docked reply composer.
+// Bracketed paste arrives here, not through the key handler, and it can grow
+// the composer by many rows at once — so the thread pane re-fits here too.
+func updateReplyInput(m *Model, msg tea.Msg) tea.Cmd {
+	var cmd tea.Cmd
+	m.replyInput, cmd = m.replyInput.Update(msg)
+	m.syncComposerLayout()
 	return cmd
 }
 

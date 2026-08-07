@@ -34,11 +34,11 @@ type Model struct {
 	commentViewport  viewport.Model
 	threadViewport   viewport.Model
 	commentInput     textarea.Model
-	// dialogInputRows is commentInput's height in the centered dialogs
-	// (add-comment, suggestion). The panel-docked reply composer borrows the
-	// same textarea at a shorter height, so its size is snapshotted here and
-	// restored when the composer closes.
-	dialogInputRows int
+	// replyInput is the panel-docked reply composer. It is its own textarea
+	// (like proposedTextInput and verdictNote) because it grows with what you
+	// type — sharing commentInput would mean saving and restoring four fields
+	// every time the composer opens and closes.
+	replyInput textarea.Model
 
 	// Selection state
 	selectedLine       int              // For line selection mode
@@ -56,6 +56,9 @@ type Model struct {
 
 	// Section input support
 	targetIsSection bool // True if user wants to comment on section, false for line only
+
+	// Review note recorded with the verdict (signoff --note parity)
+	verdictNote textarea.Model
 
 	// Suggestion creation state
 	suggestionOriginalText string         // Original text for suggestion being created
@@ -109,6 +112,13 @@ func NewModel() Model {
 	proposedTA := textarea.New()
 	proposedTA.Placeholder = "Enter proposed text (edit the pre-filled original)..."
 
+	noteTA := textarea.New()
+	noteTA.Placeholder = "Optional note for the agent reading this review..."
+	noteTA.SetHeight(verdictNoteRows)
+	noteTA.ShowLineNumbers = false
+
+	replyTA := newReplyTextarea()
+
 	// Get author from environment or use default
 	author := os.Getenv("USER")
 	if author == "" {
@@ -120,8 +130,9 @@ func NewModel() Model {
 		styles:            newStyleSet(currentStartupTheme()),
 		filePicker:        fp,
 		commentInput:      ta,
-		dialogInputRows:   ta.Height(),
 		proposedTextInput: proposedTA,
+		verdictNote:       noteTA,
+		replyInput:        replyTA,
 		author:            author,
 		priority:          "medium",
 		commentType:       "",
@@ -141,6 +152,13 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 	proposedTA := textarea.New()
 	proposedTA.Placeholder = "Enter proposed text (edit the pre-filled original)..."
 
+	noteTA := textarea.New()
+	noteTA.Placeholder = "Optional note for the agent reading this review..."
+	noteTA.SetHeight(verdictNoteRows)
+	noteTA.ShowLineNumbers = false
+
+	replyTA := newReplyTextarea()
+
 	// Get author from environment or use default
 	author := os.Getenv("USER")
 	if author == "" {
@@ -153,8 +171,9 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 		doc:               doc,
 		filename:          filename,
 		commentInput:      ta,
-		dialogInputRows:   ta.Height(),
 		proposedTextInput: proposedTA,
+		verdictNote:       noteTA,
+		replyInput:        replyTA,
 		author:            author,
 		priority:          "medium",
 		commentType:       "",
@@ -231,11 +250,12 @@ func (m *Model) handleResize() {
 	panelWidth := max(m.width-docWidth-4, 0)
 
 	// Size the textarea for the centered dialogs (see dialogTextareaWidth).
-	// The reply composer is the exception: it docks inside the thread panel
-	// and is sized to the panel below.
-	if m.mode != ModeReply {
-		m.commentInput.SetWidth(m.dialogTextareaWidth())
-	}
+	// The docked reply composer has its own textarea, sized to the panel by
+	// applyComposerLayout below.
+	m.commentInput.SetWidth(m.dialogTextareaWidth())
+	// The verdict note sits inside the verdict box, which is sized by its
+	// content rather than the screen — keep it comfortably narrower
+	m.verdictNote.SetWidth(min(max(m.width-24, 40), 72))
 
 	if !m.ready {
 		m.documentViewport = newViewport(docWidth, m.height-2)

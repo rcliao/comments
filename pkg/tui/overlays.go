@@ -54,6 +54,7 @@ func helpGroups() []helpGroup {
 		}},
 		{"Exit", [][2]string{
 			{"q", "verdict dialog: approve / request changes"},
+			{"n (in verdict)", "write a review note for the agent (signoff --note)"},
 			{"Ctrl+C", "quit silently (no verdict; keeps queue unapplied)"},
 			{"?", "this help (any key closes)"},
 		}},

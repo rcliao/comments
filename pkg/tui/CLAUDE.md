@@ -74,16 +74,41 @@ content preserving scroll (reply added, decision queued). The panel chrome
 line); `renderThreadWidth` renders only the thread body — no location line, no
 document-context box.
 
-**The reply composer docks in the panel.** `ModeReply` is not a floating
-dialog: `renderThreadPanelBox` is mode-aware and, while composing, draws a
-separator + the textarea under the thread and swaps the panel hint line for
-`Ctrl+S: save reply • Esc: cancel` (the panel keys it replaces are dead
-anyway). No second box, no repeated title — the panel header is still the
-thread's one header. `composerRows()` derives the space from the textarea, and
-`threadPaneRows()` takes it out of the thread viewport, so the panel never
-grows past its layout. Call `applyComposerLayout()` on reply open, on resize,
-and on both exits (Esc restores rows keeping scroll; Ctrl+S goes through
-`applyThreadPanel()` so the view lands on the reply just posted).
+**The reply composer docks in the panel and grows as you type.** `ModeReply`
+is not a floating dialog: `renderThreadPanelBox` is mode-aware and, while
+composing, draws a separator + the textarea under the thread and swaps the
+panel hint line for `Ctrl+S: save reply • Esc: cancel` (the panel keys it
+replaces are dead anyway). No second box, no repeated title — the panel header
+is still the thread's one header.
+
+The composer is its own textarea (`replyInput`, built by `newReplyTextarea`),
+NOT the shared `commentInput` — it mutates four fields the add-comment dialog
+would have to get back, and save/restore of four fields is a standing bug
+factory. `proposedTextInput` and `verdictNote` are dedicated for the same
+reason.
+
+Growth is bubbles' `DynamicHeight` (recalculated inside `textarea.Update`,
+soft wraps included) between `MinHeight = composerMinRows` and a `MaxHeight`
+cap that `applyComposerLayout` derives from the panel so
+`composerMinThreadRows` of thread always stay visible. **`MaxContentHeight`
+must be set explicitly** (`composerMaxContentRows`): at 0 the textarea falls
+back to blocking input at `MaxHeight` logical lines, which would silently make
+any reply longer than the visible composer impossible to type.
+
+`composerRows()` derives the space from the textarea and `threadPaneRows()`
+takes it out of the thread viewport, so the panel never grows past its layout.
+`syncComposerLayout()` re-fits the pane and must run on EVERY path that feeds
+the textarea a message: the key-handler tail AND `updateReplyInput` — a
+bracketed paste is a non-key message and can add many rows at once. It
+restores `GotoBottom()` when the pane was at the bottom, or a shrinking pane
+would cut off the newest reply. Note the box clips at `MaxHeight`, so a missed
+resync silently swallows thread rows instead of overflowing the screen —
+assert on `threadViewport.Height()`, not on rendered height.
+
+Call `applyComposerLayout()` on reply open and on resize; on exit `Reset()`
+already shrinks the textarea, so `closeComposer()` only hands the rows back
+(Ctrl+S then goes through `applyThreadPanel()` so the view lands on the reply
+just posted).
 
 **Box widths**: lipgloss v2 `Width(n)` counts the border, so text inside the
 panel must fit `lay.w - 4`, not `lay.w - 2`. Truncating to the wrong width
@@ -106,6 +131,19 @@ The screen still reads as browse, so keys split three ways
 - **Everything else is ignored** (notably `S`/`L`/`t` — close the panel
   first). If you add a fall-through key, it must behave exactly as it does in
   browse and must close or preserve the panel deliberately.
+
+## Verdict and signoff parity
+
+`q` opens the verdict dialog; `a`/`c` apply the queued suggestion decisions and
+write a `ReviewRecord` through `comment.AddReviewRecord` — the SAME record
+`comments signoff` writes, note included. `n` opens `ModeVerdictNote`, a
+separate mode so `a`/`c` are plain letters while typing; Esc/Ctrl+S returns to
+the dialog keeping the text, and `recordVerdict` trims it into
+`ReviewRecord.Note`. Keep the two writers producing identical records: agents
+waiting on `request_review`, `check_review` or `watch --until signoff` key on
+the record, not on who wrote it. The note deliberately survives `q` → Esc →
+`q` within a session (you drafted it, going back to check a thread shouldn't
+discard it) — that is intended, not a leak.
 
 ## Styles and themes
 

@@ -123,17 +123,17 @@ func (m Model) handleReplyKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Cancel reply: hand the composer's rows back to the thread, keeping
 		// the reader's scroll position
 		m.mode = ModeThreadView
-		m.commentInput.Reset()
+		m.replyInput.Reset()
 		m.closeComposer()
 		return m, nil
 
 	case "ctrl+s":
 		// Save reply
-		text := strings.TrimSpace(m.commentInput.Value())
+		text := strings.TrimSpace(m.replyInput.Value())
 		if text == "" {
 			// Empty reply, just cancel
 			m.mode = ModeThreadView
-			m.commentInput.Reset()
+			m.replyInput.Reset()
 			m.closeComposer()
 			return m, nil
 		}
@@ -154,7 +154,7 @@ func (m Model) handleReplyKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// the composer's rows go back to the thread and the viewport lands
 		// on the newest activity — the reply just posted
 		m.mode = ModeThreadView
-		m.commentInput.Reset()
+		m.replyInput.Reset()
 		m.closeComposer()
 		m.applyThreadPanel()
 		// applyThreadPanel is a no-op without a laid-out screen (unit tests
@@ -164,9 +164,11 @@ func (m Model) handleReplyKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Handle textarea input
+	// Handle textarea input; the composer may have grown a row, so re-fit the
+	// thread pane around it
 	var cmd tea.Cmd
-	m.commentInput, cmd = m.commentInput.Update(msg)
+	m.replyInput, cmd = m.replyInput.Update(msg)
+	m.syncComposerLayout()
 	return m, cmd
 }
 
@@ -377,7 +379,7 @@ func (m Model) viewReply() string {
 					Foreground(m.styles.theme.Title.Color()).
 					Render(fmt.Sprintf("Reply to Thread at Line %d", m.selectedThread.Line)),
 				"",
-				m.commentInput.View(),
+				m.replyInput.View(),
 				"",
 				m.styles.help.Render("Ctrl+S: save • Esc: cancel"),
 			),

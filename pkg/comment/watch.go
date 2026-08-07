@@ -17,6 +17,7 @@ type WatchEvent struct {
 	Text     string `json:"text,omitempty"` // truncated comment text for context
 	Blocking bool   `json:"blocking,omitempty"`
 	Decision string `json:"decision,omitempty"` // signoff / gate_changed
+	Note     string `json:"note,omitempty"`     // signoff: the reviewer's note, if any
 }
 
 // MatchesUntil reports whether an event type matches an --until spec: a
@@ -50,6 +51,8 @@ type WatchSnapshot struct {
 	threads      map[string]threadState
 	reviews      int
 	lastDecision string // decision of newest review
+	lastAuthor   string // author of newest review
+	lastNote     string // note on newest review (signoff --note / TUI verdict note)
 	gate         string
 	valid        bool // false when the sidecar was missing/unreadable
 }
@@ -80,7 +83,10 @@ func TakeSnapshot(mdPath string) WatchSnapshot {
 	}
 	snap.reviews = len(storage.Reviews)
 	if snap.reviews > 0 {
-		snap.lastDecision = storage.Reviews[snap.reviews-1].Decision
+		latest := storage.Reviews[snap.reviews-1]
+		snap.lastDecision = latest.Decision
+		snap.lastAuthor = latest.Author
+		snap.lastNote = latest.Note
 	}
 	doc := &DocumentWithComments{Threads: storage.Threads, Reviews: storage.Reviews}
 	snap.gate = EvaluateGate(doc, false).Decision
@@ -123,7 +129,10 @@ func DiffSnapshots(file string, old, new WatchSnapshot) []WatchEvent {
 	}
 
 	if old.valid && new.reviews > old.reviews {
-		events = append(events, WatchEvent{Event: "signoff", File: file, Decision: new.lastDecision})
+		// Carry the reviewer's note: an agent waiting on --until signoff
+		// gets the decision AND the message in one event
+		events = append(events, WatchEvent{Event: "signoff", File: file,
+			Author: new.lastAuthor, Decision: new.lastDecision, Note: new.lastNote})
 	}
 	if old.valid && new.gate != old.gate {
 		events = append(events, WatchEvent{Event: "gate_changed", File: file, Decision: new.gate})

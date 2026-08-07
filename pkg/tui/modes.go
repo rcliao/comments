@@ -40,6 +40,10 @@ const (
 	// ModeVerdict shows the exit verdict dialog (approve / request changes)
 	ModeVerdict
 
+	// ModeVerdictNote focuses the optional review note inside the verdict
+	// dialog (the note recorded alongside the decision, like signoff --note)
+	ModeVerdictNote
+
 	// ModeHelp shows the full-screen keybinding reference overlay
 	ModeHelp
 
@@ -77,6 +81,8 @@ func (m ViewMode) String() string {
 		return "SELECT_RANGE"
 	case ModeVerdict:
 		return "VERDICT"
+	case ModeVerdictNote:
+		return "VERDICT_NOTE"
 	case ModeHelp:
 		return "HELP"
 	case ModeTOC:
