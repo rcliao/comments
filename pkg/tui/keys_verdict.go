@@ -6,8 +6,8 @@ package tui
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 	"github.com/rcliao/comments/pkg/comment"
 )
 
@@ -42,7 +42,7 @@ func (m Model) handleVerdictKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// viewVerdict renders the exit verdict dialog over a dimmed summary
+// viewVerdict renders the exit verdict dialog as a popup over the live review
 func (m Model) viewVerdict() string {
 	result := comment.EvaluateGate(m.doc, false)
 	queueLine := ""
@@ -53,5 +53,5 @@ func (m Model) viewVerdict() string {
 		"Submit review for %s\n\n%d blocking · %d open · %d pending suggestions\n%s\n[a] Approve (signoff, exit 0)\n[c] Request changes (signoff, exit 10)\n[Esc] Back to review",
 		m.filename, len(result.Blocking), len(result.NonBlocking), len(result.PendingSuggestions), queueLine)
 	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 3).Render(dialog)
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	return m.dialogOver(m.baseView(), box)
 }

@@ -9,10 +9,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textarea"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 	"github.com/muesli/reflow/wordwrap"
 	"github.com/rcliao/comments/pkg/comment"
 	"github.com/rcliao/comments/pkg/markdown"
@@ -29,10 +28,9 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = ModeBrowse
 
 		// Reset the viewport to fix any scroll offset issues
-		m.documentViewport = viewport.New(m.docPaneWidth(), m.height-2)
-		m.documentViewport.YOffset = 0
+		m.documentViewport = newViewport(m.docPaneWidth(), m.height-2)
 		m.documentViewport.SetContent(m.renderDocument())
-		m.documentViewport.YOffset = 0
+		m.documentViewport.SetYOffset(0)
 		return m, nil
 
 	case "?":
@@ -56,6 +54,11 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Follow a citation on the cursor line: peek the referenced file
 		return m.openRefPeek()
 
+	case "#":
+		m.hideLineNumbers = !m.hideLineNumbers
+		m.refreshCursorView()
+		return m, nil
+
 	case "j", "down":
 		// Move cursor down
 		if m.selectedLine < totalLines {
@@ -74,14 +77,14 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "ctrl+d":
 		// Page down (half page)
-		pageSize := m.documentViewport.Height / 2
+		pageSize := m.documentViewport.Height() / 2
 		m.selectedLine = min(m.selectedLine+pageSize, totalLines)
 		m.refreshCursorView()
 		return m, nil
 
 	case "ctrl+u":
 		// Page up (half page)
-		pageSize := m.documentViewport.Height / 2
+		pageSize := m.documentViewport.Height() / 2
 		m.selectedLine = max(m.selectedLine-pageSize, 1)
 		m.refreshCursorView()
 		return m, nil
@@ -171,7 +174,10 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.selectedThread = thread
 			m.returnToLineSelect = true
 			m.mode = ModeThreadView
-			m.threadViewport.SetContent(m.renderThread())
+			// Panel base view is cursorless; re-render so the anchor line
+			// carries the focus highlight (sidebar->doc sync)
+			m.refreshDocumentPane()
+			m.applyThreadPanel()
 		}
 		return m, nil
 
@@ -368,21 +374,18 @@ func (m *Model) scrollToLine(lineNum int) {
 	displayRow := m.calculateDisplayRow(lineNum - 1) // -1 because we want the start of this line
 
 	// Calculate visible range
-	topRow := m.documentViewport.YOffset
-	bottomRow := topRow + m.documentViewport.Height - 1
+	topRow := m.documentViewport.YOffset()
+	bottomRow := topRow + m.documentViewport.Height() - 1
 
 	// Scroll if line is out of view
 	if displayRow < topRow {
 		// Line is above visible area - scroll up
-		m.documentViewport.YOffset = displayRow
+		m.documentViewport.SetYOffset(displayRow)
 	} else if displayRow > bottomRow {
 		// Line is below visible area - scroll down
 		// Position it near the bottom of the viewport
-		m.documentViewport.YOffset = displayRow - m.documentViewport.Height + 5
+		m.documentViewport.SetYOffset(max(displayRow-m.documentViewport.Height()+5, 0))
 	}
-
-	// Ensure we don't scroll past the end
-	m.documentViewport.YOffset = max(m.documentViewport.YOffset, 0)
 }
 
 // threadIndicesAtLine returns indices into visibleComments() of threads on a line
@@ -428,8 +431,8 @@ func (m *Model) refreshSidebar() {
 	for i, line := range lines {
 		if strings.Contains(line, "▼ ") {
 			offset := max(i-2, 0)
-			maxOffset := max(len(lines)-m.commentViewport.Height, 0)
-			m.commentViewport.YOffset = min(offset, maxOffset)
+			maxOffset := max(len(lines)-m.commentViewport.Height(), 0)
+			m.commentViewport.SetYOffset(min(offset, maxOffset))
 			return
 		}
 	}
@@ -463,22 +466,12 @@ func (m *Model) getSectionPath(section *markdown.Section) string {
 	return section.GetFullPath(m.documentSections.SectionsByID)
 }
 
-// viewChooseTarget renders the section vs line choice modal
+// viewChooseTarget renders the section-vs-line choice as a popup over the
+// live document view.
 func (m Model) viewChooseTarget() string {
 	if !m.ready {
 		return "Loading..."
 	}
-
-	// Base layout with document
-	modeStr := "Choose Target"
-	title := m.styles.title.Render(fmt.Sprintf("📄 %s - Mode: %s", m.filename, modeStr))
-
-	// Layout: document on left, comments on right (background)
-	content := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		m.documentViewport.View(),
-		m.styles.commentPanel.Render(m.commentViewport.View()),
-	)
 
 	// Get section info
 	section := m.getSectionAtLine(m.selectedLine)
@@ -487,7 +480,7 @@ func (m Model) viewChooseTarget() string {
 	// Build choice modal
 	modalTitle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(m.styles.theme.Title).
+		Foreground(m.styles.theme.Title.Color()).
 		Render("Add comment to:")
 
 	var choices strings.Builder
@@ -507,46 +500,15 @@ func (m Model) viewChooseTarget() string {
 		),
 	)
 
-	// Position modal over content (centered)
-	positioned := lipgloss.Place(
-		m.width,
-		m.height-2,
-		lipgloss.Center,
-		lipgloss.Center,
-		modal,
-		lipgloss.WithWhitespaceChars(" "),
-	)
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		title,
-		lipgloss.Place(
-			m.width,
-			m.height-2,
-			lipgloss.Left,
-			lipgloss.Top,
-			content,
-		),
-		positioned,
-	)
+	return m.dialogOver(m.baseView(), modal)
 }
 
-// viewSelectSuggestionType renders the suggestion type choice modal
+// viewSelectSuggestionType renders the range-vs-section choice as a popup
+// over the live document view.
 func (m Model) viewSelectSuggestionType() string {
 	if !m.ready {
 		return "Loading..."
 	}
-
-	// Base layout with document
-	modeStr := "Choose Suggestion Type"
-	title := m.styles.title.Render(fmt.Sprintf("📄 %s - Mode: %s", m.filename, modeStr))
-
-	// Layout: document on left, comments on right (background)
-	content := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		m.documentViewport.View(),
-		m.styles.commentPanel.Render(m.commentViewport.View()),
-	)
 
 	// Get section info
 	section := m.getSectionAtLine(m.selectedLine)
@@ -555,7 +517,7 @@ func (m Model) viewSelectSuggestionType() string {
 	// Build choice modal
 	modalTitle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(m.styles.theme.Title).
+		Foreground(m.styles.theme.Title.Color()).
 		Render("Create suggestion for:")
 
 	var choices strings.Builder
@@ -575,28 +537,7 @@ func (m Model) viewSelectSuggestionType() string {
 		),
 	)
 
-	// Position modal over content (centered)
-	positioned := lipgloss.Place(
-		m.width,
-		m.height-2,
-		lipgloss.Center,
-		lipgloss.Center,
-		modal,
-		lipgloss.WithWhitespaceChars(" "),
-	)
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		title,
-		lipgloss.Place(
-			m.width,
-			m.height-2,
-			lipgloss.Left,
-			lipgloss.Top,
-			content,
-		),
-		positioned,
-	)
+	return m.dialogOver(m.baseView(), modal)
 }
 
 // viewSelectRange renders the range selection view
@@ -606,8 +547,7 @@ func (m Model) viewSelectRange() string {
 	}
 
 	// Base layout with document (showing range highlighting)
-	modeStr := fmt.Sprintf("Range Selection: Lines %d-%d", m.rangeStartLine, m.rangeEndLine)
-	title := m.styles.title.Render(fmt.Sprintf("📄 %s - Mode: %s", m.filename, modeStr))
+	title := m.titleBar(fmt.Sprintf("Range Selection: Lines %d-%d", m.rangeStartLine, m.rangeEndLine))
 
 	// Layout: document on left, comments on right (background)
 	content := lipgloss.JoinHorizontal(

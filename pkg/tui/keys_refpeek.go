@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/rcliao/comments/pkg/markdown"
 )
 
@@ -129,8 +129,9 @@ func (m Model) handleRefPeekKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// viewRefPeek renders the peek overlay: a read-only excerpt of the target
-// centered on the cited location, or the resolution error.
+// viewRefPeek renders the peek as a popup centered over the live
+// browse/line-select view: a read-only excerpt of the target centered on the
+// cited location, or the resolution error.
 func (m Model) viewRefPeek() string {
 	ref := m.refPeekList[m.refPeekIdx]
 
@@ -179,5 +180,5 @@ func (m Model) viewRefPeek() string {
 	}
 	body.WriteString("\n" + m.styles.help.Render(hint))
 
-	return m.styles.modalOverlay.Render(body.String())
+	return m.dialogOver(m.baseView(), m.styles.modalOverlay.Render(body.String()))
 }

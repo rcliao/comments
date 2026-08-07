@@ -8,7 +8,7 @@ package tui
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/rcliao/comments/pkg/comment"
 )
@@ -81,7 +81,7 @@ func TestHandleKeyPressRoutesEveryModeWithoutPanic(t *testing.T) {
 func TestUpdateByModeRoutesEveryModeWithoutPanic(t *testing.T) {
 	for _, mode := range allModes {
 		m := dispatchModel(t, mode)
-		next, _ := m.updateByMode(tea.MouseMsg{})
+		next, _ := m.updateByMode(tea.MouseWheelMsg{})
 		if next == nil {
 			t.Errorf("mode %v: updateByMode returned nil model", mode)
 		}
@@ -91,10 +91,10 @@ func TestUpdateByModeRoutesEveryModeWithoutPanic(t *testing.T) {
 func TestViewRendersEveryModeWithoutPanic(t *testing.T) {
 	for _, mode := range allModes {
 		m := dispatchModel(t, mode)
-		if out := m.View(); out == "" {
+		if out := m.View().Content; out == "" {
 			t.Errorf("mode %v: View returned empty output", mode)
 		}
-		if out := m.View(); out == "Unknown mode" {
+		if out := m.View().Content; out == "Unknown mode" {
 			t.Errorf("mode %v: View fell through to the unknown-mode fallback", mode)
 		}
 	}
@@ -139,18 +139,18 @@ func TestHandleResizeViewportDimensions(t *testing.T) {
 		if !nm.ready {
 			t.Fatalf("%dx%d: resize should initialize viewports and set ready", s.w, s.h)
 		}
-		if nm.documentViewport.Width != nm.docPaneWidth() {
-			t.Errorf("%dx%d: document width = %d, want %d", s.w, s.h, nm.documentViewport.Width, nm.docPaneWidth())
+		if nm.documentViewport.Width() != nm.docPaneWidth() {
+			t.Errorf("%dx%d: document width = %d, want %d", s.w, s.h, nm.documentViewport.Width(), nm.docPaneWidth())
 		}
-		if nm.documentViewport.Height != s.h-2 {
-			t.Errorf("%dx%d: document height = %d, want %d", s.w, s.h, nm.documentViewport.Height, s.h-2)
+		if nm.documentViewport.Height() != s.h-2 {
+			t.Errorf("%dx%d: document height = %d, want %d", s.w, s.h, nm.documentViewport.Height(), s.h-2)
 		}
 		wantPanel := max(s.w-nm.docPaneWidth()-4, 0)
-		if nm.commentViewport.Width != wantPanel {
-			t.Errorf("%dx%d: panel width = %d, want %d (never negative)", s.w, s.h, nm.commentViewport.Width, wantPanel)
+		if nm.commentViewport.Width() != wantPanel {
+			t.Errorf("%dx%d: panel width = %d, want %d (never negative)", s.w, s.h, nm.commentViewport.Width(), wantPanel)
 		}
-		if nm.threadViewport.Width != s.w-4 {
-			t.Errorf("%dx%d: thread width = %d, want %d", s.w, s.h, nm.threadViewport.Width, s.w-4)
+		if nm.threadViewport.Width() != s.w-4 {
+			t.Errorf("%dx%d: thread width = %d, want %d", s.w, s.h, nm.threadViewport.Width(), s.w-4)
 		}
 	}
 }
@@ -161,12 +161,12 @@ func TestHandleResizeUpdatesExistingViewports(t *testing.T) {
 	second, _ := first.(Model).Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	nm := second.(Model)
 
-	if nm.documentViewport.Width != nm.docPaneWidth() || nm.documentViewport.Height != 18 {
+	if nm.documentViewport.Width() != nm.docPaneWidth() || nm.documentViewport.Height() != 18 {
 		t.Errorf("second resize should update dims in place, got %dx%d",
-			nm.documentViewport.Width, nm.documentViewport.Height)
+			nm.documentViewport.Width(), nm.documentViewport.Height())
 	}
-	if nm.threadViewport.Width != 76 || nm.threadViewport.Height != 18 {
-		t.Errorf("thread viewport not resized, got %dx%d", nm.threadViewport.Width, nm.threadViewport.Height)
+	if nm.threadViewport.Width() != 76 || nm.threadViewport.Height() != 18 {
+		t.Errorf("thread viewport not resized, got %dx%d", nm.threadViewport.Width(), nm.threadViewport.Height())
 	}
 }
 
@@ -176,11 +176,11 @@ func TestHandleResizeHiddenSidebarGivesDocumentFullWidth(t *testing.T) {
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	nm := next.(Model)
 
-	if nm.documentViewport.Width != 98 {
-		t.Errorf("hidden sidebar: document width = %d, want 98 (width-2)", nm.documentViewport.Width)
+	if nm.documentViewport.Width() != 98 {
+		t.Errorf("hidden sidebar: document width = %d, want 98 (width-2)", nm.documentViewport.Width())
 	}
-	if nm.commentViewport.Width != 0 {
-		t.Errorf("hidden sidebar: panel width = %d, want 0", nm.commentViewport.Width)
+	if nm.commentViewport.Width() != 0 {
+		t.Errorf("hidden sidebar: panel width = %d, want 0", nm.commentViewport.Width())
 	}
 }
 

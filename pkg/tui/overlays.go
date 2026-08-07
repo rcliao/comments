@@ -7,9 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 	"github.com/rcliao/comments/pkg/comment"
 	"github.com/rcliao/comments/pkg/markdown"
 )
@@ -32,6 +31,7 @@ func helpGroups() []helpGroup {
 			{"n / N", "next / previous NEW activity (since last signoff)"},
 			{"t", "table of contents (jump to section)"},
 			{"f", "follow citation on line (peek; Enter opens $EDITOR)"},
+			{"#", "toggle line numbers"},
 		}},
 		{"Threads", [][2]string{
 			{"Enter", "expand selected thread"},
@@ -63,9 +63,9 @@ func helpGroups() []helpGroup {
 // renderHelpOverlay renders the grouped keybinding reference as plain text
 func (st *styleSet) renderHelpOverlay() string {
 	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(st.theme.Title).Render("Keybindings"))
+	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(st.theme.Title.Color()).Render("Keybindings"))
 	b.WriteString("\n")
-	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(st.theme.Accent)
+	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(st.theme.Accent.Color())
 	for _, g := range helpGroups() {
 		b.WriteString("\n")
 		b.WriteString(st.groupHeader.Render(g.title))
@@ -85,10 +85,10 @@ func (m Model) handleHelpKeys(_ tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// viewHelp renders the full-screen help overlay
+// viewHelp renders the keybinding reference as a popup over the live view
 func (m Model) viewHelp() string {
 	box := m.styles.modalOverlay.Render(m.styles.renderHelpOverlay())
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	return m.dialogOver(m.baseView(), box)
 }
 
 // tocEntry is one row of the TOC overlay: a section path with its open count
@@ -129,9 +129,9 @@ func buildTOC(ds *markdown.DocumentStructure, threads []*comment.Comment) []tocE
 // renderTOC renders the TOC rows with the selected row highlighted
 func (st *styleSet) renderTOC(entries []tocEntry, selected int) string {
 	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(st.theme.Title).Render("Table of Contents"))
+	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(st.theme.Title.Color()).Render("Table of Contents"))
 	b.WriteString("\n\n")
-	openStyle := lipgloss.NewStyle().Foreground(st.theme.Marker)
+	openStyle := lipgloss.NewStyle().Foreground(st.theme.Marker.Color())
 	for i, e := range entries {
 		cursor := "  "
 		style := lipgloss.NewStyle()
@@ -185,7 +185,7 @@ func (m Model) handleTOCKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		entry := m.tocEntries[m.tocSelected]
 		m.selectedLine = entry.line
 		m.mode = ModeLineSelect
-		m.documentViewport = viewport.New(m.docPaneWidth(), m.height-2)
+		m.documentViewport = newViewport(m.docPaneWidth(), m.height-2)
 		m.refreshCursorView()
 		return m, nil
 
@@ -196,8 +196,8 @@ func (m Model) handleTOCKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// viewTOC renders the TOC overlay
+// viewTOC renders the TOC as a popup over the live view
 func (m Model) viewTOC() string {
 	box := m.styles.modalOverlay.Render(m.styles.renderTOC(m.tocEntries, m.tocSelected))
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	return m.dialogOver(m.baseView(), box)
 }

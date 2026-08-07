@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-
 	"github.com/rcliao/comments/pkg/comment"
 )
 
@@ -289,7 +287,7 @@ func TestTOCOverlayNavigateAndJump(t *testing.T) {
 		t.Fatalf("j/j should select entry 2, got %d", sm.tocSelected)
 	}
 
-	jumped, _ := sm.handleTOCKeys(tea.KeyMsg{Type: tea.KeyEnter})
+	jumped, _ := sm.handleTOCKeys(keyMsg("enter"))
 	jm := jumped.(Model)
 	if jm.mode != ModeLineSelect || jm.selectedLine != 7 {
 		t.Errorf("Enter should jump to Beta heading (line 7) in line-select, got mode=%v line=%d", jm.mode, jm.selectedLine)
@@ -357,7 +355,7 @@ func TestCtrlCSavesViewStateOnQuit(t *testing.T) {
 	m := NewModelWithFile(doc, docPath)
 	m.selectedLine = 5
 
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	next, cmd := m.Update(keyMsg("ctrl+c"))
 	if cmd == nil {
 		t.Fatal("ctrl+c should quit")
 	}
@@ -374,10 +372,10 @@ func TestErrorStateClearedByAnyKey(t *testing.T) {
 	m := testModel(nil)
 	m.err = errors.New("boom")
 
-	if !strings.Contains(m.View(), "Error: boom") {
+	if !strings.Contains(m.View().Content, "Error: boom") {
 		t.Fatal("View should show the error screen while err is set")
 	}
-	if !strings.Contains(m.View(), "Press any key to continue") {
+	if !strings.Contains(m.View().Content, "Press any key to continue") {
 		t.Error("error screen should advertise the any-key escape hatch")
 	}
 
@@ -389,7 +387,7 @@ func TestErrorStateClearedByAnyKey(t *testing.T) {
 	if nm.mode != ModeBrowse {
 		t.Errorf("with a loaded doc, clearing the error should return to browse, got %v", nm.mode)
 	}
-	if strings.Contains(nm.View(), "Error: boom") {
+	if strings.Contains(nm.View().Content, "Error: boom") {
 		t.Error("error screen should be gone after a key press")
 	}
 }

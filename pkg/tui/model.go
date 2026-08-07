@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/bubbles/filepicker"
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/filepicker"
+	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 	"github.com/rcliao/comments/pkg/comment"
 	"github.com/rcliao/comments/pkg/markdown"
 )
@@ -75,6 +75,7 @@ type Model struct {
 	suggestionQueue   map[string]bool // suggestion ID -> accept(true)/reject(false); applied at verdict
 	sidebarDensity    int             // densityFull / densityCondensed / densityHidden (S cycles)
 	showLineSummaries bool            // dimmed end-of-line thread summaries (L toggles)
+	hideLineNumbers   bool            // line-number column hidden (# toggles)
 	helpReturnMode    ViewMode        // mode to restore when closing the help overlay
 	tocReturnMode     ViewMode        // mode to restore when closing the TOC overlay
 	tocEntries        []tocEntry      // flattened section list for the TOC overlay
@@ -167,6 +168,7 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 	if st, ok := loadViewState(filename); ok {
 		m.selectedLine = st.SelectedLine
 		m.restoredYOffset = st.YOffset
+		m.hideLineNumbers = st.HideLineNumbers
 	}
 
 	return m
@@ -188,7 +190,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.handleResize()
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Ctrl+C is the universal silent escape: persist the reading
 		// position, quit without a verdict (queued decisions stay unapplied)
 		if msg.String() == "ctrl+c" {
@@ -228,26 +230,38 @@ func (m *Model) handleResize() {
 	m.commentInput.SetWidth(textareaWidth)
 
 	if !m.ready {
-		m.documentViewport = viewport.New(docWidth, m.height-2)
-		m.commentViewport = viewport.New(panelWidth, m.height-2)
-		m.threadViewport = viewport.New(m.width-4, m.height-2)
+		m.documentViewport = newViewport(docWidth, m.height-2)
+		m.commentViewport = newViewport(panelWidth, m.height-2)
+		m.threadViewport = newViewport(m.width-4, m.height-2)
 
 		if m.doc != nil {
 			m.documentViewport.SetContent(m.renderDocument())
 			// Resume the persisted scroll position (0 when none was saved)
 			m.documentViewport.SetYOffset(m.restoredYOffset)
 			m.commentViewport.SetContent(m.renderComments())
-			m.commentViewport.YOffset = 0 // Explicitly start at top
+			m.commentViewport.SetYOffset(0) // Explicitly start at top
 		}
 		m.ready = true
 	} else {
-		m.documentViewport.Width = docWidth
-		m.documentViewport.Height = m.height - 2
-		m.commentViewport.Width = panelWidth
-		m.commentViewport.Height = m.height - 2
-		m.threadViewport.Width = m.width - 4
-		m.threadViewport.Height = m.height - 2
+		m.documentViewport.SetWidth(docWidth)
+		m.documentViewport.SetHeight(m.height - 2)
+		m.commentViewport.SetWidth(panelWidth)
+		m.commentViewport.SetHeight(m.height - 2)
+		m.threadViewport.SetWidth(m.width - 4)
+		m.threadViewport.SetHeight(m.height - 2)
 	}
+
+	// An open thread panel re-derives its geometry at the new size
+	// (keys_threadpanel.go)
+	if m.selectedThread != nil {
+		m.applyThreadPanel()
+	}
+}
+
+// newViewport constructs a viewport at the given size. Bubbles v2 made the
+// dimensions options/setters (viewport.New(w, h) is gone).
+func newViewport(width, height int) viewport.Model {
+	return viewport.New(viewport.WithWidth(width), viewport.WithHeight(height))
 }
 
 // Sidebar density levels (S cycles: full → condensed → hidden)
@@ -381,8 +395,17 @@ func (m *Model) saveDocument() error {
 	return nil
 }
 
-// View renders the UI based on current mode
-func (m Model) View() string {
+// View renders the UI based on current mode. Bubbletea v2 returns a tea.View
+// struct; the alt-screen flag lives here now instead of a program option.
+func (m Model) View() tea.View {
+	v := tea.NewView(m.viewContent())
+	v.AltScreen = true
+	return v
+}
+
+// viewContent renders the current mode's screen content as a string (the
+// v1-era View body; mode views and tests stay string-based).
+func (m Model) viewContent() string {
 	if m.err != nil {
 		return fmt.Sprintf("Error: %v\n\nPress any key to continue", m.err)
 	}

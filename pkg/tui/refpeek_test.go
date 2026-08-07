@@ -56,7 +56,6 @@ func TestRefMapBuiltAtLoad(t *testing.T) {
 }
 
 func TestResolvedRefsGetLinkStyling(t *testing.T) {
-	withANSIProfile(t)
 	m, _ := refTestModel(t)
 
 	styled := m.styleDocLine("Per research.md:5 the finding holds.", 3)
@@ -126,6 +125,41 @@ func TestPeekCyclesMultipleRefsAndShowsError(t *testing.T) {
 	same, cmd := cm.handleRefPeekKeys(keyMsg("enter"))
 	if cmd != nil || same.(Model).mode != ModeRefPeek {
 		t.Error("enter on unresolved ref must be a no-op")
+	}
+}
+
+func TestPeekCompositesOverLiveDocView(t *testing.T) {
+	m, _ := refTestModel(t)
+	m.mode = ModeLineSelect
+	m.selectedLine = 3
+	m.refreshCursorView()
+
+	next, _ := m.handleLineSelectKeys(keyMsg("f"))
+	nm := next.(Model)
+	got := termEscapes.ReplaceAllString(nm.viewContent(), "")
+	// The live document stays visible behind the peek box
+	if !strings.Contains(got, "# Plan") {
+		t.Errorf("document text missing behind the peek:\n%s", got)
+	}
+	// Peek chrome and target excerpt in the SAME frame
+	if !strings.Contains(got, "research.md:5") || !strings.Contains(got, "line five finding") {
+		t.Errorf("peek box should show the target excerpt in the same frame:\n%s", got)
+	}
+}
+
+func TestLineSelectHintSurfacesMultiRefCycle(t *testing.T) {
+	m, _ := refTestModel(t)
+	m.mode = ModeLineSelect
+
+	m.selectedLine = 4 // md link + missing.md:9 — two references
+	if out := m.viewBrowse(); !strings.Contains(out, "f/Tab: cycle 2 refs") {
+		t.Errorf("hint bar should surface the f/Tab cycle on a multi-ref line, got:\n%s", out)
+	}
+
+	m.selectedLine = 3 // single reference: plain follow hint, no cycle noise
+	out := m.viewBrowse()
+	if !strings.Contains(out, "f: follow ref") || strings.Contains(out, "cycle 2 refs") {
+		t.Errorf("single-ref line should keep the plain follow hint, got:\n%s", out)
 	}
 }
 

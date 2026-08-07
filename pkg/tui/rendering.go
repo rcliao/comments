@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	lipgloss "charm.land/lipgloss/v2"
 	"github.com/muesli/reflow/wordwrap"
 	"github.com/rcliao/comments/pkg/comment"
 )
@@ -252,6 +252,39 @@ func (st *styleSet) lineSummary(threads []*comment.Comment, since time.Time) str
 	return summary
 }
 
+// threadTypeIcon maps a thread to its sidebar icon by comment type:
+// edit suggestions and typed comments read at a glance; untyped fall back
+// to the plain bubble.
+func threadTypeIcon(c *comment.Comment) string {
+	if c.IsSuggestion {
+		return "\U0001F4DD" // 📝 edit suggestion
+	}
+	switch c.Type {
+	case "Q":
+		return "\u2753" // ❓ question
+	case "S":
+		return "\U0001F4A1" // 💡 suggestion
+	case "B":
+		return "\U0001F41B" // 🐛 bug
+	case "T":
+		return "\U0001F4CB" // 📋 todo
+	case "E":
+		return "\u2728" // ✨ enhancement
+	}
+	return "\U0001F4AC" // 💬 untyped
+}
+
+// groupIcon is the icon for a sidebar line-group: the first open thread's
+// type icon (open threads outrank resolved ones), else the first thread's.
+func groupIcon(group []*comment.Comment) string {
+	for _, c := range group {
+		if isOpenThread(c) {
+			return threadTypeIcon(c)
+		}
+	}
+	return threadTypeIcon(group[0])
+}
+
 // lineSummarySuffix returns the end-of-line summary (with leading space) for
 // a line's threads, honoring the L toggle
 func (m *Model) lineSummarySuffix(threads []*comment.Comment) string {
@@ -273,7 +306,17 @@ func (m *Model) lineSummarySuffix(threads []*comment.Comment) string {
 // identical across modes, so entering/leaving line-select never reflows the
 // document under a saved scroll offset.
 func (m *Model) docWrapWidth() int {
-	return max(m.documentViewport.Width-12, 40)
+	return max(m.documentViewport.Width()-m.gutterWidth(), 40)
+}
+
+// gutterWidth is the fixed left-gutter width shared by both document renders
+// and the scroll math: cursor (2) + space + marker (4) + line number (4) +
+// space = 12, shrinking by the number column when line numbers are hidden.
+func (m *Model) gutterWidth() int {
+	if m.hideLineNumbers {
+		return 8
+	}
+	return 12
 }
 
 // renderDocument renders the document pane without a cursor (browse mode)
@@ -303,6 +346,18 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 	// Group root threads by line (replies share the root's line)
 	commentsByLine := rootThreadsByLine(m.doc.Threads)
 
+	// Sidebar→doc sync: without a cursor, highlight the line the sidebar (or
+	// the open thread panel) is focused on, so navigating threads visibly
+	// moves the reader's eye in the document pane
+	docFocus := 0
+	if !withCursor {
+		if m.mode == ModeThreadView && m.selectedThread != nil {
+			docFocus = m.selectedThread.Line
+		} else {
+			docFocus = m.focusLine()
+		}
+	}
+
 	for i, line := range lines {
 		lineNum := i + 1
 		lineNumStr := m.styles.lineNumber.Render(fmt.Sprintf("%d", lineNum))
@@ -310,48 +365,59 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 		marker := m.styles.lineMarker(commentsByLine[lineNum])
 
 		isSelected := withCursor && lineNum == m.selectedLine
+		isFocused := !withCursor && lineNum == docFocus
 		inRange := withCursor && m.rangeActive && lineNum >= m.rangeStartLine && lineNum <= m.rangeEndLine
 
-		// Syntax styling stays off on the cursor line (subtle bg composes with
-		// spans poorly, so the cursor line keeps raw text but a gentle
-		// background; range keeps raw too)
+		// Syntax styling stays off on the cursor/focus line (subtle bg
+		// composes with spans poorly, so these lines keep raw text but a
+		// gentle background; range keeps raw too)
 		styledLine := line
-		if !isSelected && !inRange {
+		if !isSelected && !isFocused && !inRange {
 			styledLine = m.styleDocLine(line, lineNum)
 		}
-		if isSelected {
+		if isSelected || isFocused {
 			lineNumStr = m.styles.cursorLineNum.Render(fmt.Sprintf("%d", lineNum))
 		}
 
 		// Wrap long lines
 		wrappedLines := strings.Split(wordwrap.String(styledLine, availableWidth), "\n")
 		for j, wrappedLine := range wrappedLines {
-			if isSelected {
+			if isSelected || isFocused {
 				wrappedLine = m.styles.cursor.Render(wrappedLine)
 			} else if inRange {
 				wrappedLine = m.styles.selectedLine.Render(wrappedLine)
 			}
 
+			// Marker column sits LEFT of the line number (fixed 4 cells)
+			// so text alignment never shifts on commented lines. The number
+			// column disappears entirely when hidden (# toggles).
+			markerCell := marker + strings.Repeat(" ", max(0, 4-lipgloss.Width(marker)))
+			numCell := lineNumStr + " "
+			if m.hideLineNumbers {
+				numCell = ""
+			}
+			contPad := strings.Repeat(" ", m.gutterWidth()-4)
+
 			if !withCursor {
 				if j == 0 {
-					// First line: show line number, marker, and virtual-text summary
-					fmt.Fprintf(&rendered, "%s %s %s%s\n", lineNumStr, marker, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
+					// First line: marker, line number, then text + summary
+					fmt.Fprintf(&rendered, "%s%s%s%s\n", markerCell, numCell, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
 				} else {
 					// Continuation lines: indent with spaces
-					fmt.Fprintf(&rendered, "%s %s %s\n", strings.Repeat(" ", 4), "  ", wrappedLine)
+					fmt.Fprintf(&rendered, "%s%s\n", contPad, wrappedLine)
 				}
 				continue
 			}
 
 			if j == 0 {
-				// First line: show cursor, line number and marker
+				// First line: cursor, marker, line number, text
 				cursor := "  "
 				if isSelected {
 					cursor = m.styles.cursorAccent.Render("▶ ")
 				} else if inRange {
 					cursor = m.styles.rangeMarker.Render("│")
 				}
-				fmt.Fprintf(&rendered, "%s %s %s %s%s\n", cursor, lineNumStr, marker, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
+				fmt.Fprintf(&rendered, "%s %s%s%s%s\n", cursor, markerCell, numCell, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
 			} else {
 				// Continuation lines: indent with spaces
 				displayCursor := "  "
@@ -360,7 +426,7 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 				} else if inRange {
 					displayCursor = m.styles.rangeMarker.Render("│ ")
 				}
-				fmt.Fprintf(&rendered, "%s %s %s %s\n", displayCursor, strings.Repeat(" ", 4), "  ", wrappedLine)
+				fmt.Fprintf(&rendered, "%s %s%s\n", displayCursor, contPad, wrappedLine)
 			}
 		}
 	}
@@ -446,7 +512,7 @@ func threadMarkers(c *comment.Comment) string {
 
 // sidebarWrapWidth is the text width for expanded threads in the comment sidebar
 func (m *Model) sidebarWrapWidth() int {
-	width := m.commentViewport.Width - 4
+	width := m.commentViewport.Width() - 4
 	if width < 30 {
 		width = 40 // uninitialized viewport (tests) or very narrow terminal
 	}
@@ -521,11 +587,12 @@ func (m *Model) renderComments() string {
 			i++
 		}
 
-		// Group header: location + count badge
-		header := fmt.Sprintf("📍 Line %d", line)
+		// Group header: location + count badge, icon keyed to the group's
+		// first open thread's comment type
+		header := fmt.Sprintf("%s Line %d", groupIcon(group), line)
 		if sp := group[0].SectionPath; sp != "" {
 			parts := strings.Split(sp, " > ")
-			header = fmt.Sprintf("📍 %s (Line %d)", parts[len(parts)-1], line)
+			header = fmt.Sprintf("%s %s (Line %d)", groupIcon(group), parts[len(parts)-1], line)
 		}
 		if len(group) > 1 {
 			header += fmt.Sprintf(" · %d threads", len(group))
@@ -584,8 +651,18 @@ func (m *Model) renderComments() string {
 	return rendered.String()
 }
 
-// renderThread renders an expanded thread view
-func (m *Model) renderThread() string {
+// renderThread renders the expanded thread at the full terminal width (the
+// legacy full-screen thread layout, still used by unlaid-out unit tests).
+func (m *Model) renderThread() string { return m.renderThreadWidth(m.width) }
+
+// renderThreadWidth renders the expanded thread as if the screen were `width`
+// columns wide — the same content at any width, so the thread panel
+// (keys_threadpanel.go) can reuse this renderer inside a narrower pane. The
+// widest inner box renders at width-8 content + 2 border columns, i.e.
+// width-6 total (see threadRenderPad). The thread's location header lives in
+// the panel chrome (renderThreadPanelBox), and the live document beside the
+// panel is the context — neither is repeated in here.
+func (m *Model) renderThreadWidth(width int) string {
 	if m.selectedThread == nil {
 		return "No thread selected"
 	}
@@ -593,102 +670,16 @@ func (m *Model) renderThread() string {
 	theme := m.styles.theme
 	var rendered strings.Builder
 
-	// Thread header with section context
-	locationStr := fmt.Sprintf("Line %d", m.selectedThread.Line)
-	icon := "💬"
-	if m.selectedThread.SectionPath != "" {
-		locationStr = fmt.Sprintf("%s (Line %d)", m.selectedThread.SectionPath, m.selectedThread.Line)
-		icon = "📍"
-	}
-
-	rendered.WriteString(lipgloss.NewStyle().Bold(true).Render(
-		fmt.Sprintf("%s Thread at %s\n", icon, locationStr)))
-	rendered.WriteString("\n")
-
-	// Document context - show lines around the comment
-	contextLines := m.getContextLines(m.selectedThread.Line, 2) // 2 lines before/after
-	if len(contextLines) > 0 {
-		contextStyle := lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(theme.Border).
-			Padding(0, 1).
-			Width(m.width - 8)
-
-		// Calculate width for context text wrapping
-		// Account for borders, padding, line numbers, markers
-		contextWidth := max(m.width-22, 40)
-
-		var contextText strings.Builder
-		contextText.WriteString(lipgloss.NewStyle().
-			Foreground(theme.DimSyntax).
-			Render("Document Context:"))
-		contextText.WriteString("\n\n")
-
-		for _, cl := range contextLines {
-			marker := " "
-			lineNumStyle := lipgloss.NewStyle().Foreground(theme.LineNumber)
-			lineStyle := lipgloss.NewStyle()
-
-			// Apply markdown syntax highlighting to context lines
-			styledText := m.styles.styleMarkdownLine(cl.Text)
-
-			// Wrap the line text
-			wrappedLines := strings.Split(wordwrap.String(styledText, contextWidth), "\n")
-
-			for i, wrappedLine := range wrappedLines {
-				if cl.LineNum == m.selectedThread.Line {
-					if i == 0 {
-						marker = lipgloss.NewStyle().
-							Foreground(theme.Title).
-							Bold(true).
-							Render("►")
-						lineNumStyle = lineNumStyle.Bold(true).Foreground(theme.Title)
-						lineStyle = lineStyle.
-							Background(theme.SelectionBg).
-							Foreground(theme.SelectionFg).
-							Bold(true)
-						fmt.Fprintf(&contextText, "%s %s │ %s\n",
-							marker,
-							lineNumStyle.Render(fmt.Sprintf("%4d", cl.LineNum)),
-							lineStyle.Render(wrappedLine))
-					} else {
-						// Continuation lines for highlighted line
-						fmt.Fprintf(&contextText, "%s %s │ %s\n",
-							" ",
-							strings.Repeat(" ", 4),
-							lineStyle.Render(wrappedLine))
-					}
-				} else {
-					if i == 0 {
-						fmt.Fprintf(&contextText, "%s %s │ %s\n",
-							marker,
-							lineNumStyle.Render(fmt.Sprintf("%4d", cl.LineNum)),
-							wrappedLine)
-					} else {
-						// Continuation lines for non-highlighted line
-						fmt.Fprintf(&contextText, "%s %s │ %s\n",
-							" ",
-							strings.Repeat(" ", 4),
-							wrappedLine)
-					}
-				}
-			}
-		}
-
-		rendered.WriteString(contextStyle.Render(contextText.String()))
-		rendered.WriteString("\n\n")
-	}
-
 	// Root comment
 	rootStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(theme.GroupHeader).
+		BorderForeground(theme.GroupHeader.Color()).
 		Padding(1).
-		Width(m.width - 8)
+		Width(width - 8)
 
 	// Wrap root comment text to fit within the box
 	// Account for border, padding, and margins
-	rootTextWidth := max(m.width-16, 40)
+	rootTextWidth := max(width-16, 20)
 	wrappedRootText := wordwrap.String(m.selectedThread.Text, rootTextWidth)
 
 	rootText := fmt.Sprintf("@%s · %s\n\n%s",
@@ -724,9 +715,9 @@ func (m *Model) renderThread() string {
 	if m.selectedThread.IsSuggestion {
 		suggestionStyle := lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(theme.Warning).
+			BorderForeground(theme.Warning.Color()).
 			Padding(0, 1).
-			Width(m.width - 8)
+			Width(width - 8)
 
 		suggestionText := "Suggestion Type: multi-line\n"
 		suggestionText += fmt.Sprintf("Lines: %d-%d\n", m.selectedThread.StartLine, m.selectedThread.EndLine)
@@ -750,11 +741,11 @@ func (m *Model) renderThread() string {
 			fmt.Sprintf("Replies (%d):", len(m.selectedThread.Replies))))
 		rendered.WriteString("\n\n")
 
-		borderStyle := lipgloss.NewStyle().Foreground(theme.Border)
-		authorStyle := lipgloss.NewStyle().Foreground(theme.MetaText)
+		borderStyle := lipgloss.NewStyle().Foreground(theme.Border.Color())
+		authorStyle := lipgloss.NewStyle().Foreground(theme.MetaText.Color())
 
 		// Calculate available width for reply text: width - padding - border characters
-		replyWidth := max(m.width-12, 40)
+		replyWidth := max(width-12, 20)
 
 		for _, reply := range m.selectedThread.Replies {
 			// Reply header with styled border and author
@@ -780,128 +771,4 @@ func (m *Model) renderThread() string {
 	}
 
 	return rendered.String()
-}
-
-// ContextLine represents a line with its line number for context display
-type ContextLine struct {
-	LineNum int
-	Text    string
-}
-
-// getContextLines extracts lines around a specific line number for context
-func (m *Model) getContextLines(lineNum int, contextSize int) []ContextLine {
-	if m.doc == nil {
-		return nil
-	}
-
-	lines := strings.Split(m.doc.Content, "\n")
-	var result []ContextLine
-
-	// Calculate range (-1 for 0-based indexing; end inclusive)
-	start := max(lineNum-contextSize-1, 0)
-	end := min(lineNum+contextSize, len(lines))
-
-	// Extract lines
-	for i := start; i < end; i++ {
-		result = append(result, ContextLine{
-			LineNum: i + 1, // 1-based for display
-			Text:    lines[i],
-		})
-	}
-
-	return result
-}
-
-// getSectionContext returns section-aware context for a line
-func (m *Model) getSectionContext(lineNum int) string {
-	if m.doc == nil || m.documentSections == nil {
-		return ""
-	}
-
-	theme := m.styles.theme
-	var contextText strings.Builder
-	lines := strings.Split(m.doc.Content, "\n")
-
-	// Get section for this line
-	section := m.getSectionAtLine(lineNum)
-	if section == nil {
-		// No section found, fall back to simple line context
-		return ""
-	}
-
-	// Styles
-	sectionStyle := lipgloss.NewStyle().
-		Foreground(theme.Accent).
-		Bold(true)
-
-	headingStyle := lipgloss.NewStyle().
-		Foreground(theme.Title).
-		Bold(true)
-
-	lineNumStyle := lipgloss.NewStyle().
-		Foreground(theme.LineNumber)
-
-	highlightStyle := lipgloss.NewStyle().
-		Background(theme.SelectionBg).
-		Foreground(theme.SelectionFg).
-		Bold(true)
-
-	dimStyle := lipgloss.NewStyle().
-		Foreground(theme.MetaText)
-
-	// Show section path
-	sectionPath := m.getSectionPath(section)
-	contextText.WriteString(sectionStyle.Render("📍 Section: "))
-	contextText.WriteString(sectionPath)
-	contextText.WriteString("\n\n")
-
-	// Show the heading line
-	if section.StartLine > 0 && section.StartLine <= len(lines) {
-		headingLine := lines[section.StartLine-1]
-		contextText.WriteString(headingStyle.Render(headingLine))
-		contextText.WriteString("\n")
-		contextText.WriteString(dimStyle.Render(fmt.Sprintf("(lines %d-%d)", section.StartLine, section.EndLine)))
-		contextText.WriteString("\n\n")
-	}
-
-	// Show context around target line within section
-	// Show a few lines before and after the target, but stay within section bounds
-	contextSize := 2
-	start := max(lineNum-contextSize, section.StartLine)
-	end := min(lineNum+contextSize, section.EndLine)
-
-	// Skip heading line if we're showing section content
-	if start == section.StartLine && lineNum != section.StartLine {
-		start++
-	}
-
-	// Show ellipsis if we're skipping lines after heading
-	if start > section.StartLine+1 {
-		contextText.WriteString(dimStyle.Render("    ...\n"))
-	}
-
-	for i := start; i <= end && i <= len(lines); i++ {
-		lineText := ""
-		if i > 0 && i <= len(lines) {
-			lineText = lines[i-1]
-		}
-
-		linePrefix := fmt.Sprintf("%4d │ ", i)
-		if i == lineNum {
-			// Highlight the target line
-			contextText.WriteString(lineNumStyle.Bold(true).Render(linePrefix))
-			contextText.WriteString(highlightStyle.Render(lineText))
-		} else {
-			contextText.WriteString(lineNumStyle.Render(linePrefix))
-			contextText.WriteString(lineText)
-		}
-		contextText.WriteString("\n")
-	}
-
-	// Show ellipsis if there's more content in the section
-	if end < section.EndLine {
-		contextText.WriteString(dimStyle.Render("    ...\n"))
-	}
-
-	return contextText.String()
 }

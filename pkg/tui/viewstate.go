@@ -12,8 +12,9 @@ import (
 
 // viewState is the per-document reading position persisted across sessions
 type viewState struct {
-	SelectedLine int `json:"selectedLine"`
-	YOffset      int `json:"yOffset"`
+	SelectedLine    int  `json:"selectedLine"`
+	YOffset         int  `json:"yOffset"`
+	HideLineNumbers bool `json:"hideLineNumbers,omitempty"`
 }
 
 // viewStatePath returns the state file path for a document: a shared
@@ -61,7 +62,8 @@ func (m *Model) saveViewStateNow() {
 		return
 	}
 	_ = saveViewState(m.filename, viewState{
-		SelectedLine: m.selectedLine,
-		YOffset:      m.documentViewport.YOffset,
+		SelectedLine:    m.selectedLine,
+		HideLineNumbers: m.hideLineNumbers,
+		YOffset:         m.documentViewport.YOffset(),
 	})
 }
