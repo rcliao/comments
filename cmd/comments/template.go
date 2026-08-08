@@ -73,6 +73,12 @@ func templateCommand(args []string) error {
 			if s.MaxSubsectionWords > 0 {
 				flags = append(flags, fmt.Sprintf("max %d words each", s.MaxSubsectionWords))
 			}
+			if s.EnumeratesQuestions {
+				flags = append(flags, "enumerate sub-questions Q1., Q2., ...")
+			}
+			if s.AnswersQuestions {
+				flags = append(flags, "tag each subsection [Q1]")
+			}
 			if s.Zone != "" {
 				flags = append(flags, "zone: "+s.Zone)
 			}

@@ -76,11 +76,17 @@ type TemplateSection struct {
 	// subsection until the whole section bursts; measured across the shipped
 	// corpus, every over-cap doc was over because of a handful of oversized
 	// subsections, not uniform growth. 0 = unlimited.
-	MaxSubsections     int      `yaml:"max_subsections"`
-	MaxSubsectionWords int      `yaml:"max_subsection_words"`
-	Zone               string   `yaml:"zone"`              // "human" or "agent" (default agent)
-	ReviewCriteria     []string `yaml:"review_criteria"`   // seeded as anchored threads
-	CriteriaBlocking   *bool    `yaml:"criteria_blocking"` // nil = default true
+	MaxSubsections     int `yaml:"max_subsections"`
+	MaxSubsectionWords int `yaml:"max_subsection_words"`
+	// EnumeratesQuestions marks the section that decomposes the question into
+	// "Q1. ..." clauses; AnswersQuestions marks the section whose subsections
+	// claim them back with a [Q1] heading tag. Set both to make coverage a
+	// checkable property — see coverage.go for why omission needs its own check.
+	EnumeratesQuestions bool     `yaml:"enumerates_questions"`
+	AnswersQuestions    bool     `yaml:"answers_questions"`
+	Zone                string   `yaml:"zone"`              // "human" or "agent" (default agent)
+	ReviewCriteria      []string `yaml:"review_criteria"`   // seeded as anchored threads
+	CriteriaBlocking    *bool    `yaml:"criteria_blocking"` // nil = default true
 }
 
 type TemplateMarkers struct {
@@ -379,6 +385,27 @@ func ValidateTemplate(content string, t *Template) []Violation {
 				}
 			}
 		}
+	}
+
+	// Question coverage: cross-check the decomposed question against the
+	// findings claiming to answer it. Only runs when the template opts in by
+	// naming both ends.
+	var asksSec, answersSec *markdown.Section
+	var asksHeading, answersHeading string
+	for _, ts := range t.Sections {
+		if ts.EnumeratesQuestions {
+			if s := findTemplateSection(structure, ts.Heading); s != nil {
+				asksSec, asksHeading = s, ts.Heading
+			}
+		}
+		if ts.AnswersQuestions {
+			if s := findTemplateSection(structure, ts.Heading); s != nil {
+				answersSec, answersHeading = s, ts.Heading
+			}
+		}
+	}
+	if asksSec != nil && answersSec != nil {
+		violations = append(violations, validateQuestionCoverage(lines, asksSec, answersSec, asksHeading, answersHeading)...)
 	}
 
 	// Ambiguity markers: every occurrence is a violation until removed

@@ -442,12 +442,14 @@ func TestRPITemplates(t *testing.T) {
 			research.Markers.Max, plan.Markers.Max)
 	}
 
-	conformingResearch := "# R\n\n## Research Question\n\nWhat?\n\n## Summary\n\nThis.\n\n## Findings\n\n### F1\n\nOne, per a.go:1.\n\n### F2\n\nTwo.\n\n## Code References\n\n- a.go:1\n\n## Open Questions\n\nNone.\n"
+	// A conforming research doc decomposes its question and tags each finding
+	// with the clause it answers; coverage is part of conformance now.
+	conformingResearch := "# R\n\n## Research Question\n\nQ1. What?\nQ2. Why?\n\n## Summary\n\nThis.\n\n## Findings\n\n### F1 [Q1]\n\nOne, per a.go:1.\n\n### F2 [Q2]\n\nTwo.\n\n## Code References\n\n- a.go:1\n\n## Open Questions\n\nNone.\n"
 	if vs := ValidateTemplate(conformingResearch, research); len(vs) != 0 {
 		t.Errorf("conforming research doc should validate clean, got %v", vs)
 	}
 	// findings as one wall of prose (no subsections) must fail
-	prose := "# R\n\n## Research Question\n\nWhat?\n\n## Summary\n\nThis.\n\n## Findings\n\nJust prose.\n\n## Code References\n\n- a.go:1\n\n## Open Questions\n\nNone.\n"
+	prose := "# R\n\n## Research Question\n\nQ1. What?\n\n## Summary\n\nThis.\n\n## Findings\n\nJust prose.\n\n## Code References\n\n- a.go:1\n\n## Open Questions\n\nNone.\n"
 	if vs := ValidateTemplate(prose, research); !hasRule(vs, "min_subsections") {
 		t.Errorf("prose findings must fail min_subsections, got %v", vs)
 	}

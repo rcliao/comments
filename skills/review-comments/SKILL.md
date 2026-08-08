@@ -98,6 +98,16 @@ with your input and leave the resolve to the human.
 When drafting a new document under a template (design-doc, adr, rfc, mini for
 small changes, or a project template):
 
+0. **Decompose the question first.** Where a template asks for enumerated
+   sub-questions (`Q1.`, `Q2.`, ...), write them before drafting and tag each
+   finding with the clause it answers (`### F1 — the cascade [Q1]`). This is not
+   bookkeeping: a three-clause question written as prose produced a document
+   answering two of them, and it passed every other check — word caps, citations,
+   tone — because conformance says nothing about omission. Decomposing also
+   improves the investigation, since each clause is searched for separately.
+   Answer a "what would it take" clause as what is currently ABSENT; designing
+   past it is the plan phase's job.
+
 1. **Before writing**, read the template as your writing brief:
    `comments template show <name>` (CLI) or `comments_get_template` (MCP).
    Respect section order, word budgets, and use `[NEEDS CLARIFICATION: ...]`
