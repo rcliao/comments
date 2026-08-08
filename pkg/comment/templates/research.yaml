@@ -2,6 +2,7 @@ template: research
 version: 1
 description: RPI research phase — documentarian findings with file:line evidence; open questions live HERE, not in the plan
 doc:
+  check_citations: true
   max_words: 900
 sections:
   - heading: "Research Question"
@@ -26,7 +27,7 @@ sections:
     max_words: 450
     review_criteria:
       - "Does each finding tag the sub-question it answers, e.g. \"### F1 — the cascade [Q1]\"?"
-      - "Does each finding carry file:line or source evidence a reviewer can peek (f) or follow?"
+      - "Does each finding carry file:line evidence a reviewer can peek (f)? Cite the path from the repo root — a bare basename like gate.go:39 is unpeekable when several files share the name."
       - "Is the tone documentarian — describing what IS, without prescribing what to build? A \"what would it take\" sub-question is answered as what is currently ABSENT — name the ceiling and cite where it was decided; the plan phase designs past it."
       - "Does each finding lead with the fact, and would it still read as ONE finding after the next revision? Answering a review comment by growing a finding past its cap means rewriting it, not appending to it."
   - heading: "Code References"

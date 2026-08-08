@@ -63,6 +63,10 @@ type Template struct {
 
 type TemplateDocRules struct {
 	MaxWords int `yaml:"max_words"` // 0 = unlimited
+	// CheckCitations turns on file:line resolvability checking for documents
+	// under this template. It needs the filesystem, so it is applied by callers
+	// via ValidateCitations rather than inside the pure ValidateTemplate.
+	CheckCitations bool `yaml:"check_citations"`
 }
 
 type TemplateSection struct {

@@ -122,6 +122,11 @@ func validateCommand(filename string, args []string) error {
 		return err
 	}
 	violations := comment.ValidateTemplate(doc.Content, t)
+	// Citation resolvability needs the filesystem, so it runs here where the
+	// document path is known rather than inside the pure content check.
+	if t.Doc.CheckCitations {
+		violations = append(violations, comment.ValidateCitations(doc.Content, filename)...)
+	}
 	wordReport := comment.SectionWordReport(doc.Content, t)
 
 	if *jsonOut {
