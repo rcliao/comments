@@ -27,21 +27,26 @@ func dispatch(args []string) error {
 
 	// Commands that take a positional <file> argument and its usage line
 	fileUsage := map[string]string{
-		"list":        "Usage: comments list <file> [flags]",
-		"get":         "Usage: comments get <file> [flags]",
-		"add":         "Usage: comments add <file> [flags]",
-		"batch-add":   "Usage: comments batch-add <file> [flags]",
-		"reply":       "Usage: comments reply <file> [flags]",
-		"batch-reply": "Usage: comments batch-reply <file> [flags]",
-		"resolve":     "Usage: comments resolve <file> [flags]",
-		"suggest":     "Usage: comments suggest <file> [flags]",
-		"accept":      "Usage: comments accept <file> [flags]",
-		"reject":      "Usage: comments reject <file> [flags]",
-		"validate":    "Usage: comments validate <file> --template <name>",
-		"seed":        "Usage: comments seed <file> --template <name>",
-		"gate":        "Usage: comments gate <file-or-dir> [flags]",
-		"signoff":     "Usage: comments signoff <file> [flags]",
-		"watch":       "Usage: comments watch <file-or-dir> [flags]",
+		"list":         "Usage: comments list <file> [flags]",
+		"get":          "Usage: comments get <file> [flags]",
+		"add":          "Usage: comments add <file> [flags]",
+		"batch-add":    "Usage: comments batch-add <file> [flags]",
+		"reply":        "Usage: comments reply <file> [flags]",
+		"batch-reply":  "Usage: comments batch-reply <file> [flags]",
+		"resolve":      "Usage: comments resolve <file> [flags]",
+		"suggest":      "Usage: comments suggest <file> [flags]",
+		"accept":       "Usage: comments accept <file> [flags]",
+		"reject":       "Usage: comments reject <file> [flags]",
+		"validate":     "Usage: comments validate <file> --template <name>",
+		"seed":         "Usage: comments seed <file> --template <name>",
+		"gate":         "Usage: comments gate <file-or-dir> [flags]",
+		"signoff":      "Usage: comments signoff <file> [flags]",
+		"watch":        "Usage: comments watch <file-or-dir> [flags]",
+		"reanchor":     "Usage: comments reanchor <file> --comment ID --line N | --json <file|->",
+		"inbox":        "Usage: comments inbox <file-or-dir> [flags]",
+		"status":       "Usage: comments status <file> [flags]",
+		"check-review": "Usage: comments check-review <file> --since <RFC3339>",
+		"batch-accept": "Usage: comments batch-accept <file> [flags]",
 	}
 	if usage, needsFile := fileUsage[command]; needsFile && len(args) < 2 {
 		return failf("%s", usage)
@@ -83,6 +88,16 @@ func dispatch(args []string) error {
 		return signoffCommand(args[1], args[2:])
 	case "watch":
 		return watchCommand(args[1], args[2:])
+	case "reanchor":
+		return reanchorCommand(args[1], args[2:])
+	case "inbox":
+		return inboxCommand(args[1], args[2:])
+	case "status":
+		return statusCommand(args[1], args[2:])
+	case "check-review":
+		return checkReviewCommand(args[1], args[2:])
+	case "batch-accept":
+		return batchAcceptCommand(args[1], args[2:])
 	case "serve-mcp":
 		return serveMCPCommand()
 	case "help", "-h", "--help":

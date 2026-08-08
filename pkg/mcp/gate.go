@@ -91,7 +91,7 @@ func (s *Server) handleRequestReview(ctx context.Context, req *mcp.CallToolReque
 	deadline := requestedAt.Add(timeout)
 
 	for {
-		if review := latestReviewSince(absPath, requestedAt); review != nil {
+		if review := comment.LatestReviewSince(absPath, requestedAt); review != nil {
 			decision, files, err := evaluateGateForPath(absPath, args.Strict)
 			if err != nil {
 				return nil, nil, err
@@ -137,7 +137,7 @@ func (s *Server) handleCheckReview(ctx context.Context, req *mcp.CallToolRequest
 		return nil, nil, fmt.Errorf("invalid since timestamp (want RFC3339, e.g. the value returned by comments_request_review): %w", err)
 	}
 
-	review := latestReviewSince(absPath, since)
+	review := comment.LatestReviewSince(absPath, since)
 	if review == nil {
 		result := map[string]any{
 			"status": "pending",
@@ -157,26 +157,6 @@ func (s *Server) handleCheckReview(ctx context.Context, req *mcp.CallToolRequest
 		"files":         files,
 	}
 	return jsonToolResult(result)
-}
-
-// latestReviewSince reads the sidecar without validation side effects and
-// returns the newest review record after t, or nil.
-func latestReviewSince(mdPath string, t time.Time) *comment.ReviewRecord {
-	data, err := os.ReadFile(comment.GetSidecarPath(mdPath))
-	if err != nil {
-		return nil
-	}
-	var storage comment.StorageFormat
-	if err := json.Unmarshal(data, &storage); err != nil {
-		return nil
-	}
-	if n := len(storage.Reviews); n > 0 {
-		latest := storage.Reviews[n-1]
-		if latest.Timestamp.After(t) {
-			return &latest
-		}
-	}
-	return nil
 }
 
 func evaluateGateForPath(path string, strict bool) (string, []gateFileResult, error) {
