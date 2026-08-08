@@ -72,9 +72,10 @@ jobs:
           # gate must now pass
           ./comments gate /tmp/ci-doc.md
 
-          # doctor must report a sound install (warnings are allowed, failures are not)
-          ./comments doctor /tmp --json
-          ./comments doctor /tmp
+          # doctor must report a sound install (warnings are allowed, failures are not).
+          # Scans the checked-out repo, whose docs/ carry real sidecars.
+          ./comments doctor . --json
+          ./comments doctor .
 
   lint:
     runs-on: ubuntu-latest

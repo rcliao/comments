@@ -43,13 +43,13 @@ func TestStdoutIsTTYRejectsNonTerminals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer devNull.Close()
+	defer func() { _ = devNull.Close() }()
 
 	regular, err := os.CreateTemp(t.TempDir(), "out")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer regular.Close()
+	defer func() { _ = regular.Close() }()
 
 	for name, f := range map[string]*os.File{"devnull": devNull, "regular file": regular} {
 		if term.IsTerminal(f.Fd()) {

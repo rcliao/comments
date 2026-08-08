@@ -172,3 +172,37 @@ func TestFindGateTargetsMissingPath(t *testing.T) {
 		t.Error("expected error for missing path")
 	}
 }
+
+// A directory the process cannot read holds no reviewable documents, so the
+// scan must skip it instead of failing. Ubuntu CI hit this on /tmp, where
+// /tmp/snap-private-tmp is root-only and aborted the whole walk.
+func TestFindGateTargetsSkipsUnreadableDirs(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read every directory")
+	}
+	root := t.TempDir()
+
+	// A readable document that must still be found
+	mdPath := filepath.Join(root, "visible.md")
+	doc := &DocumentWithComments{Content: "hello\n", Threads: []*Comment{}}
+	if err := os.WriteFile(mdPath, []byte(doc.Content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveToSidecar(mdPath, doc); err != nil {
+		t.Fatal(err)
+	}
+
+	locked := filepath.Join(root, "locked")
+	if err := os.Mkdir(locked, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+
+	files, err := FindGateTargets(root)
+	if err != nil {
+		t.Fatalf("unreadable directory must not fail the scan: %v", err)
+	}
+	if len(files) != 1 || filepath.Base(files[0]) != "visible.md" {
+		t.Errorf("expected to find visible.md, got %v", files)
+	}
+}

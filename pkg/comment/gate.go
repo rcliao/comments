@@ -85,6 +85,15 @@ func FindGateTargets(target string) ([]string, error) {
 	var files []string
 	err = filepath.WalkDir(target, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
+			// A directory we may not read holds no documents we could review,
+			// so skip it rather than failing the whole scan. Ubuntu's
+			// /tmp/snap-private-tmp is the case that caught this.
+			if os.IsPermission(err) {
+				if d != nil && d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
 			return err
 		}
 		if d.IsDir() || !strings.HasSuffix(path, ".md") {
