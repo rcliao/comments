@@ -16,16 +16,7 @@ import (
 // comment.LoadFromSidecar used to do internally. MCP surfaces load state via
 // the returned report (e.g. staleness in comments_status) rather than printing.
 func loadDoc(absPath string) (*comment.DocumentWithComments, *comment.LoadReport, error) {
-	doc, report, err := comment.LoadFromSidecar(absPath)
-	if err != nil {
-		return nil, nil, err
-	}
-	if report.Dirty {
-		if err := comment.SaveToSidecar(absPath, doc); err != nil {
-			return nil, nil, fmt.Errorf("failed to persist re-anchored sidecar: %w", err)
-		}
-	}
-	return doc, report, nil
+	return comment.LoadDocument(absPath)
 }
 
 // withDoc is the shared prelude for single-document tool handlers: resolve the
