@@ -2,6 +2,7 @@ template: plan
 version: 1
 description: RPI plan phase — ~200-line review unit; decisions made, no open questions; phases with verifiable success criteria
 doc:
+  check_citations: true
   max_words: 1000
 sections:
   - heading: "Overview"
@@ -13,7 +14,7 @@ sections:
     required: true
     max_words: 120
     review_criteria:
-      - "Does every claim about existing code carry a file:line citation the reviewer can peek (f)?"
+      - "Does every claim about existing code carry a file:line citation the reviewer can peek (f), written as a path from the repo root rather than a bare basename?"
   - heading: "Desired End State"
     required: true
     max_words: 80
