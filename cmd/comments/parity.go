@@ -152,7 +152,8 @@ func inboxCommand(target string, args []string) error {
 			rel = r
 		}
 		fmt.Printf("[%d] %s (line %d) • %s\n", i+1, rel, item.Thread.Line, strings.Join(item.Reasons, ", "))
-		fmt.Printf("    %s: %s\n", item.Thread.Author, comment.DecorateType(item.Thread.Text))
+		// item.Thread is a CommentView, whose Text is already decorated
+		fmt.Printf("    %s: %s\n", item.Thread.Author, item.Thread.Text)
 		if item.LastReply != nil {
 			fmt.Printf("    ↳ latest reply @%s: %s\n", item.LastReply.Author, item.LastReply.Text)
 		}

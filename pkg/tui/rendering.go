@@ -544,7 +544,7 @@ func (st *styleSet) renderReplies(b *strings.Builder, replies []*comment.Comment
 		}
 		b.WriteString(st.replyMeta.Render(fmt.Sprintf("%s└─ @%s · %s", indent, r.Author, r.Timestamp.Format("01-02 15:04"))))
 		b.WriteString("\n")
-		b.WriteString(indentWrap(r.Text, width, indent+"   "))
+		b.WriteString(indentWrap(comment.DecorateType(r.Text), width, indent+"   "))
 		b.WriteString("\n")
 		st.renderReplies(b, r.Replies, width, depth+1, reviews, currentRound)
 	}
@@ -632,7 +632,7 @@ func (m *Model) renderComments() string {
 				text := fmt.Sprintf("  %s%s @%s%s%s · %s\n%s",
 					resolvedMark, c.ID, c.Author, threadMarkers(c), newBadge,
 					c.Timestamp.Format("2006-01-02 15:04"),
-					indentWrap(c.Text, wrapWidth, "  "))
+					indentWrap(comment.DecorateType(c.Text), wrapWidth, "  "))
 				rendered.WriteString(style.Render(text))
 				rendered.WriteString("\n")
 				rootRound := roundNumber(c.Timestamp, m.doc.Reviews)
@@ -642,7 +642,7 @@ func (m *Model) renderComments() string {
 
 			// ID first: a scannable column for matching agent-referenced
 			// thread IDs ("answer c7q39") against the sidebar
-			summary := truncate(c.Text, 41, "…")
+			summary := truncate(comment.DecorateType(c.Text), 41, "…")
 			text := fmt.Sprintf("  %s%s @%s%s%s: %s", resolvedMark, c.ID, c.Author, threadMarkers(c), newBadge, summary)
 			rendered.WriteString(style.Render(text))
 			rendered.WriteString("\n")
@@ -682,7 +682,7 @@ func (m *Model) renderThreadWidth(width int) string {
 	// Wrap root comment text to fit within the box
 	// Account for border, padding, and margins
 	rootTextWidth := max(width-16, 20)
-	wrappedRootText := wordwrap.String(m.selectedThread.Text, rootTextWidth)
+	wrappedRootText := wordwrap.String(comment.DecorateType(m.selectedThread.Text), rootTextWidth)
 
 	rootText := fmt.Sprintf("@%s · %s\n\n%s",
 		m.selectedThread.Author,
@@ -758,7 +758,7 @@ func (m *Model) renderThreadWidth(width int) string {
 			rendered.WriteString("\n")
 
 			// Wrap and render reply text
-			for line := range strings.SplitSeq(reply.Text, "\n") {
+			for line := range strings.SplitSeq(comment.DecorateType(reply.Text), "\n") {
 				// Wrap each line if it's too long
 				for wrappedLine := range strings.SplitSeq(wordwrap.String(line, replyWidth), "\n") {
 					rendered.WriteString(borderStyle.Render("│ "))

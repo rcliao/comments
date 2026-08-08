@@ -378,7 +378,7 @@ func listCommand(filename string, args []string) error {
 		}
 		fmt.Printf("    Replies: %d%s\n", replyCount, resolvedStatus)
 
-		fmt.Printf("    %s\n\n", thread.Text)
+		fmt.Printf("    %s\n\n", comment.DecorateType(thread.Text))
 	}
 	return nil
 }

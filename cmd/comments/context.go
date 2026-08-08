@@ -117,7 +117,7 @@ func formatCommentWithContext(c *comment.Comment, ctx CommentContext, includeRep
 
 	// Comment text
 	output.WriteString("Comment:\n")
-	fmt.Fprintf(&output, "  %s\n", c.Text)
+	fmt.Fprintf(&output, "  %s\n", comment.DecorateType(c.Text))
 	output.WriteString("\n")
 
 	// Context section
@@ -163,7 +163,7 @@ func formatCommentWithContext(c *comment.Comment, ctx CommentContext, includeRep
 		output.WriteString("─────────\n")
 		for i, reply := range c.Replies {
 			fmt.Fprintf(&output, "[%d] @%s · %s\n", i+1, reply.Author, reply.Timestamp.Format("2006-01-02 15:04"))
-			fmt.Fprintf(&output, "    %s\n", reply.Text)
+			fmt.Fprintf(&output, "    %s\n", comment.DecorateType(reply.Text))
 			if i < len(c.Replies)-1 {
 				output.WriteString("\n")
 			}

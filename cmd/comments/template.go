@@ -167,7 +167,7 @@ func seedCommand(filename string, args []string) error {
 		if c.Blocking {
 			marker = " [blocking]"
 		}
-		fmt.Printf("  %s (line %d)%s %s\n", c.ID, c.Line, marker, c.Text)
+		fmt.Printf("  %s (line %d)%s %s\n", c.ID, c.Line, marker, comment.DecorateType(c.Text))
 	}
 	fmt.Println("\nReview = resolving these threads. Check progress with: comments gate", filename)
 	return nil

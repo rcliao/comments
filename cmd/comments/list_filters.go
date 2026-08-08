@@ -99,7 +99,7 @@ func outputTable(threads []*comment.Comment, allThreads []*comment.Comment) {
 		replyCount := thread.CountReplies()
 
 		// Create preview (truncate if too long)
-		preview := truncateString(thread.Text, 40)
+		preview := truncateString(comment.DecorateType(thread.Text), 40)
 
 		resolvedMarker := ""
 		if thread.Resolved {

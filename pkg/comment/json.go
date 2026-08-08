@@ -49,7 +49,7 @@ func newCommentViewIn(c *Comment, threadID string) CommentView {
 		Author:           c.Author,
 		Line:             c.Line,
 		Timestamp:        c.Timestamp.Format(time.RFC3339),
-		Text:             c.Text,
+		Text:             DecorateType(c.Text),
 		Type:             c.Type,
 		Status:           c.GetStatus(),
 		Priority:         c.GetPriority(),
