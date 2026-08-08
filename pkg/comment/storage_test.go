@@ -518,7 +518,6 @@ func TestSaveSkipsUnchangedMarkdown(t *testing.T) {
 	}
 }
 
-
 func TestLoadFromSidecarMissingMarkdown(t *testing.T) {
 	_, _, err := LoadFromSidecar(filepath.Join(t.TempDir(), "nope.md"))
 	if err == nil {
