@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Fast gates only — these must stay cheap enough to run on every commit.
+# The full suite (build, -race, lint, smoke test) runs on pre-push.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+# Bypass deliberately:    git commit --no-verify
+set -euo pipefail
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+# Mirrors CI exactly rather than checking only staged files: `gofmt -l .` takes
+# ~0.05s here, and an approximation of the CI gate is how gates drift.
+unformatted=$(gofmt -l .)
+if [ -n "$unformatted" ]; then
+  echo "pre-commit: gofmt failures" >&2
+  echo "$unformatted" >&2
+  echo >&2
+  echo "Fix with: gofmt -w $unformatted" >&2
+  exit 1
+fi
+
+go vet ./...

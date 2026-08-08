@@ -49,3 +49,10 @@ step "review-flow smoke test"
 ./scripts/smoke-test.sh
 
 printf '\n\033[1mAll CI gates passed.\033[0m\n'
+
+# A hook that was never wired up is indistinguishable from a hook that passed,
+# so say so rather than letting the guard be silently absent.
+if [ "$(git config --get core.hooksPath || true)" != ".githooks" ]; then
+  printf '\nNote: git hooks are not wired up in this clone. Enable them with:\n'
+  printf '  git config core.hooksPath .githooks\n'
+fi
