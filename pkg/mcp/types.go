@@ -36,8 +36,9 @@ type AddCommentRequest struct {
 	Author   string `json:"author" jsonschema:"Author of the comment"`
 	Text     string `json:"text" jsonschema:"Comment text"`
 	Type     string `json:"type,omitempty" jsonschema:"Comment type: Q (Question) S (Suggestion) B (Bug) T (TODO) E (Enhancement)"`
-	Line     int    `json:"line,omitempty" jsonschema:"Line number (use this OR section not both)"`
+	Line     int    `json:"line,omitempty" jsonschema:"Line number (use exactly one of line / section / anchor)"`
 	Section  string `json:"section,omitempty" jsonschema:"Section path (e.g. 'Introduction > Overview')"`
+	Anchor   string `json:"anchor,omitempty" jsonschema:"Quote of the target line (or a unique substring) — resolved to its line so no grep for line numbers is needed"`
 	Status   string `json:"status,omitempty" jsonschema:"Status: active (default) resolved completed"`
 	Priority string `json:"priority,omitempty" jsonschema:"Priority: low medium (default) high"`
 	Blocking bool   `json:"blocking,omitempty" jsonschema:"If true this comment must be resolved before the review gate passes"`
@@ -63,8 +64,9 @@ type SuggestRequest struct {
 	FilePath     string `json:"filepath" jsonschema:"Path to the markdown file"`
 	Author       string `json:"author" jsonschema:"Author of the suggestion"`
 	Text         string `json:"text" jsonschema:"Description of the suggestion"`
-	StartLine    int    `json:"start_line" jsonschema:"Start line of the edit"`
-	EndLine      int    `json:"end_line" jsonschema:"End line of the edit"`
+	StartLine    int    `json:"start_line,omitempty" jsonschema:"Start line of the edit (or use anchor)"`
+	EndLine      int    `json:"end_line,omitempty" jsonschema:"End line of the edit (or use anchor)"`
+	Anchor       string `json:"anchor,omitempty" jsonschema:"Quote of the range's FIRST line (or unique substring); original_text's line count sets the end"`
 	OriginalText string `json:"original_text,omitempty" jsonschema:"Original text being replaced (optional for verification)"`
 	ProposedText string `json:"proposed_text" jsonschema:"Proposed replacement text"`
 }
@@ -95,6 +97,7 @@ type BatchCommentData struct {
 	Type         string `json:"type,omitempty" jsonschema:"Comment type (Q S B T E)"`
 	Line         int    `json:"line,omitempty" jsonschema:"Line number"`
 	Section      string `json:"section,omitempty" jsonschema:"Section path"`
+	Anchor       string `json:"anchor,omitempty" jsonschema:"Quote of the target line (or a unique substring); alternative to line/section"`
 	Status       string `json:"status,omitempty" jsonschema:"Status (active resolved completed)"`
 	Priority     string `json:"priority,omitempty" jsonschema:"Priority (low medium high)"`
 	Blocking     bool   `json:"blocking,omitempty" jsonschema:"If true this comment must be resolved before the review gate passes"`

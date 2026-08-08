@@ -32,9 +32,10 @@ func (s *Server) handleValidate(ctx context.Context, req *mcp.CallToolRequest, a
 
 		violations := comment.ValidateTemplate(doc.Content, t)
 		return map[string]any{
-			"template":   t.Name,
-			"conforms":   len(violations) == 0,
-			"violations": violations,
+			"template":      t.Name,
+			"conforms":      len(violations) == 0,
+			"violations":    violations,
+			"section_words": comment.SectionWordReport(doc.Content, t),
 		}, nil
 	})
 }
@@ -64,9 +65,14 @@ func (s *Server) handleSeed(ctx context.Context, req *mcp.CallToolRequest, args 
 			})
 		}
 		return map[string]any{
-			"template":     t.Name,
-			"seeded_count": len(added),
-			"seeded":       seeded,
+			// Leads the response: recording the template is a distinct act
+			// from seeding threads — an empty seeded list does NOT mean
+			// nothing happened; the gate now enforces this template's
+			// structure (docs/plan-agent-surface.md Phase 4)
+			"template_recorded": t.Name,
+			"gate_enforces":     "document structure now validates against this template on every gate",
+			"seeded_count":      len(added),
+			"seeded":            seeded,
 		}, nil
 	})
 }

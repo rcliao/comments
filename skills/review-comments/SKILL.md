@@ -105,7 +105,8 @@ small changes, or a project template):
 3. **Self-review, then post SPECIFIC callouts** — never dump the template's
    generic criteria on the human. For each template criterion, judge your own
    draft against it and post a comment about what YOU actually did, anchored at
-   the exact line it concerns (batch-add is ideal):
+   the exact line it concerns (batch-add is ideal; use `anchor` — quote the
+   target line — instead of grepping for line numbers):
 
    - Weakest reasoning: "I rejected option B mainly on argument X — my least
      confident step, please check" (type Q, blocking)

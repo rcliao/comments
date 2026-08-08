@@ -237,16 +237,46 @@ func findTemplateSection(structure *markdown.DocumentStructure, heading string) 
 }
 
 // countSectionWords counts words in a section's own body (excluding child sections)
+// countSectionWords counts the section's WHOLE subtree — subsections
+// included. It previously stopped at the first child heading, which made
+// caps hollow for any section organized into subsections: a 1064-word
+// "Proposed Design" counted only its preamble and passed an 800 cap while
+// the doc total caught the overage (external field report, reproduced in
+// TestSectionCapCountsSubsections).
 func countSectionWords(lines []string, section *markdown.Section) int {
-	end := section.EndLine
-	if len(section.Children) > 0 {
-		end = section.Children[0].StartLine - 1
-	}
 	words := 0
-	for i := section.StartLine; i < end && i < len(lines); i++ { // skip heading line itself
+	for i := section.StartLine; i < section.EndLine && i < len(lines); i++ { // skip heading line itself
 		words += len(strings.Fields(lines[i]))
 	}
 	return words
+}
+
+// SectionWordCount is one row of the per-section word report: every template
+// section's current count against its cap (0 = uncapped), plus the doc total
+// as a synthetic row. Reported on success AND failure so trimming is
+// informed, not blind (docs/plan-agent-surface.md Phase 3).
+type SectionWordCount struct {
+	Section string `json:"section"`
+	Words   int    `json:"words"`
+	Max     int    `json:"max,omitempty"`
+}
+
+// SectionWordReport computes the word count of every template section present
+// in the document (whole subtree), with the doc total first.
+func SectionWordReport(content string, t *Template) []SectionWordCount {
+	structure := markdown.ParseDocument(content)
+	lines := strings.Split(content, "\n")
+	report := []SectionWordCount{{Section: "(document)", Words: len(strings.Fields(content)), Max: t.Doc.MaxWords}}
+	for _, ts := range t.Sections {
+		if section := findTemplateSection(structure, ts.Heading); section != nil {
+			report = append(report, SectionWordCount{
+				Section: ts.Heading,
+				Words:   countSectionWords(lines, section),
+				Max:     ts.MaxWords,
+			})
+		}
+	}
+	return report
 }
 
 // ValidateTemplate checks document structure against a template.

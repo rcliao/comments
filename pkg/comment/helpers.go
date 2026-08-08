@@ -130,7 +130,7 @@ func GetVisibleComments(threads []*Comment, showResolved bool) []*Comment {
 // AddReplyToThread adds a reply to a thread
 // Returns error if thread not found
 func AddReplyToThread(threads []*Comment, threadID, author, text string) error {
-	thread := findThreadByID(threads, threadID)
+	thread := FindThreadContaining(threads, threadID)
 	if thread == nil {
 		return fmt.Errorf("thread not found: %s", threadID)
 	}
@@ -139,6 +139,28 @@ func AddReplyToThread(threads []*Comment, threadID, author, text string) error {
 	thread.Replies = append(thread.Replies, reply)
 
 	return nil
+}
+
+// FindThreadContaining resolves ANY known comment ID — a thread root or a
+// reply nested at any depth — to its thread ROOT. The read surface hands out
+// reply IDs; the write surface must accept them instead of failing "thread
+// not found" (docs/plan-agent-surface.md Phase 2).
+func FindThreadContaining(threads []*Comment, id string) *Comment {
+	for _, root := range threads {
+		if root.ID == id || containsID(root.Replies, id) {
+			return root
+		}
+	}
+	return nil
+}
+
+func containsID(replies []*Comment, id string) bool {
+	for _, r := range replies {
+		if r.ID == id || containsID(r.Replies, id) {
+			return true
+		}
+	}
+	return false
 }
 
 // findThreadByID finds a thread by ID (helper function)
@@ -153,7 +175,7 @@ func findThreadByID(threads []*Comment, id string) *Comment {
 
 // ResolveThread marks a thread as resolved
 func ResolveThread(threads []*Comment, threadID string) error {
-	thread := findThreadByID(threads, threadID)
+	thread := FindThreadContaining(threads, threadID)
 	if thread == nil {
 		return fmt.Errorf("thread not found: %s", threadID)
 	}
@@ -164,7 +186,7 @@ func ResolveThread(threads []*Comment, threadID string) error {
 
 // UnresolveThread marks a thread as unresolved
 func UnresolveThread(threads []*Comment, threadID string) error {
-	thread := findThreadByID(threads, threadID)
+	thread := FindThreadContaining(threads, threadID)
 	if thread == nil {
 		return fmt.Errorf("thread not found: %s", threadID)
 	}

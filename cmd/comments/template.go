@@ -95,22 +95,39 @@ func validateCommand(filename string, args []string) error {
 		return err
 	}
 	violations := comment.ValidateTemplate(doc.Content, t)
+	wordReport := comment.SectionWordReport(doc.Content, t)
 
 	if *jsonOut {
 		payload := map[string]any{
-			"file":       filename,
-			"template":   t.Name,
-			"conforms":   len(violations) == 0,
-			"violations": violations,
+			"file":          filename,
+			"template":      t.Name,
+			"conforms":      len(violations) == 0,
+			"violations":    violations,
+			"section_words": wordReport,
 		}
 		encoded, _ := json.MarshalIndent(payload, "", "  ")
 		fmt.Println(string(encoded))
-	} else if len(violations) == 0 {
-		fmt.Printf("✓ %s conforms to template %q\n", filename, t.Name)
 	} else {
-		fmt.Printf("✗ %s has %d violation(s) against template %q:\n\n", filename, len(violations), t.Name)
-		for _, v := range violations {
-			fmt.Printf("  [%s] %s\n", v.Rule, v.Message)
+		if len(violations) == 0 {
+			fmt.Printf("✓ %s conforms to template %q\n", filename, t.Name)
+		} else {
+			fmt.Printf("✗ %s has %d violation(s) against template %q:\n\n", filename, len(violations), t.Name)
+			for _, v := range violations {
+				fmt.Printf("  [%s] %s\n", v.Rule, v.Message)
+			}
+		}
+		// Per-section counts on success AND failure: trimming is informed,
+		// not blind
+		fmt.Println("\nSection words:")
+		for _, row := range wordReport {
+			cap := ""
+			if row.Max > 0 {
+				cap = fmt.Sprintf(" / %d", row.Max)
+				if row.Words > row.Max {
+					cap += "  ← over"
+				}
+			}
+			fmt.Printf("  %-28s %d%s\n", row.Section, row.Words, cap)
 		}
 	}
 
@@ -144,7 +161,7 @@ func seedCommand(filename string, args []string) error {
 		fmt.Printf("✓ Nothing to seed — all template review threads already exist (template %q recorded)\n", t.Name)
 		return nil
 	}
-	fmt.Printf("✓ Seeded %d review thread(s) from template %q:\n", len(added), t.Name)
+	fmt.Printf("✓ Seeded %d review thread(s); template %q recorded — the gate now enforces its structure:\n", len(added), t.Name)
 	for _, c := range added {
 		marker := ""
 		if c.Blocking {

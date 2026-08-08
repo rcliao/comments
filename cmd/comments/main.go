@@ -430,8 +430,9 @@ func addCommand(filename string, args []string) error {
 	// Parse flags
 	fs := flag.NewFlagSet("add", flag.ContinueOnError)
 	text := fs.String("text", "", "Comment text (required)")
-	line := fs.Int("line", 0, "Line number (use either --line or --section)")
-	section := fs.String("section", "", "Section path (use either --line or --section)")
+	line := fs.Int("line", 0, "Line number (use --line, --section or --anchor)")
+	section := fs.String("section", "", "Section path (use --line, --section or --anchor)")
+	anchor := fs.String("anchor", "", "Anchor by quoting the target line (or a unique substring of it)")
 	author := fs.String("author", "", "Author name (required)")
 	commentType := fs.String("type", "", "Comment type: Q, S, B, T, E (auto-prefixes text)")
 	priority := fs.String("priority", "medium", "Priority: low, medium, high (default: medium)")
@@ -442,7 +443,8 @@ func addCommand(filename string, args []string) error {
 	}
 
 	const addUsage = "Usage: comments add <file> --line N --author \"name\" --text \"your comment\"\n" +
-		"   or: comments add <file> --section \"Section Path\" --author \"name\" --text \"your comment\""
+		"   or: comments add <file> --section \"Section Path\" --author \"name\" --text \"your comment\"\n" +
+		"   or: comments add <file> --anchor \"quoted target line\" --author \"name\" --text \"your comment\""
 
 	if *text == "" {
 		return failf("Error: --text flag is required\n%s", addUsage)
@@ -452,13 +454,18 @@ func addCommand(filename string, args []string) error {
 		return failf("Error: --author flag is required\n%s", addUsage)
 	}
 
-	// Validate that either line or section is provided (but not both)
-	if *line == 0 && *section == "" {
-		return failf("Error: either --line or --section flag is required\n%s", addUsage)
+	// Exactly one of line / section / anchor locates the comment
+	given := 0
+	for _, ok := range []bool{*line != 0, *section != "", *anchor != ""} {
+		if ok {
+			given++
+		}
 	}
-
-	if *line != 0 && *section != "" {
-		return failf("Error: cannot specify both --line and --section\nUse either --line N or --section \"Section Path\", not both")
+	if given == 0 {
+		return failf("Error: one of --line, --section or --anchor is required\n%s", addUsage)
+	}
+	if given > 1 {
+		return failf("Error: --line, --section and --anchor are mutually exclusive")
 	}
 
 	// Resolve text input (supports @filename)
@@ -493,6 +500,13 @@ func addCommand(filename string, args []string) error {
 			return failf("Error resolving section: %v", err)
 		}
 		targetLine = startLine
+	}
+	if *anchor != "" {
+		resolved, err := comment.ResolveAnchorText(doc.Content, *anchor)
+		if err != nil {
+			return failf("Error: %v", err)
+		}
+		targetLine = resolved
 	}
 
 	// Create new comment with type metadata
@@ -628,6 +642,7 @@ func suggestCommand(filename string, args []string) error {
 	startLine := fs.Int("start-line", 0, "Start line (use either line range or section)")
 	endLine := fs.Int("end-line", 0, "End line (use either line range or section)")
 	section := fs.String("section", "", "Section path (use either line range or section)")
+	anchorFlag := fs.String("anchor", "", "Anchor the range by quoting its FIRST line; --original's line count sets the end")
 	author := fs.String("author", "", "Author name (required)")
 	text := fs.String("text", "", "Suggestion description (required)")
 	original := fs.String("original", "", "Original text to replace")
@@ -651,13 +666,18 @@ func suggestCommand(filename string, args []string) error {
 		return failf("Error: --proposed flag is required\n%s", suggestUsage)
 	}
 
-	// Validate that either line range or section is provided (but not both)
-	if *startLine == 0 && *section == "" {
-		return failf("Error: either --start-line/--end-line or --section flag is required\n%s", suggestUsage)
+	// Exactly one of line range / section / anchor locates the suggestion
+	locGiven := 0
+	for _, ok := range []bool{*startLine != 0, *section != "", *anchorFlag != ""} {
+		if ok {
+			locGiven++
+		}
 	}
-
-	if *startLine != 0 && *section != "" {
-		return failf("Error: cannot specify both line range and section\nUse either --start-line/--end-line or --section, not both")
+	if locGiven == 0 {
+		return failf("Error: one of --start-line/--end-line, --section or --anchor is required\n%s", suggestUsage)
+	}
+	if locGiven > 1 {
+		return failf("Error: --start-line, --section and --anchor are mutually exclusive")
 	}
 
 	// Resolve text inputs (supports @filename)
@@ -698,6 +718,18 @@ func suggestCommand(filename string, args []string) error {
 		}
 		targetStartLine = start
 		targetEndLine = end
+	}
+	if *anchorFlag != "" {
+		start, err := comment.ResolveAnchorText(doc.Content, *anchorFlag)
+		if err != nil {
+			return failf("Error: %v", err)
+		}
+		targetStartLine = start
+		// --original's line count defines the range; single line otherwise
+		targetEndLine = start
+		if resolvedOriginal != "" {
+			targetEndLine = start + strings.Count(strings.TrimRight(resolvedOriginal, "\n"), "\n")
+		}
 	}
 
 	// Validate line range

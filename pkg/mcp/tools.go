@@ -76,57 +76,71 @@ func findSuggestion(doc *comment.DocumentWithComments, id string) (*comment.Comm
 
 func (s *Server) handleListComments(ctx context.Context, req *mcp.CallToolRequest, args ListCommentsRequest) (*mcp.CallToolResult, any, error) {
 	return withDoc(args.FilePath, func(absPath string, doc *comment.DocumentWithComments, _ *comment.LoadReport) (any, error) {
-		// Section filter first: tree-inclusive descendant matching by section
-		// ID, shared with the CLI (exact path required; a sibling section
-		// whose title merely shares a prefix does not match)
-		var allComments []*comment.Comment
+		// List returns thread ROOTS with replies nested (the CLI JSON shape;
+		// flattening roots and replies into one list handed out reply IDs the
+		// write path rejected and buried reply text — docs/plan-agent-surface.md
+		// Phase 2). Filters match the root OR any of its replies; the ROOT is
+		// what gets returned either way.
+		var roots []*comment.Comment
 		if args.Section != "" {
-			allComments = comment.GetCommentsInSection(doc, args.Section)
+			seen := map[string]bool{}
+			for _, c := range comment.GetCommentsInSection(doc, args.Section) {
+				if root := comment.FindThreadContaining(doc.Threads, c.ID); root != nil && !seen[root.ID] {
+					seen[root.ID] = true
+					roots = append(roots, root)
+				}
+			}
 		} else {
-			allComments = doc.GetAllComments()
+			roots = doc.Threads
 		}
 
-		// Apply remaining filters
-		filtered := make([]*comment.Comment, 0)
-		for _, c := range allComments {
-			// Author filter
+		matches := func(c *comment.Comment) bool {
 			if args.Author != "" && c.Author != args.Author {
-				continue
+				return false
 			}
-
-			// Type filter
 			if args.Type != "" && c.Type != args.Type {
-				continue
+				return false
 			}
-
-			// Search filter
 			if args.Search != "" && !strings.Contains(strings.ToLower(c.Text), strings.ToLower(args.Search)) {
-				continue
+				return false
 			}
-
-			// Status filter
 			if args.Status != "" && c.Status != args.Status {
-				continue
+				return false
 			}
-
-			// Priority filter
 			if args.Priority != "" && c.Priority != args.Priority {
+				return false
+			}
+			return true
+		}
+		var anyInThread func(c *comment.Comment) bool
+		anyInThread = func(c *comment.Comment) bool {
+			if matches(c) {
+				return true
+			}
+			for _, r := range c.Replies {
+				if anyInThread(r) {
+					return true
+				}
+			}
+			return false
+		}
+
+		filtered := make([]*comment.Comment, 0)
+		for _, c := range roots {
+			// Content filters match the root or any reply; positional and
+			// resolution filters are properties of the thread root itself
+			if !anyInThread(c) {
 				continue
 			}
-
-			// Resolved filter
 			if args.Resolved != nil && c.Resolved != *args.Resolved {
 				continue
 			}
-
-			// Line range filter
 			if args.LineStart > 0 && c.Line < args.LineStart {
 				continue
 			}
 			if args.LineEnd > 0 && c.Line > args.LineEnd {
 				continue
 			}
-
 			filtered = append(filtered, c)
 		}
 
@@ -241,6 +255,13 @@ func (s *Server) handleAddComment(ctx context.Context, req *mcp.CallToolRequest,
 			}
 			line = startLine
 		}
+		if args.Anchor != "" && line == 0 {
+			resolved, err := comment.ResolveAnchorText(doc.Content, args.Anchor)
+			if err != nil {
+				return nil, err
+			}
+			line = resolved
+		}
 
 		// Create new comment
 		newComment := comment.NewComment(args.Author, line, args.Text)
@@ -323,10 +344,26 @@ func (s *Server) handleResolve(ctx context.Context, req *mcp.CallToolRequest, ar
 
 func (s *Server) handleSuggest(ctx context.Context, req *mcp.CallToolRequest, args SuggestRequest) (*mcp.CallToolResult, any, error) {
 	return withDocSave(args.FilePath, func(absPath string, doc *comment.DocumentWithComments) (any, error) {
+		start, end := args.StartLine, args.EndLine
+		if args.Anchor != "" && start == 0 {
+			resolved, err := comment.ResolveAnchorText(doc.Content, args.Anchor)
+			if err != nil {
+				return nil, err
+			}
+			start = resolved
+			// original_text's line count defines the range; single line otherwise
+			end = resolved
+			if args.OriginalText != "" {
+				end = resolved + strings.Count(strings.TrimRight(args.OriginalText, "\n"), "\n")
+			}
+		}
+		if end == 0 {
+			end = start
+		}
 		suggestion := comment.NewSuggestion(
 			args.Author,
-			args.StartLine,
-			args.EndLine,
+			start,
+			end,
 			args.Text,
 			args.OriginalText,
 			args.ProposedText,
@@ -337,7 +374,7 @@ func (s *Server) handleSuggest(ctx context.Context, req *mcp.CallToolRequest, ar
 		return map[string]any{
 			"success":       true,
 			"suggestion_id": suggestion.ID,
-			"message":       fmt.Sprintf("Created suggestion %s for lines %d-%d", suggestion.ID, args.StartLine, args.EndLine),
+			"message":       fmt.Sprintf("Created suggestion %s for lines %d-%d", suggestion.ID, start, end),
 		}, nil
 	})
 }
@@ -430,6 +467,13 @@ func (s *Server) handleBatchAdd(ctx context.Context, req *mcp.CallToolRequest, a
 						return nil, fmt.Errorf("failed to resolve section: %w", err)
 					}
 					line = startLine
+				}
+				if commentData.Anchor != "" && line == 0 {
+					resolved, err := comment.ResolveAnchorText(doc.Content, commentData.Anchor)
+					if err != nil {
+						return nil, fmt.Errorf("anchor for comment by %s: %w", commentData.Author, err)
+					}
+					line = resolved
 				}
 
 				newComment = comment.NewComment(commentData.Author, line, commentData.Text)

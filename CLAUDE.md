@@ -24,6 +24,7 @@ Command surface: run `./comments` with no args for full usage. The core review-l
 ```bash
 ./comments view doc.md                                  # interactive TUI (the human review surface)
 ./comments add doc.md --line 10 --author eric --text "Fix this" --blocking
+./comments add doc.md --anchor "quoted target line" --author claude --text "..."   # no grep for line numbers
 ./comments gate doc.md            # exit 0 = approved, 10 = changes requested
 ./comments signoff doc.md         # record a review pass (what agents wait on)
 ./comments watch specs/ --until signoff                 # block until a signoff (NDJSON events)

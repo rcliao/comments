@@ -13,8 +13,9 @@ import (
 
 // BatchComment represents a comment to be added in batch mode
 type BatchComment struct {
-	Line     int    `json:"line,omitempty"`    // Line number (use either line or section)
-	Section  string `json:"section,omitempty"` // Section path (use either line or section)
+	Line     int    `json:"line,omitempty"`    // Line number (one of line/section/anchor)
+	Section  string `json:"section,omitempty"` // Section path (one of line/section/anchor)
+	Anchor   string `json:"anchor,omitempty"`  // Quote of the target line (or unique substring)
 	Author   string `json:"author"`
 	Text     string `json:"text"`
 	Type     string `json:"type,omitempty"`     // Q, S, B, T, E
@@ -100,12 +101,18 @@ Expected format (multi-line suggestion):
 
 	// Validate comments
 	for i, bc := range batchComments {
-		// Validate that either line or section is provided (but not both)
-		if bc.Line == 0 && bc.Section == "" {
-			return failf("Error: Comment %d must specify either 'line' or 'section'", i+1)
+		// Exactly one of line / section / anchor locates the comment
+		given := 0
+		for _, ok := range []bool{bc.Line != 0, bc.Section != "", bc.Anchor != ""} {
+			if ok {
+				given++
+			}
 		}
-		if bc.Line != 0 && bc.Section != "" {
-			return failf("Error: Comment %d cannot specify both 'line' and 'section'", i+1)
+		if given == 0 {
+			return failf("Error: Comment %d must specify one of 'line', 'section' or 'anchor'", i+1)
+		}
+		if given > 1 {
+			return failf("Error: Comment %d: 'line', 'section' and 'anchor' are mutually exclusive", i+1)
 		}
 		if bc.Text == "" {
 			return failf("Error: Comment %d has empty text", i+1)
@@ -157,6 +164,13 @@ Expected format (multi-line suggestion):
 				return failf("Error resolving section for comment %d: %v", i+1, err)
 			}
 			batchComments[i].Line = startLine
+		}
+		if batchComments[i].Anchor != "" {
+			resolved, err := comment.ResolveAnchorText(doc.Content, batchComments[i].Anchor)
+			if err != nil {
+				return failf("Error in comment %d: %v", i+1, err)
+			}
+			batchComments[i].Line = resolved
 		}
 	}
 

@@ -9,32 +9,41 @@ import "time"
 // The exact field-name set is pinned by TestCommentViewFieldNames — extend
 // deliberately, never fork a new shape.
 type CommentView struct {
-	ID               string        `json:"id"`
-	Author           string        `json:"author"`
-	Line             int           `json:"line"`
-	Timestamp        string        `json:"timestamp"`
-	Text             string        `json:"text"`
-	Type             string        `json:"type,omitempty"`
-	Status           string        `json:"status"`
-	Priority         string        `json:"priority"`
-	Blocking         bool          `json:"blocking"`
-	Resolved         bool          `json:"resolved"`
-	ReplyCount       int           `json:"reply_count"`
-	SectionPath      string        `json:"section_path,omitempty"`
-	OrphanedReason   string        `json:"orphaned_reason,omitempty"`
-	AnchorConfidence string        `json:"anchor_confidence,omitempty"`
-	IsSuggestion     bool          `json:"is_suggestion,omitempty"`
-	StartLine        int           `json:"start_line,omitempty"`
-	EndLine          int           `json:"end_line,omitempty"`
-	OriginalText     string        `json:"original_text,omitempty"`
-	ProposedText     string        `json:"proposed_text,omitempty"`
-	Accepted         *bool         `json:"accepted,omitempty"`
-	Replies          []CommentView `json:"replies,omitempty"`
+	ID               string `json:"id"`
+	Author           string `json:"author"`
+	Line             int    `json:"line"`
+	Timestamp        string `json:"timestamp"`
+	Text             string `json:"text"`
+	Type             string `json:"type,omitempty"`
+	Status           string `json:"status"`
+	Priority         string `json:"priority"`
+	Blocking         bool   `json:"blocking"`
+	Resolved         bool   `json:"resolved"`
+	ReplyCount       int    `json:"reply_count"`
+	SectionPath      string `json:"section_path,omitempty"`
+	OrphanedReason   string `json:"orphaned_reason,omitempty"`
+	AnchorConfidence string `json:"anchor_confidence,omitempty"`
+	IsSuggestion     bool   `json:"is_suggestion,omitempty"`
+	StartLine        int    `json:"start_line,omitempty"`
+	EndLine          int    `json:"end_line,omitempty"`
+	OriginalText     string `json:"original_text,omitempty"`
+	ProposedText     string `json:"proposed_text,omitempty"`
+	Accepted         *bool  `json:"accepted,omitempty"`
+	// ParentThreadID is set on nested replies: the ROOT thread's ID, i.e. the
+	// ID the write path (reply/resolve) addresses. Lets consumers that flatten
+	// the tree keep a route back to the thread.
+	ParentThreadID string        `json:"parent_thread_id,omitempty"`
+	Replies        []CommentView `json:"replies,omitempty"`
 }
 
 // NewCommentView builds the canonical JSON view of a comment, recursing into
-// nested replies.
+// nested replies. Nested replies carry parent_thread_id = the root thread's
+// ID (the ID the write path addresses).
 func NewCommentView(c *Comment) CommentView {
+	return newCommentViewIn(c, "")
+}
+
+func newCommentViewIn(c *Comment, threadID string) CommentView {
 	out := CommentView{
 		ID:               c.ID,
 		Author:           c.Author,
@@ -57,8 +66,13 @@ func NewCommentView(c *Comment) CommentView {
 		ProposedText:     c.ProposedText,
 		Accepted:         c.Accepted,
 	}
+	out.ParentThreadID = threadID
+	rootID := threadID
+	if rootID == "" {
+		rootID = c.ID
+	}
 	for _, r := range c.Replies {
-		out.Replies = append(out.Replies, NewCommentView(r))
+		out.Replies = append(out.Replies, newCommentViewIn(r, rootID))
 	}
 	return out
 }

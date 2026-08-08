@@ -176,6 +176,12 @@ func TestHumanZoneResolveRefused(t *testing.T) {
 	if seeded["seeded_count"].(float64) < 1 {
 		t.Fatalf("expected seeded threads: %v", seeded)
 	}
+	// Phase 4 (docs/plan-agent-surface.md): the response LEADS with the
+	// recording act — an empty seeded list must never read as "nothing
+	// happened"
+	if seeded["template_recorded"] != "design-doc" {
+		t.Fatalf("seed response must state template_recorded, got %v", seeded)
+	}
 
 	// find a seeded thread anchored in the Problem section (line 3 heading)
 	listed := callTool(t, session, "comments_list", map[string]any{"filepath": doc})
