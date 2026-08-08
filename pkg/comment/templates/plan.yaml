@@ -29,9 +29,11 @@ sections:
   - heading: "Implementation Phases"
     required: true
     min_subsections: 2
+    max_subsections: 5
+    max_subsection_words: 140
     max_words: 450
     review_criteria:
-      - "Does each phase open with what changes, in one sentence an implementer could act on? A phase past ~120 words is hiding decisions in prose."
+      - "Does each phase open with what changes, in one sentence an implementer could act on? A phase at its word cap is hiding decisions in prose — rewrite it, do not trim a different phase to make room."
       - "Does every phase carry Success Criteria split automated (a command or test) vs manual (human judgment)?"
       - "Is each phase independently verifiable before the next begins?"
       - "Is the plan free of real code? Plans decide and point (file:line); code belongs to implementation."

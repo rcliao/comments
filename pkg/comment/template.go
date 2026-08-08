@@ -66,13 +66,21 @@ type TemplateDocRules struct {
 }
 
 type TemplateSection struct {
-	Heading          string   `yaml:"heading"` // matched against section title or path suffix
-	Required         bool     `yaml:"required"`
-	MaxWords         int      `yaml:"max_words"`         // 0 = unlimited
-	MinSubsections   int      `yaml:"min_subsections"`   // e.g. Options Considered needs >= 2
-	Zone             string   `yaml:"zone"`              // "human" or "agent" (default agent)
-	ReviewCriteria   []string `yaml:"review_criteria"`   // seeded as anchored threads
-	CriteriaBlocking *bool    `yaml:"criteria_blocking"` // nil = default true
+	Heading        string `yaml:"heading"` // matched against section title or path suffix
+	Required       bool   `yaml:"required"`
+	MaxWords       int    `yaml:"max_words"`       // 0 = unlimited
+	MinSubsections int    `yaml:"min_subsections"` // e.g. Options Considered needs >= 2
+	// MaxSubsections and MaxSubsectionWords bound the BODY sections (Findings,
+	// Implementation Phases) where review iteration actually accumulates. A
+	// section-wide cap alone lets a doc answer feedback by growing one
+	// subsection until the whole section bursts; measured across the shipped
+	// corpus, every over-cap doc was over because of a handful of oversized
+	// subsections, not uniform growth. 0 = unlimited.
+	MaxSubsections     int      `yaml:"max_subsections"`
+	MaxSubsectionWords int      `yaml:"max_subsection_words"`
+	Zone               string   `yaml:"zone"`              // "human" or "agent" (default agent)
+	ReviewCriteria     []string `yaml:"review_criteria"`   // seeded as anchored threads
+	CriteriaBlocking   *bool    `yaml:"criteria_blocking"` // nil = default true
 }
 
 type TemplateMarkers struct {
@@ -86,7 +94,7 @@ type TemplateMarkers struct {
 
 // Violation is a single structural check failure
 type Violation struct {
-	Rule    string `json:"rule"` // missing_section, section_order, over_length, min_subsections, unresolved_marker, too_many_markers, doc_over_length
+	Rule    string `json:"rule"` // missing_section, section_order, over_length, subsection_over_length, min_subsections, max_subsections, unresolved_marker, too_many_markers, doc_over_length
 	Section string `json:"section,omitempty"`
 	Line    int    `json:"line,omitempty"`
 	Message string `json:"message"`
@@ -340,6 +348,30 @@ func ValidateTemplate(content string, t *Template) []Violation {
 				Line:    section.StartLine,
 				Message: fmt.Sprintf("section %q has %d subsection(s), needs at least %d", ts.Heading, len(section.Children), ts.MinSubsections),
 			})
+		}
+		if ts.MaxSubsections > 0 && len(section.Children) > ts.MaxSubsections {
+			violations = append(violations, Violation{
+				Rule:    "max_subsections",
+				Section: ts.Heading,
+				Line:    section.StartLine,
+				Message: fmt.Sprintf("section %q has %d subsection(s), max %d — merge or drop the weakest, do not split to fit",
+					ts.Heading, len(section.Children), ts.MaxSubsections),
+			})
+		}
+		// Named per subsection so trimming is targeted: a bare "section is over"
+		// tells the agent to trim somewhere, which is how padding survives.
+		if ts.MaxSubsectionWords > 0 {
+			for _, child := range section.Children {
+				if words := countSectionWords(lines, child); words > ts.MaxSubsectionWords {
+					violations = append(violations, Violation{
+						Rule:    "subsection_over_length",
+						Section: ts.Heading,
+						Line:    child.StartLine,
+						Message: fmt.Sprintf("%q is %d words (max %d) — rewrite it tighter or split it, do not trim elsewhere",
+							child.Title, words, ts.MaxSubsectionWords),
+					})
+				}
+			}
 		}
 	}
 
