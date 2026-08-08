@@ -20,6 +20,18 @@ go test ./...                         # run all tests
 
 **Important**: After any code change, rebuild the root binary (`go build -o comments ./cmd/comments`) before testing CLI behavior — stale binaries have masqueraded as missing features.
 
+### One-time setup per clone
+
+```bash
+git config core.hooksPath .githooks   # enables the pre-commit / pre-push gates
+```
+
+`.githooks/pre-commit` runs the fast gates (gofmt, vet — well under a second);
+`.githooks/pre-push` runs the full `./scripts/ci.sh`. Both are plain shell with
+no dependencies, and `--no-verify` bypasses them when you genuinely need to.
+`./scripts/ci.sh` tells you if the hooks are not wired up, because a guard that
+was never enabled looks exactly like a guard that passed.
+
 ### Run the CI gates before you commit or push (required)
 
 `./scripts/ci.sh` runs, in CI's order: `gofmt -l`, `go build`, `go vet`,
