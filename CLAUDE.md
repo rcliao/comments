@@ -15,9 +15,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 go build -o comments ./cmd/comments   # build root binary
 go test ./...                         # run all tests
+./scripts/ci.sh                       # every gate CI runs — required before commit/push
 ```
 
 **Important**: After any code change, rebuild the root binary (`go build -o comments ./cmd/comments`) before testing CLI behavior — stale binaries have masqueraded as missing features.
+
+### Run the CI gates before you commit or push (required)
+
+`./scripts/ci.sh` runs, in CI's order: `gofmt -l`, `go build`, `go vet`,
+`go test -race`, `golangci-lint` (version-pinned to the workflow), and the
+review-flow smoke test. **A change is not ready to commit until this is green**,
+and never push on the assumption CI will catch it.
+
+- `go test ./...` alone is **not** enough. It misses three gates that have each
+  caught real defects here: `-race`, `golangci-lint` (two unchecked `Close`
+  errors), and the smoke test (a `zone: human` bypass, and a scan that died on
+  an unreadable directory).
+- `SKIP_LINT=1` exists for a fast inner loop only. It prints a loud skip notice;
+  a run with lint skipped does not count as green.
+- CI and the smoke test share one script (`scripts/smoke-test.sh`) on purpose.
+  Do not inline a second copy into the workflow — duplicated definitions in this
+  repo have gone stale every time (see the MCP tool banner in Design Decision 8).
+- If a gate is failing for a reason you believe is unrelated to your change,
+  find out why before pushing rather than assuming; both CI failures on this
+  repo that looked environmental turned out to be genuine bugs.
 
 Command surface: run `./comments` with no args for full usage. The core review-loop commands:
 
