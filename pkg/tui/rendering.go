@@ -629,9 +629,9 @@ func (m *Model) renderComments() string {
 
 			if expanded {
 				wrapWidth := m.sidebarWrapWidth()
-				text := fmt.Sprintf("  %s@%s%s%s · %s · %s\n%s",
-					resolvedMark, c.Author, threadMarkers(c), newBadge,
-					c.Timestamp.Format("2006-01-02 15:04"), c.ID,
+				text := fmt.Sprintf("  %s%s @%s%s%s · %s\n%s",
+					resolvedMark, c.ID, c.Author, threadMarkers(c), newBadge,
+					c.Timestamp.Format("2006-01-02 15:04"),
 					indentWrap(c.Text, wrapWidth, "  "))
 				rendered.WriteString(style.Render(text))
 				rendered.WriteString("\n")

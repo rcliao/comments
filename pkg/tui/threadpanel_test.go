@@ -583,9 +583,9 @@ func TestThreadIDVisibleInPanelAndSidebar(t *testing.T) {
 	if got := frame(m); !strings.Contains(got, "c1 · Thread at") {
 		t.Errorf("panel header should lead with the thread ID:\n%s", got)
 	}
-	// Sidebar rows carry the ID in both densities
-	if got := m.renderComments(); !strings.Contains(got, "c1") {
-		t.Errorf("sidebar (full) should show the thread ID:\n%s", got)
+	// Sidebar rows lead with the ID in both densities (same order everywhere)
+	if got := m.renderComments(); !strings.Contains(got, "c1 @rcliao") {
+		t.Errorf("sidebar (full) should lead the row with the thread ID:\n%s", got)
 	}
 	m.sidebarDensity = densityCondensed
 	if got := m.renderComments(); !strings.Contains(got, "c1 @rcliao") {
