@@ -109,6 +109,12 @@ type SeedTarget struct {
 }
 
 func (t *Template) markerPrefix() string {
+	return t.MarkerPrefix()
+}
+
+// MarkerPrefix is the ambiguity-marker opener this template recognizes, so
+// callers rendering the brief show the same string validate enforces.
+func (t *Template) MarkerPrefix() string {
 	if t.Markers.NeedsClarification != "" {
 		return t.Markers.NeedsClarification
 	}

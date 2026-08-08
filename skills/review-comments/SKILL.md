@@ -105,8 +105,11 @@ small changes, or a project template):
    under the template's marker cap: spend markers on the few questions that
    genuinely need the human (scope > security > UX > technical detail), make
    informed decisions on the rest, and record those as assumptions in the doc.
-2. **After drafting**, self-correct structure until clean:
-   `comments validate <doc.md> --template <name>` (exit 0 = conforms).
+2. **After drafting**, self-correct until `comments validate <doc.md> --template <name>`
+   reports **no structural violations**. It separates the two kinds: structural
+   defects are yours to fix, and intentional `[NEEDS CLARIFICATION]` markers are
+   listed as expected and left for the human. A doc that deliberately carries a
+   marker still exits non-zero, so read the report, not the exit code.
 3. **Self-review, then post SPECIFIC callouts** — never dump the template's
    generic criteria on the human. For each template criterion, judge your own
    draft against it and post a comment about what YOU actually did, anchored at
