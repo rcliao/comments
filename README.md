@@ -16,7 +16,8 @@ Google-Docs-style review for markdown, in the terminal. Inline comment threads a
 - **Doc templates as guardrails**: required sections, word caps, forced alternatives, human-owned zones, `[NEEDS CLARIFICATION:]` marker caps — built-ins: `design-doc`, `mini`, `research`, `plan`, `adr`, `rfc`
 - **RPI flow**: research docs with file:line evidence → plans citing the research → reviewed in the TUI where `f` peeks any citation and Enter opens `$EDITOR` there
 - **Watch**: `comments watch --until signoff` streams NDJSON review events so agents can wait on humans
-- **MCP server**: 19 tools over stdio for agent integration; batch operations; `@filename` text input
+- **MCP server**: 20 tools over stdio for agent integration; batch operations; `@filename` text input
+- **Surface parity**: every MCP tool has a CLI equivalent backed by the same code — see `docs/ARCHITECTURE.md` decision 8
 
 ## Install
 

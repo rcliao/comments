@@ -37,11 +37,13 @@ func serveMCPCommand() error {
 	log.Println("  - comments://doc/{filepath}")
 	log.Println("  - comments://thread/{filepath}/{thread_id}")
 	log.Println("")
-	log.Println("Available tools:")
-	log.Println("  Read: comments_list, comments_get, comments_status")
-	log.Println("  Write: comments_add, comments_reply, comments_resolve")
-	log.Println("  Suggestions: comments_suggest, comments_accept, comments_reject")
-	log.Println("  Batch: comments_batch_add, comments_batch_reply")
+	// Printed from the registration list itself — a hand-maintained banner had
+	// already drifted several tools behind reality.
+	names := server.ToolNames()
+	log.Printf("Available tools (%d):", len(names))
+	for _, name := range names {
+		log.Printf("  %s", name)
+	}
 	log.Println("")
 
 	if err := server.Serve(ctx); err != nil {

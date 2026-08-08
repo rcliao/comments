@@ -138,11 +138,17 @@ type Comment struct {
 ```
 
 **Comment Types:**
-- `Q` - Question: Requests clarification
-- `S` - Suggestion: Proposes a change
-- `B` - Bug: Identifies an issue
-- `T` - TODO: Marks something to be done
-- `E` - Enhancement: Suggests a feature
+- `Q` ❓ Question: Requests clarification
+- `S` 💡 Suggestion: Proposes a change
+- `B` 🐛 Bug: Identifies an issue
+- `T` 📌 TODO: Marks something to be done
+- `E` ✨ Enhancement: Suggests a feature
+
+The type is stored as a leading `[X]` marker inside the comment text, not as a
+separate wire field. `comment.DecorateType` prefixes the emoji at display time
+on every surface, leaving the stored text (and therefore `--type` filters and
+existing sidecars) untouched. Decoration is idempotent: the emoji displaces the
+bracket, so a second pass is a no-op.
 
 #### DocumentWithComments (pkg/comment/types.go)
 
@@ -376,6 +382,38 @@ GetSectionAtLine(structure *DocumentStructure, line int) *Section
 **Rationale:** Better for long comments/suggestions, esp. for LLM agents
 **Trade-off:** Extra file I/O, but improves usability
 
+### 8. Surface Parity: logic lives in pkg/comment
+**Decision:** Every behavior is implemented in `pkg/comment` and called by the
+CLI, the TUI and the MCP server. Adapters (`cmd/comments/`, `pkg/mcp/`) only
+translate arguments and format output — they never hold logic.
+
+**Rationale:** `reanchor`, `inbox` and the `zone: human` guard were originally
+written inside `pkg/mcp`. The CLI structurally could not reach them, so three
+capabilities existed over MCP and silently did not exist on the CLI — while
+`SKILL.md` told agents the two surfaces were equivalent. Worse, the zone guard
+keyed on the *surface* (MCP meant agent, CLI meant human), so an agent driving
+the CLI walked straight around a guardrail.
+
+**Trade-off:** Adapter code gets thinner but a little more repetitive; adding a
+feature means touching `pkg/comment` plus both adapters. That cost is the point
+— it makes an MCP-only feature a deliberate act rather than an accident.
+
+**Rule of thumb:** if a function in `pkg/mcp/` or `cmd/comments/` does anything
+beyond parsing input and printing output, it is in the wrong package.
+
+### 9. Actor Model for Human-Zone Enforcement
+**Decision:** `comment.ResolveActor` decides whether the caller is a human or
+an agent: `COMMENTS_ACTOR=human|agent` wins, otherwise a TTY means human and a
+piped stream means agent. `GuardZoneResolve` then refuses agent resolves of
+threads in `zone: human` sections, on every surface.
+
+**Rationale:** Zones reserve decisions for the human, so the guard has to know
+who is calling. Surface is a poor proxy now that agents drive the CLI.
+
+**Trade-off:** TTY detection is a heuristic — a human piping output is treated
+as an agent — so the env var exists as the explicit override. The TUI is always
+human by construction and never consults the heuristic.
+
 ## CLI Commands
 
 ### Core Commands
@@ -394,8 +432,23 @@ GetSectionAtLine(structure *DocumentStructure, line int) *Section
 
 ### Batch Commands (for LLM agents)
 
-- `batch-add <file>` - Bulk add comments from JSON (--json)
+- `batch-add <file>` - Bulk add comments from JSON (--json); target each comment
+  with one of `line`, `section` or `anchor`
 - `batch-reply <file>` - Bulk reply to threads from JSON (--json)
+- `batch-accept <file>` - Bulk accept suggestions (--json / --author / --type)
+
+### Review-State Commands
+
+- `status <file>` - Thread, suggestion and orphan counts
+- `inbox <file-or-dir>` - New replies plus unresolved blocking threads (--since)
+- `gate <file-or-dir>` - Review gate; exit 0 approved, 10 changes requested
+- `check-review <file>` - Non-blocking poll for a signoff after `--since`
+- `watch <file-or-dir>` - Blocking NDJSON event stream (`--until signoff`)
+- `signoff <file>` - Record a review pass non-interactively
+- `reanchor <file>` - Migrate anchors displaced by an edit
+
+Every command above has a matching MCP tool backed by the same `pkg/comment`
+function (see Design Decision 8).
 
 ## Testing Strategy
 

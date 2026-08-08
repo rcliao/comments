@@ -92,6 +92,7 @@ func TestServerRegistersAllTools(t *testing.T) {
 	expected := []string{
 		"comments_list", "comments_get", "comments_status", "comments_add",
 		"comments_reply", "comments_resolve", "comments_suggest", "comments_accept",
+		"comments_batch_accept",
 		"comments_reject", "comments_batch_add", "comments_batch_reply",
 		"comments_gate", "comments_request_review", "comments_check_review",
 		"comments_inbox",
@@ -109,6 +110,18 @@ func TestServerRegistersAllTools(t *testing.T) {
 	}
 	if len(result.Tools) != len(expected) {
 		t.Errorf("expected %d tools, got %d", len(expected), len(result.Tools))
+	}
+
+	// ToolNames feeds the serve-mcp startup banner; pin it to what is actually
+	// registered so the banner can never drift behind again.
+	reported := NewServer().ToolNames()
+	if len(reported) != len(result.Tools) {
+		t.Errorf("ToolNames reports %d tools, server registered %d", len(reported), len(result.Tools))
+	}
+	for _, name := range reported {
+		if !names[name] {
+			t.Errorf("ToolNames reports %s, which is not registered", name)
+		}
 	}
 }
 

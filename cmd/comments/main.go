@@ -910,8 +910,15 @@ Commands:
   resolve <file> [flags]      Mark a thread as resolved
   suggest <file> [flags]      Add an edit suggestion to a specific line
   accept <file> [flags]       Accept a suggestion and apply changes
+  batch-accept <file> [flags] Accept several suggestions by ID, author or type
   reject <file> [flags]       Reject a suggestion
+  reanchor <file> [flags]     Migrate anchors your edits displaced (run after editing
+                              a commented document; the load-time cascade is the net)
+  status <file> [flags]       Thread/suggestion/orphan counts for a document
+  inbox <file-or-dir> [flags] What needs attention: new replies + unresolved blockers
   gate <file-or-dir> [flags]  Evaluate review gate (exit 0 = approved, 10 = changes requested)
+  check-review <file> [flags] Poll for a signoff landed after --since (non-blocking
+                              counterpart to 'watch --until signoff')
   signoff <file> [flags]      Record a review pass non-interactively (view's verdict
                               already records one; use this for CI/scripts/--note)
   template list|show <name>   List or inspect doc templates (guardrails for agent-written docs)
@@ -1008,10 +1015,28 @@ Reject Command Flags:
   --suggestion <id>           Suggestion ID (required)
 
 Batch-Accept Command Flags:
-  --json <file|->             JSON file path or '-' for stdin (suggestion IDs)
-  --author <name>             Accept all suggestions from this author
-  --type <type>               Accept all suggestions of this type
-  --check-conflicts           Check for conflicts before accepting (default: true)
+  --json <file|->             JSON file path or '-' for stdin: ["c7f3k", "c9b21"]
+  --author <name>             Accept all pending suggestions from this author
+  --type <type>               Accept all pending suggestions of this type
+
+Reanchor Command Flags:
+  --comment <id>              Comment to move (or use --json for a batch)
+  --line <number>             New line number
+  --section <path>            New section path (used when --line is absent)
+  --json <file|->             Batch of moves as JSON
+  --json-out                  Machine-readable results
+
+Inbox Command Flags:
+  --since <RFC3339>           Only threads with replies newer than this
+  --json                      Machine-readable output
+
+Status Command Flags:
+  --json                      Machine-readable output
+
+Check-Review Command Flags:
+  --since <RFC3339>           Check for signoffs after this time (required)
+  --strict                    Fail on any unresolved comment or pending suggestion
+  --json                      Machine-readable output
 
 Examples:
   # Interactive mode
@@ -1068,18 +1093,33 @@ Examples:
   comments list document.md --status active --priority high # Active high-priority items
 
 Batch-Add JSON Format:
+  Target a comment with exactly ONE of "line", "section" or "anchor".
+  Prefer "anchor" — quote the target line and skip grepping for line numbers.
   [
     {
-      "line": 10,
-      "author": "alice",       // Required
+      "anchor": "the exact line this comment is about",
+      "author": "claude",      // Required
       "text": "Add examples",
-      "type": "S"              // Optional: Q, S, B, T, E
+      "type": "S",             // Optional: Q, S, B, T, E
+      "priority": "high",      // Optional: low, medium, high
+      "blocking": true         // Optional: gate fails until resolved
     },
     {
       "line": 25,
       "author": "bob",         // Required
       "text": "Great point!"
+    },
+    {
+      "section": "Implementation > Architecture",
+      "author": "alice",       // Required
+      "text": "Cite the research here"
     }
+  ]
+
+Reanchor JSON Format (moves array):
+  [
+    {"comment_id": "c7f3k", "line": 42},
+    {"comment_id": "c9b21", "section": "Proposed Design"}
   ]
 
 Batch-Reply JSON Format:

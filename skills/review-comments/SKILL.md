@@ -12,7 +12,12 @@ a time** — never batch-dismiss feedback.
 ## Prerequisites
 
 The `comments` binary must be on PATH, or the `comments` MCP server connected
-(`comments serve-mcp`). CLI and MCP tools are equivalent; examples below show CLI.
+(`comments serve-mcp`). Every MCP tool has a CLI equivalent backed by the same
+code, so the two are genuinely interchangeable; examples below show CLI.
+
+Threads in a template's `zone: human` sections cannot be resolved by you on
+either surface — the CLI detects an agent caller by the absence of a TTY. Reply
+with your input and leave the resolve to the human.
 
 ## The loop
 
@@ -141,8 +146,13 @@ changed, and let the human resolve.
 ## After editing a document that has comments (required)
 
 You know exactly how your edits moved text — the tool doesn't. After ANY edit
-to a commented document, migrate the anchors your edits displaced by calling
-`comments_reanchor` (MCP) with the batch of moves:
+to a commented document, migrate the anchors your edits displaced with
+`comments_reanchor` (MCP) or `comments reanchor` (CLI):
+
+```bash
+comments reanchor doc.md --comment c7f3k --line 42
+comments reanchor doc.md --json moves.json   # batch
+```
 
 ```json
 {"filepath": "doc.md", "moves": [
@@ -150,6 +160,9 @@ to a commented document, migrate the anchors your edits displaced by calling
   {"comment_id": "c9b21", "section": "Proposed Design"}
 ]}
 ```
+
+Check your work with `comments status <doc>` — a non-zero orphan count means
+an anchor you displaced still needs migrating.
 
 Only list comments whose target text you moved, rewrote, or deleted-and-replaced;
 untouched comments keep their anchors. The load-time re-anchor cascade is a

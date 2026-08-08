@@ -63,7 +63,7 @@ The gate turns review state into a machine-readable contract for agent loops and
 
 ### Model Context Protocol (MCP) Integration
 
-`./comments serve-mcp` runs an MCP server over stdio: 2 subscribable resources (`comments://doc/{filepath}`, `comments://thread/{filepath}/{thread_id}`) and 19 tools mirroring the CLI (list/get/status, add/reply/resolve, suggest/accept/reject, batch ops, gate/request_review/check_review, inbox, template get/validate/seed, reanchor). The tool catalog with schemas lives in `pkg/mcp/server.go`. Notable semantics:
+`./comments serve-mcp` runs an MCP server over stdio: 2 subscribable resources (`comments://doc/{filepath}`, `comments://thread/{filepath}/{thread_id}`) and 20 tools mirroring the CLI (list/get/status, add/reply/resolve, suggest/accept/reject, batch ops, gate/request_review/check_review, inbox, template get/validate/seed, reanchor). The tool catalog with schemas lives in `pkg/mcp/server.go`. Notable semantics:
 
 - **comments_request_review** — default blocks until a human signoff, then returns the decision + remaining comments. With `blocking: false` returns `{status: "requested", since: <RFC3339>}` — a durable handle polled via **comments_check_review** (survives agent restarts).
 - **comments_inbox** — one-call attention view: unresolved threads with replies newer than `since`, plus all unresolved blocking threads.

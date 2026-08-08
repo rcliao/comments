@@ -343,20 +343,7 @@ func batchAcceptCommand(filename string, args []string) error {
 			return failf("Error parsing JSON: %v\nExpected format: [\"c7f3k\", \"c9b21\"]", err)
 		}
 	} else {
-		for _, c := range doc.GetAllComments() {
-			if !c.IsSuggestion || c.Accepted != nil {
-				continue
-			}
-			if *author != "" && c.Author != *author {
-				continue
-			}
-			if *typeFilter != "" {
-				if t, ok := comment.LeadingType(c.Text); !ok || t != *typeFilter {
-					continue
-				}
-			}
-			ids = append(ids, c.ID)
-		}
+		ids = comment.SelectPendingSuggestions(doc, *author, *typeFilter)
 	}
 
 	if len(ids) == 0 {
@@ -364,17 +351,15 @@ func batchAcceptCommand(filename string, args []string) error {
 		return nil
 	}
 
-	// ApplyAndAcceptSuggestion shifts the lines of comments the edit displaced,
-	// so applying sequentially keeps the remaining ranges valid.
 	accepted, skipped := 0, 0
-	for _, id := range ids {
-		if _, err := comment.ApplyAndAcceptSuggestion(doc, id); err != nil {
-			fmt.Printf("  ✗ %s: %v\n", id, err)
+	for _, r := range comment.AcceptSuggestions(doc, ids) {
+		if r.Accepted {
+			fmt.Printf("  ✓ %s accepted\n", r.ID)
+			accepted++
+		} else {
+			fmt.Printf("  ✗ %s: %s\n", r.ID, r.Error)
 			skipped++
-			continue
 		}
-		fmt.Printf("  ✓ %s accepted\n", id)
-		accepted++
 	}
 
 	// Accept is a content-changing path, so the markdown is written too
