@@ -98,6 +98,16 @@ with your input and leave the resolve to the human.
 When drafting a new document under a template (design-doc, adr, rfc, mini for
 small changes, or a project template):
 
+0. **Decompose the question first.** Where a template asks for enumerated
+   sub-questions (`Q1.`, `Q2.`, ...), write them before drafting and tag each
+   finding with the clause it answers (`### F1 — the cascade [Q1]`). This is not
+   bookkeeping: a three-clause question written as prose produced a document
+   answering two of them, and it passed every other check — word caps, citations,
+   tone — because conformance says nothing about omission. Decomposing also
+   improves the investigation, since each clause is searched for separately.
+   Answer a "what would it take" clause as what is currently ABSENT; designing
+   past it is the plan phase's job.
+
 1. **Before writing**, read the template as your writing brief:
    `comments template show <name>` (CLI) or `comments_get_template` (MCP).
    Respect section order, word budgets, and use `[NEEDS CLARIFICATION: ...]`
@@ -105,8 +115,11 @@ small changes, or a project template):
    under the template's marker cap: spend markers on the few questions that
    genuinely need the human (scope > security > UX > technical detail), make
    informed decisions on the rest, and record those as assumptions in the doc.
-2. **After drafting**, self-correct structure until clean:
-   `comments validate <doc.md> --template <name>` (exit 0 = conforms).
+2. **After drafting**, self-correct until `comments validate <doc.md> --template <name>`
+   reports **no structural violations**. It separates the two kinds: structural
+   defects are yours to fix, and intentional `[NEEDS CLARIFICATION]` markers are
+   listed as expected and left for the human. A doc that deliberately carries a
+   marker still exits non-zero, so read the report, not the exit code.
 3. **Self-review, then post SPECIFIC callouts** — never dump the template's
    generic criteria on the human. For each template criterion, judge your own
    draft against it and post a comment about what YOU actually did, anchored at

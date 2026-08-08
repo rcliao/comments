@@ -58,8 +58,26 @@ func templateCommand(args []string) error {
 			if s.MaxWords > 0 {
 				flags = append(flags, fmt.Sprintf("max %d words", s.MaxWords))
 			}
-			if s.MinSubsections > 0 {
+			// Subsection bounds belong in the brief, not only in the validator:
+			// an agent cannot follow a cap it is never shown, and a rule that
+			// only surfaces as a late violation gets satisfied by trimming
+			// rather than by writing tighter in the first place.
+			switch {
+			case s.MinSubsections > 0 && s.MaxSubsections > 0:
+				flags = append(flags, fmt.Sprintf("%d-%d subsections", s.MinSubsections, s.MaxSubsections))
+			case s.MinSubsections > 0:
 				flags = append(flags, fmt.Sprintf(">=%d subsections", s.MinSubsections))
+			case s.MaxSubsections > 0:
+				flags = append(flags, fmt.Sprintf("<=%d subsections", s.MaxSubsections))
+			}
+			if s.MaxSubsectionWords > 0 {
+				flags = append(flags, fmt.Sprintf("max %d words each", s.MaxSubsectionWords))
+			}
+			if s.EnumeratesQuestions {
+				flags = append(flags, "enumerate sub-questions Q1., Q2., ...")
+			}
+			if s.AnswersQuestions {
+				flags = append(flags, "tag each subsection [Q1]")
 			}
 			if s.Zone != "" {
 				flags = append(flags, "zone: "+s.Zone)
@@ -72,6 +90,15 @@ func templateCommand(args []string) error {
 			for _, c := range s.ReviewCriteria {
 				fmt.Printf("     ✓ %s\n", c)
 			}
+		}
+
+		// The marker budget is enforced by validate but was invisible here, so
+		// agents guessed at it. Spend markers on what genuinely needs the human.
+		if t.Markers.Max > 0 {
+			fmt.Printf("\nAmbiguity markers: at most %d %s ...] per document.\n",
+				t.Markers.Max, t.MarkerPrefix())
+			fmt.Println("  Each marker is reported by validate and seeded as a blocking thread;")
+			fmt.Println("  decide the rest yourself and record them as assumptions in the doc.")
 		}
 
 	default:
@@ -108,12 +135,40 @@ func validateCommand(filename string, args []string) error {
 		encoded, _ := json.MarshalIndent(payload, "", "  ")
 		fmt.Println(string(encoded))
 	} else {
-		if len(violations) == 0 {
+		// Markers are deliberate: an agent flags an ambiguity it refuses to
+		// guess at, and seed turns each into a blocking thread. Lumping them in
+		// with structural defects made "validate until it is clean" unreachable
+		// for any doc that uses one — two independent drafting agents read the
+		// same output and could not tell which violations they were meant to fix.
+		var structural, markers []comment.Violation
+		for _, v := range violations {
+			if v.Rule == "unresolved_marker" || v.Rule == "too_many_markers" {
+				markers = append(markers, v)
+			} else {
+				structural = append(structural, v)
+			}
+		}
+
+		switch {
+		case len(violations) == 0:
 			fmt.Printf("✓ %s conforms to template %q\n", filename, t.Name)
-		} else {
-			fmt.Printf("✗ %s has %d violation(s) against template %q:\n\n", filename, len(violations), t.Name)
-			for _, v := range violations {
+		case len(structural) == 0:
+			fmt.Printf("✓ %s conforms to template %q — structure is clean\n\n", filename, t.Name)
+			fmt.Printf("%d intentional marker(s), each becomes a blocking review thread:\n", len(markers))
+			for _, v := range markers {
 				fmt.Printf("  [%s] %s\n", v.Rule, v.Message)
+			}
+			fmt.Printf("\nSeed them with: comments seed %s --template %s --markers-only\n", filename, t.Name)
+		default:
+			fmt.Printf("✗ %s has %d structural violation(s) against template %q — fix these:\n\n", filename, len(structural), t.Name)
+			for _, v := range structural {
+				fmt.Printf("  [%s] %s\n", v.Rule, v.Message)
+			}
+			if len(markers) > 0 {
+				fmt.Printf("\n%d intentional marker(s), expected — leave them for the human:\n", len(markers))
+				for _, v := range markers {
+					fmt.Printf("  [%s] %s\n", v.Rule, v.Message)
+				}
 			}
 		}
 		// Per-section counts on success AND failure: trimming is informed,

@@ -8,7 +8,9 @@ sections:
     required: true
     max_words: 100
     zone: human
+    enumerates_questions: true
     review_criteria:
+      - "Is every clause of the question its own numbered sub-question (Q1., Q2., ...)? A clause left inside prose is a clause nothing checks for an answer."
       - "Is the question specific enough that the Summary can answer it in a few sentences?"
   - heading: "Summary"
     required: true
@@ -17,13 +19,15 @@ sections:
       - "Does the Summary actually answer the Research Question, readable on its own?"
   - heading: "Findings"
     required: true
+    answers_questions: true
     min_subsections: 2
     max_subsections: 6
     max_subsection_words: 120
     max_words: 450
     review_criteria:
+      - "Does each finding tag the sub-question it answers, e.g. \"### F1 — the cascade [Q1]\"?"
       - "Does each finding carry file:line or source evidence a reviewer can peek (f) or follow?"
-      - "Is the tone documentarian — describing what IS, without prescribing what to build?"
+      - "Is the tone documentarian — describing what IS, without prescribing what to build? A \"what would it take\" sub-question is answered as what is currently ABSENT — name the ceiling and cite where it was decided; the plan phase designs past it."
       - "Does each finding lead with the fact, and would it still read as ONE finding after the next revision? Answering a review comment by growing a finding past its cap means rewriting it, not appending to it."
   - heading: "Code References"
     required: true
