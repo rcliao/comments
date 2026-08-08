@@ -143,6 +143,42 @@ human. Seeded criteria threads answer questions about the human's judgment of
 your writing; address the underlying issue in the doc, reply with what you
 changed, and let the human resolve.
 
+## Revising under review: rewrite, don't append (required)
+
+Review feedback tends to be answered by adding — a clarifying sentence, a caveat,
+a new subsection. Each addition is locally reasonable and the document gets worse:
+it stops reading like something written once and starts reading like a transcript
+of its own review. Measured across this repo's shipped RPI artifacts, half went
+out over their word caps, and the overflow was always in the body section
+(`Findings`, `Implementation Phases`) — never in the framing sections.
+
+So when you address a comment:
+
+- **Rewrite the passage it concerns.** The reviewer's point should be
+  indistinguishable from the original argument once you are done. If a reader
+  can tell which sentences were added in response to review, revise again.
+- **Budget is a forcing function, not a limit to creep up to.** A section at
+  90% of its cap has no room for the next round; make room by cutting what the
+  new material replaces, in the same edit.
+- **Never trim a different section to fit.** `comments validate` names the
+  offending subsection precisely so the fix is local. Trimming elsewhere is how
+  padding survives and cohesion dies.
+- **Never split a finding or phase to dodge a word cap.** Templates cap
+  subsection COUNT as well as size for exactly this reason. Two thin findings
+  are worse than one dense one.
+- **Deleting is a valid response to feedback.** If a comment reveals a passage
+  is unnecessary, cut it and say so in the reply. A shorter doc after a review
+  round is a good outcome, not a suspicious one.
+
+Re-run `comments validate <doc> --template <name>` after processing feedback.
+Treat any `subsection_over_length` or `max_subsections` violation as a rewrite
+instruction, not a trimming exercise.
+
+**Reply to the thread you are answering.** When replying in bulk, copy each
+thread ID from the tool output rather than reconstructing it from memory —
+sibling threads anchored at the same line are easy to cross, and a reply that
+answers a different thread is invisible to the gate and confusing to the human.
+
 ## After editing a document that has comments (required)
 
 You know exactly how your edits moved text — the tool doesn't. After ANY edit

@@ -26,6 +26,9 @@ type gateFileJSON struct {
 	Template           string                `json:"template,omitempty"`
 	Violations         []comment.Violation   `json:"violations,omitempty"`
 	LastReview         *comment.ReviewRecord `json:"last_review,omitempty"`
+	// StructureUnchecked marks a commented doc with no template recorded: the
+	// gate checked comment state only, so a silent pass is not a structural pass.
+	StructureUnchecked bool `json:"structure_unchecked,omitempty"`
 }
 
 type gateOutputJSON struct {
@@ -93,6 +96,12 @@ func gateCommand(target string, args []string) error {
 			if len(fileJSON.Violations) > 0 {
 				fileJSON.Decision = comment.DecisionChangesRequested
 			}
+		} else if len(doc.Threads) > 0 {
+			// A doc with no recorded template passes the structural half of the
+			// gate by default, which reads identically to passing it on merit.
+			// Shipped RPI artifacts have gone out hundreds of words over their
+			// caps this way, so say it out loud.
+			fileJSON.StructureUnchecked = true
 		}
 		output.Files = append(output.Files, fileJSON)
 		output.Summary.Blocking += len(result.Blocking)
@@ -177,6 +186,17 @@ func toGateJSON(comments []*comment.Comment, docContent string, contextSize int)
 	return out
 }
 
+// printStructureUnchecked names docs whose structure the gate never checked, so
+// an approval cannot be mistaken for a structural pass.
+func printStructureUnchecked(output gateOutputJSON) {
+	for _, file := range output.Files {
+		if file.StructureUnchecked {
+			fmt.Printf("  ⚠ %s: structure unchecked — no template recorded.\n"+
+				"    Record one with: comments seed %s --template <name> --markers-only\n", file.File, file.File)
+		}
+	}
+}
+
 func printGateText(output gateOutputJSON) {
 	if output.Decision == comment.DecisionApproved {
 		fmt.Printf("✓ Gate passed: approved (%d file(s) checked)\n", len(output.Files))
@@ -184,6 +204,7 @@ func printGateText(output gateOutputJSON) {
 			fmt.Printf("  Note: %d non-blocking comment(s) and %d pending suggestion(s) remain\n",
 				output.Summary.NonBlocking, output.Summary.PendingSuggestions)
 		}
+		printStructureUnchecked(output)
 		return
 	}
 
@@ -206,6 +227,7 @@ func printGateText(output gateOutputJSON) {
 			printGateComments("pending suggestion", file.PendingSuggestions)
 		}
 	}
+	printStructureUnchecked(output)
 	fmt.Printf("Resolve blocking comments (comments resolve/reply) then re-run gate. Exit code %d.\n", comment.GateExitCode)
 }
 

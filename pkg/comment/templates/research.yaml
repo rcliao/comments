@@ -18,11 +18,13 @@ sections:
   - heading: "Findings"
     required: true
     min_subsections: 2
+    max_subsections: 6
+    max_subsection_words: 120
     max_words: 450
     review_criteria:
       - "Does each finding carry file:line or source evidence a reviewer can peek (f) or follow?"
       - "Is the tone documentarian — describing what IS, without prescribing what to build?"
-      - "Does each finding lead with the fact? A finding past ~100 words is usually two findings or padding."
+      - "Does each finding lead with the fact, and would it still read as ONE finding after the next revision? Answering a review comment by growing a finding past its cap means rewriting it, not appending to it."
   - heading: "Code References"
     required: true
     max_words: 60
