@@ -592,3 +592,15 @@ func TestThreadIDVisibleInPanelAndSidebar(t *testing.T) {
 		t.Errorf("sidebar (condensed) should lead rows with the ID:\n%s", got)
 	}
 }
+
+// shift+enter inserts a newline like enter: enhanced-keyboard terminals
+// deliver it as a distinct key the default binding would drop.
+func TestShiftEnterInsertsNewlineInComposer(t *testing.T) {
+	m := drive(t, openThreadAtLine5(t, panelTestModel(t)), keyMsg("r"))
+	m = drive(t, m, keyMsg("a"),
+		tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift},
+		keyMsg("b"))
+	if got := m.replyInput.Value(); got != "a\nb" {
+		t.Errorf("shift+enter should insert a newline, got %q", got)
+	}
+}

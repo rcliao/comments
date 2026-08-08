@@ -108,14 +108,17 @@ func NewModel() Model {
 	ta := textarea.New()
 	ta.Placeholder = "Enter your comment..."
 	ta.Focus()
+	bindShiftEnterNewline(&ta)
 
 	proposedTA := textarea.New()
 	proposedTA.Placeholder = "Enter proposed text (edit the pre-filled original)..."
+	bindShiftEnterNewline(&proposedTA)
 
 	noteTA := textarea.New()
 	noteTA.Placeholder = "Optional note for the agent reading this review..."
 	noteTA.SetHeight(verdictNoteRows)
 	noteTA.ShowLineNumbers = false
+	bindShiftEnterNewline(&noteTA)
 
 	replyTA := newReplyTextarea()
 
@@ -148,14 +151,17 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 	ta := textarea.New()
 	ta.Placeholder = "Enter your comment..."
 	ta.Focus()
+	bindShiftEnterNewline(&ta)
 
 	proposedTA := textarea.New()
 	proposedTA.Placeholder = "Enter proposed text (edit the pre-filled original)..."
+	bindShiftEnterNewline(&proposedTA)
 
 	noteTA := textarea.New()
 	noteTA.Placeholder = "Optional note for the agent reading this review..."
 	noteTA.SetHeight(verdictNoteRows)
 	noteTA.ShowLineNumbers = false
+	bindShiftEnterNewline(&noteTA)
 
 	replyTA := newReplyTextarea()
 

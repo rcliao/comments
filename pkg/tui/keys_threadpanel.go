@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textarea"
 	lipgloss "charm.land/lipgloss/v2"
 )
@@ -55,7 +56,18 @@ func newReplyTextarea() textarea.Model {
 	ta.MinHeight = composerMinRows
 	ta.MaxContentHeight = composerMaxContentRows
 	ta.SetHeight(composerMinRows)
+	bindShiftEnterNewline(&ta)
 	return ta
+}
+
+// bindShiftEnterNewline adds shift+enter as a newline key alongside enter:
+// terminals speaking the enhanced keyboard protocol deliver shift+enter as
+// its own key, which the default binding would silently drop.
+func bindShiftEnterNewline(ta *textarea.Model) {
+	ta.KeyMap.InsertNewline = key.NewBinding(
+		key.WithKeys("enter", "ctrl+m", "shift+enter"),
+		key.WithHelp("enter", "insert newline"),
+	)
 }
 
 // panelLayout is the outer geometry of the thread panel on the screen.
