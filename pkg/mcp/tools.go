@@ -370,8 +370,13 @@ func (s *Server) handleAccept(ctx context.Context, req *mcp.CallToolRequest, arg
 		}
 
 		// Apply, mark accepted, and shift displaced lines; withDocSave persists
+		// the sidecar, but the changed CONTENT needs its own write — accept is
+		// the one comment operation that edits the markdown
 		if _, err := comment.ApplyAndAcceptSuggestion(doc, args.SuggestionID); err != nil {
 			return nil, fmt.Errorf("failed to accept suggestion: %w", err)
+		}
+		if err := comment.SaveDocumentContent(absPath, doc); err != nil {
+			return nil, fmt.Errorf("failed to write document: %w", err)
 		}
 
 		return map[string]any{

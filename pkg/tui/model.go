@@ -439,6 +439,47 @@ func (m *Model) saveDocument() error {
 	return nil
 }
 
+// refreshDocFromDisk reloads document + threads from disk before a mutation,
+// so a TUI session that has been open a while doesn't clobber comments or
+// content written meanwhile by an agent (CLI/MCP write to the same files; the
+// sidecar save rewrites the whole file from memory). Mutations become
+// last-writer-wins per action instead of per session. The selected thread is
+// re-found by ID; a missing file or ID leaves current state untouched.
+func (m *Model) refreshDocFromDisk() {
+	if m.filename == "" || m.doc == nil {
+		return
+	}
+	// No sidecar on disk means nothing external could have written threads —
+	// refreshing would replace real in-memory state with an empty load
+	// (models constructed directly, brand-new docs)
+	if _, err := os.Stat(comment.GetSidecarPath(m.filename)); err != nil {
+		return
+	}
+	fresh, _, err := comment.LoadFromSidecar(m.filename)
+	if err != nil || fresh == nil {
+		return
+	}
+	selectedID := ""
+	if m.selectedThread != nil {
+		selectedID = m.selectedThread.ID
+	}
+	contentChanged := fresh.Content != m.doc.Content
+	m.doc = fresh
+	if selectedID != "" {
+		if c := fresh.FindCommentByID(selectedID); c != nil {
+			m.selectedThread = c
+		}
+	}
+	if contentChanged {
+		// Re-derive everything positioned against the old content
+		m.documentSections = markdown.ParseDocument(fresh.Content)
+		m.refsByLine = buildRefMap(fresh.Content, m.filename)
+		m.refreshDocumentPane()
+	}
+	m.clampSelectedComment(len(m.visibleComments()))
+	m.commentViewport.SetContent(m.renderComments())
+}
+
 // View renders the UI based on current mode. Bubbletea v2 returns a tea.View
 // struct; the alt-screen flag lives here now instead of a program option.
 func (m Model) View() tea.View {

@@ -52,10 +52,13 @@ The gate turns review state into a machine-readable contract for agent loops and
 - **Blocking comments**: `--blocking` on `add` (or `"blocking": true` in batch/MCP) marks a thread as gate-failing until resolved. Non-blocking comments are reported but don't fail the gate.
 - **`comments gate <file-or-dir>`**: exit 0 = approved, exit 10 = changes requested (revdiff/Plannotator convention). `--json` emits `{"decision", "files", "summary"}` with blocking/non-blocking/pending-suggestion lists and document context. `--strict` fails on any unresolved thread or pending suggestion.
 - **Signoff** — a review pass recorded in the sidecar's `reviews` array (author, decision, optional note). There are **two equivalent writers**, and every consumer (`request_review`, `check_review`, `watch --until signoff`) keys on the record, not on who wrote it:
-  - `comments view <file>` → `q` → `a`/`c`, with `n` for the note. Also applies the queued suggestion decisions and exits 0/10, so the TUI doubles as the interactive gate. **A human who reviewed in the TUI has already signed off — do not also ask them to run `comments signoff`** (it would append a second record).
+  - `comments view <file>` → `q` → `a`/`c`/`r`, with `n` for the note. `r`
+    records decision `commented` — a reply-pass: the human answered threads
+    without judging the doc; agents process the replies and keep iterating
+    (never treat it as approval). Also applies the queued suggestion decisions and exits 0/10, so the TUI doubles as the interactive gate. **A human who reviewed in the TUI has already signed off — do not also ask them to run `comments signoff`** (it would append a second record).
   - `comments signoff <file>` for everything non-interactive: CI, scripts, `--decision`/`--note`/`--strict` overrides, or signing off a doc reviewed elsewhere. Decision derives from the gate unless overridden.
 - **Waiting for a review** (no MCP): `comments watch <file-or-dir> --until signoff` blocks and exits 0 on the first signoff, emitting `{"event":"signoff","author","decision","note"}` — the decision and the reviewer's message in one event. The sidecar is the shared event bus, so it fires for either writer above.
-- **Agent loop**: agent drafts → calls `comments_request_review` (MCP, blocks) or waits on `comments watch --until signoff` → human reviews and signs off (`comments view`, verdict on exit) → agent receives decision + note + remaining comments → addresses them one at a time (see `skills/review-comments/SKILL.md`) → repeat until gate passes.
+- **Agent loop**: agent drafts → calls `comments_request_review` (MCP, blocks) or waits on `comments watch --until signoff` → human reviews and signs off (`comments view`, verdict on exit) → agent runs the inbox FIRST (replies are the payload, the decision is the envelope), then acts on the decision (see `skills/review-comments/SKILL.md`) → repeat until gate passes.
 
 ### Model Context Protocol (MCP) Integration
 

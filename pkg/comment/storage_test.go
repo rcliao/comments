@@ -45,6 +45,9 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	}
 
 	// Save
+	if err := os.WriteFile(mdPath, []byte(doc.Content), 0644); err != nil {
+		t.Fatal(err)
+	}
 	if err := SaveToSidecar(mdPath, doc); err != nil {
 		t.Fatalf("SaveToSidecar failed: %v", err)
 	}
@@ -127,6 +130,9 @@ func TestSaveAndLoadWithSuggestion(t *testing.T) {
 	}
 
 	// Save and load
+	if err := os.WriteFile(mdPath, []byte(doc.Content), 0644); err != nil {
+		t.Fatal(err)
+	}
 	if err := SaveToSidecar(mdPath, doc); err != nil {
 		t.Fatalf("SaveToSidecar failed: %v", err)
 	}
@@ -218,6 +224,9 @@ func TestSidecarExists(t *testing.T) {
 		Content: "test",
 		Threads: []*Comment{},
 	}
+	if err := os.WriteFile(mdPath, []byte(doc.Content), 0644); err != nil {
+		t.Fatal(err)
+	}
 	if err := SaveToSidecar(mdPath, doc); err != nil {
 		t.Fatalf("SaveToSidecar failed: %v", err)
 	}
@@ -264,6 +273,9 @@ func TestSaveUpdatesDocumentHash(t *testing.T) {
 	}
 
 	// Save
+	if err := os.WriteFile(mdPath, []byte(doc.Content), 0644); err != nil {
+		t.Fatal(err)
+	}
 	if err := SaveToSidecar(mdPath, doc); err != nil {
 		t.Fatalf("SaveToSidecar failed: %v", err)
 	}
@@ -321,6 +333,9 @@ func TestNestedRepliesSaveLoad(t *testing.T) {
 	}
 
 	// Save
+	if err := os.WriteFile(mdPath, []byte(doc.Content), 0644); err != nil {
+		t.Fatal(err)
+	}
 	if err := SaveToSidecar(mdPath, doc); err != nil {
 		t.Fatalf("SaveToSidecar failed: %v", err)
 	}
@@ -372,19 +387,33 @@ func TestSaveToSidecarWritesMarkdownContent(t *testing.T) {
 		Threads: []*Comment{},
 	}
 
-	// Save
+	// Disk holds NEWER content than this doc's memory (an agent edited it)
+	onDisk := "# Test Document\n\nEdited on disk after this session loaded.\n"
+	if err := os.WriteFile(mdPath, []byte(onDisk), 0644); err != nil {
+		t.Fatal(err)
+	}
 	if err := SaveToSidecar(mdPath, doc); err != nil {
 		t.Fatalf("SaveToSidecar failed: %v", err)
 	}
 
-	// Read markdown file
+	// SaveToSidecar must NOT have touched the markdown: a stale in-memory
+	// Content overwriting disk was a live lost-update bug (a TUI signoff
+	// reverted agent edits). Content writes are SaveDocumentContent's job.
 	writtenContent, err := os.ReadFile(mdPath)
 	if err != nil {
 		t.Fatalf("Failed to read markdown file: %v", err)
 	}
+	if string(writtenContent) != onDisk {
+		t.Errorf("SaveToSidecar overwrote the markdown from memory.\nDisk had: %q\nNow: %q", onDisk, string(writtenContent))
+	}
 
+	// SaveDocumentContent is the explicit content writer
+	if err := SaveDocumentContent(mdPath, doc); err != nil {
+		t.Fatalf("SaveDocumentContent failed: %v", err)
+	}
+	writtenContent, _ = os.ReadFile(mdPath)
 	if string(writtenContent) != content {
-		t.Errorf("Markdown content mismatch.\nExpected: %q\nGot: %q", content, string(writtenContent))
+		t.Errorf("SaveDocumentContent mismatch.\nExpected: %q\nGot: %q", content, string(writtenContent))
 	}
 }
 
@@ -400,6 +429,9 @@ func TestLoadFromSidecarIsReadOnly(t *testing.T) {
 	doc := &DocumentWithComments{
 		Content: content,
 		Threads: []*Comment{c},
+	}
+	if err := os.WriteFile(mdPath, []byte(doc.Content), 0644); err != nil {
+		t.Fatal(err)
 	}
 	if err := SaveToSidecar(mdPath, doc); err != nil {
 		t.Fatalf("SaveToSidecar failed: %v", err)
@@ -451,23 +483,21 @@ func TestSaveSkipsUnchangedMarkdown(t *testing.T) {
 		Content: "# Title\n\nBody.\n",
 		Threads: []*Comment{},
 	}
-	if err := SaveToSidecar(mdPath, doc); err != nil {
-		t.Fatalf("SaveToSidecar failed: %v", err)
+	if err := os.WriteFile(mdPath, []byte(doc.Content), 0644); err != nil {
+		t.Fatal(err)
 	}
-
 	info, err := os.Stat(mdPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	mtime := info.ModTime()
 
-	// Second save with identical content must not touch the markdown file
+	// Identical content must not touch the markdown file (mtime preserved)
 	time.Sleep(10 * time.Millisecond)
-	if err := SaveToSidecar(mdPath, doc); err != nil {
-		t.Fatalf("second SaveToSidecar failed: %v", err)
+	if err := SaveDocumentContent(mdPath, doc); err != nil {
+		t.Fatalf("SaveDocumentContent failed: %v", err)
 	}
-	info, err = os.Stat(mdPath)
-	if err != nil {
+	if info, err = os.Stat(mdPath); err != nil {
 		t.Fatal(err)
 	}
 	if !info.ModTime().Equal(mtime) {
@@ -476,8 +506,8 @@ func TestSaveSkipsUnchangedMarkdown(t *testing.T) {
 
 	// A content change must be written
 	doc.Content = "# Title\n\nBody changed.\n"
-	if err := SaveToSidecar(mdPath, doc); err != nil {
-		t.Fatalf("third SaveToSidecar failed: %v", err)
+	if err := SaveDocumentContent(mdPath, doc); err != nil {
+		t.Fatalf("SaveDocumentContent failed: %v", err)
 	}
 	written, err := os.ReadFile(mdPath)
 	if err != nil {
@@ -487,6 +517,7 @@ func TestSaveSkipsUnchangedMarkdown(t *testing.T) {
 		t.Errorf("markdown not updated on content change: %q", string(written))
 	}
 }
+
 
 func TestLoadFromSidecarMissingMarkdown(t *testing.T) {
 	_, _, err := LoadFromSidecar(filepath.Join(t.TempDir(), "nope.md"))

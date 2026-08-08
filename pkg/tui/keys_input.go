@@ -59,7 +59,8 @@ func (m Model) handleAddCommentKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "ctrl+s":
-		// Save comment
+		// Save comment (refresh first: see reply save)
+		m.refreshDocFromDisk()
 		text := strings.TrimSpace(m.commentInput.Value())
 		if text == "" {
 			// Empty comment, just cancel
@@ -128,7 +129,9 @@ func (m Model) handleReplyKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "ctrl+s":
-		// Save reply
+		// Save reply — refresh from disk first so a long-open session doesn't
+		// clobber agent-written threads (last-writer-wins per action)
+		m.refreshDocFromDisk()
 		text := strings.TrimSpace(m.replyInput.Value())
 		if text == "" {
 			// Empty reply, just cancel
@@ -181,7 +184,8 @@ func (m Model) handleResolveKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "y", "enter":
-		// Confirm resolution
+		// Confirm resolution (refresh first: see reply save)
+		m.refreshDocFromDisk()
 		if err := comment.ResolveThread(m.doc.Threads, m.selectedThread.ID); err != nil {
 			m.err = err
 			return m, nil
@@ -219,7 +223,8 @@ func (m Model) handleAddSuggestionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "ctrl+s", "ctrl+d":
-		// Submit suggestion
+		// Submit suggestion (refresh first: see reply save)
+		m.refreshDocFromDisk()
 		proposedText := m.proposedTextInput.Value()
 		if proposedText == "" {
 			// Don't create empty suggestion

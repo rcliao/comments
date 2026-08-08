@@ -151,6 +151,8 @@ func viewCommand(args []string) error {
 		case comment.DecisionChangesRequested:
 			fmt.Println("✗ Review submitted: changes requested")
 			return exitSilent(comment.GateExitCode)
+		case comment.DecisionCommented:
+			fmt.Println("💬 Review submitted: commented — replies handed to the agent, iteration continues")
 		}
 	}
 	return nil
@@ -784,7 +786,10 @@ func acceptCommand(filename string, args []string) error {
 		return failf("Error accepting suggestion: %v", err)
 	}
 
-	// Save
+	// Save: accept is a content-changing path, so it writes the markdown too
+	if err := comment.SaveDocumentContent(filename, doc); err != nil {
+		return failf("Error saving document: %v", err)
+	}
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
 		return failf("Error saving document: %v", err)
 	}
@@ -837,7 +842,7 @@ Usage:
 
 Commands:
   view <file> [flags]         Open interactive TUI viewer (q submits the review: records
-                              the signoff, exit 0 approved / 10 changes requested)
+                              the signoff — a approve / c request changes / r reply-pass)
   list <file> [flags]         List all comments in a file
   get <file> [flags]          Get detailed comment with context
   add <file> [flags]          Add a comment to a specific line

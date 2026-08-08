@@ -72,7 +72,21 @@ The `comments` binary must be on PATH, or the `comments` MCP server connected
    a whole spec folder, and `--until signoff,gate_changed` to also wake on gate
    flips.
 
-5. **Repeat** until the gate passes (exit 0 / decision "approved").
+5. **When the signoff arrives: inbox FIRST, decision second.** Humans answer
+   threads and then pick whichever verdict is nearest — their replies are the
+   payload, the decision is the envelope. Before acting on any decision, run
+   `comments_inbox` (or read replies since your last pass) and process every
+   reply. Then interpret the decision:
+
+   - `commented` — a reply-pass: the human answered your threads and handed
+     the turn back without judging the doc. Process replies, iterate,
+     re-request review. Never treat it as approval.
+   - `approved` — proceed to the next phase, but only after the inbox is
+     drained; an approve with unprocessed replies means the human trusts you
+     to fold them in first.
+   - `changes_requested` — process replies, fix, re-request.
+
+6. **Repeat** until the gate passes (exit 0 / decision "approved").
 
 ## Drafting mode (no comments yet)
 

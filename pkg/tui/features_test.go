@@ -467,3 +467,92 @@ func TestErrorStateWithoutDocReturnsToFilePicker(t *testing.T) {
 		t.Errorf("with no doc loaded, clearing the error should return to the file picker, got %v", nm.mode)
 	}
 }
+
+// [r] records a "commented" reply-pass: the human answered threads and hands
+// the turn back — no gate judgment, exit 0, agents iterate.
+func TestVerdictReplyPassRecordsCommented(t *testing.T) {
+	m := testModel([]*comment.Comment{{ID: "c1", Line: 5, Text: "note", Author: "rcliao"}})
+	m.filename = filepath.Join(t.TempDir(), "doc.md")
+	if err := os.WriteFile(m.filename, []byte(tuiTestDoc), 0644); err != nil {
+		t.Fatal(err)
+	}
+	m.verdictReturnMode = ModeBrowse
+	m.mode = ModeVerdict
+
+	done, cmd := m.handleVerdictKeys(keyMsg("r"))
+	dm := done.(Model)
+	if cmd == nil || dm.VerdictDecision != comment.DecisionCommented {
+		t.Fatalf("r should record commented and quit, got %q", dm.VerdictDecision)
+	}
+	if len(dm.doc.Reviews) != 1 || dm.doc.Reviews[0].Decision != comment.DecisionCommented {
+		t.Fatalf("commented signoff not recorded: %+v", dm.doc.Reviews)
+	}
+	if out := dm.renderVerdictBox(); !strings.Contains(out, "[r] Reply-pass") {
+		t.Error("verdict dialog should offer the reply-pass action")
+	}
+}
+
+// A TUI session holding stale state must not clobber what an agent wrote to
+// disk meanwhile: signing off refreshes from disk first, so the agent's reply
+// AND the human's verdict both survive (the live lost-update from dogfooding).
+func TestVerdictSurvivesConcurrentAgentWrites(t *testing.T) {
+	dir := t.TempDir()
+	mdPath := filepath.Join(dir, "doc.md")
+	if err := os.WriteFile(mdPath, []byte(tuiTestDoc), 0644); err != nil {
+		t.Fatal(err)
+	}
+	doc := &comment.DocumentWithComments{Content: tuiTestDoc, Threads: []*comment.Comment{
+		{ID: "c1", Line: 5, Author: "rcliao", Text: "question for the agent"},
+	}}
+	if err := comment.SaveToSidecar(mdPath, doc); err != nil {
+		t.Fatal(err)
+	}
+	// Human opens the TUI (loads current state)
+	loaded, _, err := comment.LoadFromSidecar(mdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := NewModelWithFile(loaded, mdPath)
+	m.width, m.height = 100, 40
+	m.handleResize()
+
+	// Agent replies AND edits the doc on disk while the TUI is open
+	external, _, err := comment.LoadFromSidecar(mdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := comment.AddReplyToThread(external.Threads, "c1", "claude", "answered while you were reading"); err != nil {
+		t.Fatal(err)
+	}
+	external.Content = tuiTestDoc + "\nAgent-added line.\n"
+	if err := comment.SaveDocumentContent(mdPath, external); err != nil {
+		t.Fatal(err)
+	}
+	if err := comment.SaveToSidecar(mdPath, external); err != nil {
+		t.Fatal(err)
+	}
+
+	// Human signs off from the (stale) TUI
+	m.verdictReturnMode = ModeBrowse
+	m.mode = ModeVerdict
+	done, _ := m.handleVerdictKeys(keyMsg("a"))
+	dm := done.(Model)
+	if dm.err != nil {
+		t.Fatal(dm.err)
+	}
+
+	// Both writers' work survives on disk
+	final, _, err := comment.LoadFromSidecar(mdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(final.Content, "Agent-added line.") {
+		t.Error("signoff clobbered the agent's document edit")
+	}
+	if len(final.Threads[0].Replies) != 1 {
+		t.Error("signoff clobbered the agent's reply")
+	}
+	if len(final.Reviews) != 1 || final.Reviews[0].Decision != comment.DecisionApproved {
+		t.Errorf("human's signoff lost: %+v", final.Reviews)
+	}
+}

@@ -134,9 +134,16 @@ The screen still reads as browse, so keys split three ways
 
 ## Verdict and signoff parity
 
-`q` opens the verdict dialog; `a`/`c` apply the queued suggestion decisions and
-write a `ReviewRecord` through `comment.AddReviewRecord` — the SAME record
-`comments signoff` writes, note included. `n` opens `ModeVerdictNote`, a
+`q` opens the verdict dialog; `a`/`c`/`r` apply the queued suggestion decisions
+and write a `ReviewRecord` through `comment.AddReviewRecord` — the SAME record
+`comments signoff` writes, note included. `r` records decision `commented`
+(reply-pass: answered threads, turn handed back, gate untouched, exit 0).
+`recordVerdict` calls `refreshDocFromDisk()` FIRST — a session open while an
+agent edits must not sign off from stale memory — and only the suggestion
+accepts write the markdown (`SaveDocumentContent`); `SaveToSidecar` never
+touches the .md. Every TUI mutation path (reply, resolve, add, suggest,
+verdict) refreshes from disk before mutating: last-writer-wins per action,
+not per session. `n` opens `ModeVerdictNote`, a
 separate mode so `a`/`c` are plain letters while typing; Esc/Ctrl+S returns to
 the dialog keeping the text, and `recordVerdict` trims it into
 `ReviewRecord.Note`. Keep the two writers producing identical records: agents

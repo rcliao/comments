@@ -19,13 +19,45 @@ import (
 // verdictNoteRows is the height of the note textarea in the verdict dialog.
 const verdictNoteRows = 3
 
+// repliesThisPass counts comments this reviewer wrote since the previous
+// signoff — shown in the verdict dialog so the payload (replies) is visible
+// at the moment the envelope (decision) is chosen.
+func (m Model) repliesThisPass() int {
+	if m.doc == nil {
+		return 0
+	}
+	since := lastSignoffTime(m.doc.Reviews)
+	n := 0
+	var walk func(c *comment.Comment)
+	walk = func(c *comment.Comment) {
+		if c.Author == m.author && c.Timestamp.After(since) {
+			n++
+		}
+		for _, r := range c.Replies {
+			walk(r)
+		}
+	}
+	for _, t := range m.doc.Threads {
+		walk(t)
+	}
+	return n
+}
+
 // recordVerdict applies the queued suggestion decisions, writes the signoff
 // (decision + note) and quits. Shared by both verdict modes so `a`/`c` behave
 // identically whether or not the note has focus.
 func (m Model) recordVerdict(decision string) (tea.Model, tea.Cmd) {
-	// Apply all queued suggestion decisions atomically, then record the
-	// signoff — one save covers content, threads, and the review record
+	// Refresh from disk FIRST: this session may have been open while an agent
+	// edited the doc or threads — signing off from stale memory would clobber
+	// them (live lost-update, found in dogfooding). Then apply the queued
+	// suggestion decisions against fresh state and record the signoff.
+	m.refreshDocFromDisk()
 	if err := m.applySuggestionQueue(); err != nil {
+		m.err = err
+		return m, nil
+	}
+	// Accepts are the one content-changing path; no-op when nothing applied
+	if err := comment.SaveDocumentContent(m.filename, m.doc); err != nil {
 		m.err = err
 		return m, nil
 	}
@@ -47,6 +79,11 @@ func (m Model) handleVerdictKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.recordVerdict(comment.DecisionApproved)
 	case "c":
 		return m.recordVerdict(comment.DecisionChangesRequested)
+	case "r":
+		// Reply-pass (GitHub's "Comment"): the human answered threads and
+		// hands the turn back without judging the doc — agents process the
+		// replies and keep iterating; the gate is untouched
+		return m.recordVerdict(comment.DecisionCommented)
 	case "n":
 		// Write the review note (recorded as ReviewRecord.Note, the same
 		// field `signoff --note` writes)
@@ -99,6 +136,11 @@ func (m Model) renderVerdictBox() string {
 	if n := len(m.suggestionQueue); n > 0 {
 		fmt.Fprintf(&b, "\n%d queued suggestion decision(s) — applied on submit; Esc keeps them\n", n)
 	}
+	// Replies you wrote this pass ride along with whichever verdict you pick —
+	// they are the payload; the decision is the envelope
+	if n := m.repliesThisPass(); n > 0 {
+		fmt.Fprintf(&b, "\nYou replied in %d thread(s) this pass — the agent receives these with your verdict\n", n)
+	}
 
 	// The note is recorded in the signoff either way; showing it collapsed
 	// when empty keeps the dialog small for the common no-note review
@@ -114,7 +156,7 @@ func (m Model) renderVerdictBox() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString("\n[a] Approve (signoff, exit 0)\n[c] Request changes (signoff, exit 10)\n")
+	b.WriteString("\n[a] Approve (signoff, exit 0)\n[c] Request changes (signoff, exit 10)\n[r] Reply-pass (answered threads, keep iterating, exit 0)\n")
 	if m.mode != ModeVerdictNote {
 		noteAction := "[n] Add note"
 		if strings.TrimSpace(m.verdictNote.Value()) != "" {

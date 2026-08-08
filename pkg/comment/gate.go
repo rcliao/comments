@@ -11,6 +11,11 @@ import (
 const (
 	DecisionApproved         = "approved"
 	DecisionChangesRequested = "changes_requested"
+	// DecisionCommented is a reply-pass: the human answered threads and hands
+	// the turn back without judging the doc. Never a gate outcome — the gate
+	// still derives from blocking threads; agents treat it as "process my
+	// replies and keep iterating".
+	DecisionCommented = "commented"
 )
 
 // GateExitCode is the process exit code when the gate does not pass.

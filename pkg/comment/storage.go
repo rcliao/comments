@@ -145,18 +145,26 @@ func FormatLoadReport(report *LoadReport) string {
 	return b.String()
 }
 
-// SaveToSidecar saves comment threads to the sidecar JSON file (v2.0)
-// Also writes the clean markdown content (without comment markup) when it
-// differs from what is on disk. All writes are atomic (temp file + rename).
-func SaveToSidecar(mdPath string, doc *DocumentWithComments) error {
-	// Write markdown content only when it actually changed
+// SaveDocumentContent writes doc.Content to the markdown file atomically.
+// Call it ONLY from paths that legitimately changed the content (suggestion
+// accepts). It is deliberately separate from SaveToSidecar: a signoff or a
+// reply from a TUI session holding stale content must never overwrite edits
+// made on disk since that session loaded (live lost-update, found in
+// dogfooding when a signoff reverted an agent's edits).
+func SaveDocumentContent(mdPath string, doc *DocumentWithComments) error {
 	current, readErr := os.ReadFile(mdPath)
-	if readErr != nil || string(current) != doc.Content {
-		if err := writeFileAtomic(mdPath, []byte(doc.Content), 0644); err != nil {
-			return fmt.Errorf("failed to write markdown file: %w", err)
-		}
+	if readErr == nil && string(current) == doc.Content {
+		return nil
 	}
+	if err := writeFileAtomic(mdPath, []byte(doc.Content), 0644); err != nil {
+		return fmt.Errorf("failed to write markdown file: %w", err)
+	}
+	return nil
+}
 
+// SaveToSidecar saves comment threads to the sidecar JSON file (v2.0). It
+// writes ONLY the sidecar — the markdown file belongs to SaveDocumentContent.
+func SaveToSidecar(mdPath string, doc *DocumentWithComments) error {
 	// Recompute document hash
 	doc.DocumentHash = ComputeDocumentHash(doc.Content)
 	doc.LastValidated = time.Now()

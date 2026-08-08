@@ -134,8 +134,8 @@ func signoffCommand(filename string, args []string) error {
 	if *author == "" {
 		return failf("Error: --author is required (or set $USER)")
 	}
-	if *decision != "" && *decision != comment.DecisionApproved && *decision != comment.DecisionChangesRequested {
-		return failf("Error: invalid --decision %q (use %s or %s)", *decision, comment.DecisionApproved, comment.DecisionChangesRequested)
+	if *decision != "" && *decision != comment.DecisionApproved && *decision != comment.DecisionChangesRequested && *decision != comment.DecisionCommented {
+		return failf("Error: invalid --decision %q (use %s, %s or %s)", *decision, comment.DecisionApproved, comment.DecisionChangesRequested, comment.DecisionCommented)
 	}
 
 	doc, err := loadDocument(filename)
