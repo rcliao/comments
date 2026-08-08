@@ -1,9 +1,12 @@
 package comment
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/charmbracelet/x/term"
 )
 
 func TestResolveActor(t *testing.T) {
@@ -28,6 +31,30 @@ func TestResolveActor(t *testing.T) {
 					tc.isTTY, ActorEnvVar, tc.env, got, tc.want)
 			}
 		})
+	}
+}
+
+// Regression: /dev/null is a character device, so an os.ModeCharDevice check
+// reported `cmd >/dev/null` as an interactive terminal — which let an agent
+// resolve human-zone threads simply by discarding output. Neither a discarded
+// stream nor a redirected file is a terminal.
+func TestStdoutIsTTYRejectsNonTerminals(t *testing.T) {
+	devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer devNull.Close()
+
+	regular, err := os.CreateTemp(t.TempDir(), "out")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer regular.Close()
+
+	for name, f := range map[string]*os.File{"devnull": devNull, "regular file": regular} {
+		if term.IsTerminal(f.Fd()) {
+			t.Errorf("%s must not be reported as a terminal", name)
+		}
 	}
 }
 

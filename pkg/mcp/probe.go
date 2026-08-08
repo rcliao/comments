@@ -35,7 +35,8 @@ func Probe(ctx context.Context, exePath string) (comment.MCPInfo, error) {
 	if err != nil {
 		return comment.MCPInfo{}, fmt.Errorf("connect: %w", err)
 	}
-	defer session.Close()
+	// The probe only reads; a close failure tells us nothing about install health
+	defer func() { _ = session.Close() }()
 
 	tools, err := session.ListTools(ctx, nil)
 	if err != nil {

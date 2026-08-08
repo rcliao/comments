@@ -414,6 +414,11 @@ who is calling. Surface is a poor proxy now that agents drive the CLI.
 as an agent — so the env var exists as the explicit override. The TUI is always
 human by construction and never consults the heuristic.
 
+**Do not** implement the TTY test with `os.ModeCharDevice`: `/dev/null` is a
+character device, so `cmd >/dev/null` read as an interactive human and let an
+agent resolve human-zone threads by discarding output. Ask the terminal driver
+(`term.IsTerminal`) instead. Pinned by `TestStdoutIsTTYRejectsNonTerminals`.
+
 ## CLI Commands
 
 ### Core Commands

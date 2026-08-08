@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/charmbracelet/x/term"
 )
 
 // Actor is who is driving a mutation. Template zones marked `zone: human`
@@ -37,10 +39,14 @@ func ResolveActor(isTTY bool) Actor {
 	return ActorAgent
 }
 
-// StdoutIsTTY reports whether stdout is attached to a terminal.
+// StdoutIsTTY reports whether stdout is attached to a real terminal.
+//
+// This deliberately asks the terminal driver rather than checking
+// os.ModeCharDevice: /dev/null is itself a character device, so the mode check
+// reported `cmd >/dev/null` as an interactive human and let an agent walk
+// straight through GuardZoneResolve. CI caught it.
 func StdoutIsTTY() bool {
-	fi, err := os.Stdout.Stat()
-	return err == nil && (fi.Mode()&os.ModeCharDevice) != 0
+	return term.IsTerminal(os.Stdout.Fd())
 }
 
 // GuardZoneResolve refuses an agent's attempt to resolve a thread that sits in

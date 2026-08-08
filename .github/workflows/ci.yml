@@ -49,12 +49,32 @@ jobs:
           ./comments seed /tmp/ci-doc.md --template design-doc
           # gate must fail (exit 10) while seeded blocking threads are open
           if ./comments gate /tmp/ci-doc.md; then echo "gate should have failed"; exit 1; fi
+
+          # zone:human guard: with no TTY and no override the CLI is treated as
+          # an agent, so a thread seeded into a human-decision section (design-doc
+          # marks Problem as zone: human) must be refused.
+          human_id=$(./comments list /tmp/ci-doc.md --format json 2>/dev/null \
+            | jq -r '[.[] | select(.section_path | test("Problem"))][0].id')
+          if [ -z "$human_id" ] || [ "$human_id" = "null" ]; then
+            echo "smoke test could not find a human-zone thread"; exit 1
+          fi
+          if ./comments resolve /tmp/ci-doc.md --thread "$human_id" >/dev/null 2>&1; then
+            echo "zone:human guard failed to refuse an agent resolve"; exit 1
+          fi
+
+          # CI stands in for the human reviewer here, which is what the override
+          # exists for; agents must not set it.
+          export COMMENTS_ACTOR=human
           for id in $(./comments list /tmp/ci-doc.md --format json 2>/dev/null | jq -r '.[].id'); do
             ./comments resolve /tmp/ci-doc.md --thread "$id"
           done
           ./comments signoff /tmp/ci-doc.md --author ci
           # gate must now pass
           ./comments gate /tmp/ci-doc.md
+
+          # doctor must report a sound install (warnings are allowed, failures are not)
+          ./comments doctor /tmp --json
+          ./comments doctor /tmp
 
   lint:
     runs-on: ubuntu-latest
