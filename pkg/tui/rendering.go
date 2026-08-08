@@ -629,9 +629,9 @@ func (m *Model) renderComments() string {
 
 			if expanded {
 				wrapWidth := m.sidebarWrapWidth()
-				text := fmt.Sprintf("  %s@%s%s%s · %s\n%s",
+				text := fmt.Sprintf("  %s@%s%s%s · %s · %s\n%s",
 					resolvedMark, c.Author, threadMarkers(c), newBadge,
-					c.Timestamp.Format("2006-01-02 15:04"),
+					c.Timestamp.Format("2006-01-02 15:04"), c.ID,
 					indentWrap(c.Text, wrapWidth, "  "))
 				rendered.WriteString(style.Render(text))
 				rendered.WriteString("\n")
@@ -640,8 +640,10 @@ func (m *Model) renderComments() string {
 				continue
 			}
 
-			summary := truncate(c.Text, 47, "…")
-			text := fmt.Sprintf("  %s@%s%s%s: %s", resolvedMark, c.Author, threadMarkers(c), newBadge, summary)
+			// ID first: a scannable column for matching agent-referenced
+			// thread IDs ("answer c7q39") against the sidebar
+			summary := truncate(c.Text, 41, "…")
+			text := fmt.Sprintf("  %s%s @%s%s%s: %s", resolvedMark, c.ID, c.Author, threadMarkers(c), newBadge, summary)
 			rendered.WriteString(style.Render(text))
 			rendered.WriteString("\n")
 		}

@@ -575,3 +575,20 @@ func TestResolvedToggleClampsSelection(t *testing.T) {
 		t.Errorf("j/k on a 1-item list should stay at 0, got %d", nm.selectedComment)
 	}
 }
+
+// Agents refer humans to threads by ID ("answer c7q39") — the ID must be
+// findable in the TUI: panel header and sidebar rows.
+func TestThreadIDVisibleInPanelAndSidebar(t *testing.T) {
+	m := openThreadAtLine5(t, panelTestModel(t))
+	if got := frame(m); !strings.Contains(got, "c1 · Thread at") {
+		t.Errorf("panel header should lead with the thread ID:\n%s", got)
+	}
+	// Sidebar rows carry the ID in both densities
+	if got := m.renderComments(); !strings.Contains(got, "c1") {
+		t.Errorf("sidebar (full) should show the thread ID:\n%s", got)
+	}
+	m.sidebarDensity = densityCondensed
+	if got := m.renderComments(); !strings.Contains(got, "c1 @rcliao") {
+		t.Errorf("sidebar (condensed) should lead rows with the ID:\n%s", got)
+	}
+}

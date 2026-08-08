@@ -216,7 +216,10 @@ func (m Model) renderThreadPanelBox(lay panelLayout) string {
 	if m.selectedThread.SectionPath != "" {
 		locationStr = fmt.Sprintf("%s (Line %d)", m.selectedThread.SectionPath, m.threadAnchorLine())
 	}
-	headerText := fmt.Sprintf("%s Thread at %s", icon, locationStr)
+	// Lead with the thread ID: agents refer humans to threads by ID
+	// ("answer c7q39"), so it must survive long section paths (truncation
+	// eats the tail, not the head)
+	headerText := fmt.Sprintf("%s %s · Thread at %s", icon, m.selectedThread.ID, locationStr)
 
 	actionText := "x: resolve"
 	if m.selectedThread.IsSuggestion && m.selectedThread.IsPending() {
