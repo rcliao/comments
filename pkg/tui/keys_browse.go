@@ -67,6 +67,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "j", "down":
 		// Navigate comments
 		visibleComments := m.visibleComments()
+		m.clampSelectedComment(len(visibleComments))
 		if m.selectedComment < len(visibleComments)-1 {
 			m.selectedComment++
 			m.commentViewport.SetContent(m.renderComments())
@@ -79,6 +80,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "k", "up":
 		visibleComments := m.visibleComments()
+		m.clampSelectedComment(len(visibleComments))
 		if m.selectedComment > 0 {
 			m.selectedComment--
 			m.commentViewport.SetContent(m.renderComments())
@@ -106,13 +108,28 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "R":
-		// Toggle showing resolved comments
+		// Toggle showing resolved comments; the visible set just changed, so
+		// the selection index from the old set must be clamped or the next
+		// j/k indexes past the shorter list (found by live panic: R with the
+		// selection deep in a mostly-resolved doc, then k)
 		m.showResolved = !m.showResolved
+		m.clampSelectedComment(len(m.visibleComments()))
 		m.commentViewport.SetContent(m.renderComments())
 		return m, nil
 	}
 
 	return m, nil
+}
+
+// clampSelectedComment keeps the sidebar selection inside the visible set —
+// call it whenever the visible-comments filter changes under a live selection.
+func (m *Model) clampSelectedComment(visible int) {
+	if m.selectedComment >= visible {
+		m.selectedComment = max(visible-1, 0)
+	}
+	if m.selectedComment < 0 {
+		m.selectedComment = 0
+	}
 }
 
 // scrollToComment scrolls the document viewport to center the given comment

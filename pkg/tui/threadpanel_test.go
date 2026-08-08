@@ -539,3 +539,39 @@ func TestHideLineNumbersToggle(t *testing.T) {
 		t.Error("numbers should be visible again after toggling back")
 	}
 }
+
+// Regression for a live panic: R (hide resolved) shrinks the visible set
+// while the sidebar selection is deep in it; the next k indexed past the
+// shorter list (index out of range at keys_browse.go). The selection must
+// clamp when the filter changes.
+func TestResolvedToggleClampsSelection(t *testing.T) {
+	// 4 threads, the last 3 resolved; selection on the last one
+	threads := []*comment.Comment{
+		{ID: "c1", Line: 3, Author: "a", Text: "open"},
+		{ID: "c2", Line: 5, Author: "a", Text: "r1", Resolved: true},
+		{ID: "c3", Line: 7, Author: "a", Text: "r2", Resolved: true},
+		{ID: "c4", Line: 9, Author: "a", Text: "r3", Resolved: true},
+	}
+	m := *testModel(threads)
+	m.width, m.height = 100, 40
+	m.handleResize()
+	m.showResolved = true
+	m.selectedComment = 3
+
+	// R hides resolved -> 1 visible; then k must not panic
+	next, _ := m.handleBrowseKeys(keyMsg("R"))
+	nm := next.(Model)
+	if got := len(nm.visibleComments()); got != 1 {
+		t.Fatalf("expected 1 visible after hiding resolved, got %d", got)
+	}
+	if nm.selectedComment != 0 {
+		t.Errorf("selection should clamp to 0, got %d", nm.selectedComment)
+	}
+	next, _ = nm.handleBrowseKeys(keyMsg("k"))
+	nm = next.(Model)
+	next, _ = nm.handleBrowseKeys(keyMsg("j"))
+	nm = next.(Model)
+	if nm.selectedComment != 0 {
+		t.Errorf("j/k on a 1-item list should stay at 0, got %d", nm.selectedComment)
+	}
+}
