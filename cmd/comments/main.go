@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -620,6 +621,16 @@ func resolveCommand(filename string, args []string) error {
 	doc, err := loadDocument(filename)
 	if err != nil {
 		return failf("Error loading document: %v", err)
+	}
+
+	// Zone enforcement: same guard the MCP server applies, so an agent cannot
+	// close a human-decision thread just by switching surfaces
+	absPath, err := filepath.Abs(filename)
+	if err != nil {
+		return failf("Error resolving path: %v", err)
+	}
+	if err := comment.GuardZoneResolve(doc, absPath, *thread, comment.ResolveActor(comment.StdoutIsTTY())); err != nil {
+		return failf("Error: %v", err)
 	}
 
 	// Resolve the thread

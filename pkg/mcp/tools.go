@@ -294,17 +294,11 @@ func (s *Server) handleReply(ctx context.Context, req *mcp.CallToolRequest, args
 
 func (s *Server) handleResolve(ctx context.Context, req *mcp.CallToolRequest, args ResolveRequest) (*mcp.CallToolResult, any, error) {
 	return withDocSave(args.FilePath, func(absPath string, doc *comment.DocumentWithComments) (any, error) {
-		// Zone enforcement: threads in a template's human-decision zone must be
-		// resolved by the human (CLI/TUI), not by an agent over MCP
-		if !args.Unresolve && doc.Template != "" {
-			if thread := doc.FindThreadByID(args.ThreadID); thread != nil {
-				if t, err := comment.LoadTemplateForDoc(doc.Template, absPath); err == nil {
-					if comment.SectionZone(doc.Content, t, thread.Line) == comment.ZoneHuman {
-						return nil, fmt.Errorf(
-							"thread %s is in a human-decision zone (template %q); reply with your input instead — the human resolves it via 'comments resolve' or the TUI",
-							args.ThreadID, doc.Template)
-					}
-				}
+		// Zone enforcement: threads in a template's human-decision zone are the
+		// human's to close. An MCP caller is always an agent by construction.
+		if !args.Unresolve {
+			if err := comment.GuardZoneResolve(doc, absPath, args.ThreadID, comment.ActorAgent); err != nil {
+				return nil, err
 			}
 		}
 
