@@ -8,10 +8,12 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const (
-	ServerName    = "comments-mcp-server"
-	ServerVersion = "1.0.0"
-)
+const ServerName = "comments-mcp-server"
+
+// ServerVersion is what the MCP server advertises in its handshake. main sets
+// it to the binary's stamped version at startup so the two cannot disagree —
+// a stale server version is exactly what `comments doctor` exists to catch.
+var ServerVersion = "dev"
 
 // Server wraps the MCP server and provides comment-specific functionality
 type Server struct {

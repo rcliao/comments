@@ -12,6 +12,9 @@ import (
 
 // serveMCPCommand starts the MCP server over stdio
 func serveMCPCommand() error {
+	// Keep the advertised MCP version in step with the binary
+	mcp.ServerVersion = version
+
 	// Create context that listens for interrupt signals
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

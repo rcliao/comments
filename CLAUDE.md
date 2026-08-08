@@ -30,6 +30,7 @@ Command surface: run `./comments` with no args for full usage. The core review-l
 ./comments watch specs/ --until signoff                 # block until a signoff (NDJSON events)
 ./comments validate draft.md --template design-doc
 ./comments seed draft.md --template design-doc
+./comments doctor                 # install health: binary, MCP, plugin, sidecars
 ./comments serve-mcp              # MCP server over stdio
 ```
 

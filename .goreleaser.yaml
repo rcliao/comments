@@ -14,7 +14,9 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -s -w
+      # Stamps the version doctor and --version report; a plain `go build`
+      # leaves it as "dev".
+      - -s -w -X main.version={{ .Version }}
 
 archives:
   # Version-free asset names keep the releases/latest/download/ URLs stable

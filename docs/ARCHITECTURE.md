@@ -447,6 +447,15 @@ human by construction and never consults the heuristic.
 - `signoff <file>` - Record a review pass non-interactively
 - `reanchor <file>` - Migrate anchors displaced by an edit
 
+### Diagnostics
+
+- `doctor [path]` - Install health: binary+version, MCP handshake (tool count and
+  negotiated protocol), Claude Code plugin state, sidecar staleness/orphans.
+  Exit 0 when nothing failed; warnings alone keep it 0 so CI can gate on it.
+  Check logic is in `pkg/comment/doctor.go`; the MCP probe is injected as a
+  `comment.MCPProbe` from `pkg/mcp` so the pure-logic package keeps its
+  direction of dependency (decision 8).
+
 Every command above has a matching MCP tool backed by the same `pkg/comment`
 function (see Design Decision 8).
 

@@ -98,6 +98,8 @@ func dispatch(args []string) error {
 		return checkReviewCommand(args[1], args[2:])
 	case "batch-accept":
 		return batchAcceptCommand(args[1], args[2:])
+	case "doctor":
+		return doctorCommand(args[1:])
 	case "serve-mcp":
 		return serveMCPCommand()
 	case "help", "-h", "--help":
@@ -926,6 +928,8 @@ Commands:
   seed <file> [flags]         Create review threads from a template's criteria and markers
   watch <file-or-dir> [flags] Emit review-state change events as NDJSON (poll-based; --until
                               exits 0 on a match, e.g. --until signoff to block until reviewed)
+  doctor [path] [flags]       Check install health: binary, MCP server, plugin, sidecars
+                              (exit 0 = sound, 1 = broken; warnings alone stay 0)
   serve-mcp                   Start Model Context Protocol server (for LLM integration)
   help                        Show this help message
 
@@ -976,6 +980,10 @@ Signoff Command Flags:
   --decision <decision>       Override: approved or changes_requested (default: derived from gate)
   --note <text>               Optional review note
   --strict                    Derive decision using strict gate rules
+
+Doctor Command Flags:
+  --json                      Machine-readable output
+  --skip-mcp                  Skip the MCP handshake (avoids spawning a subprocess)
 
 Watch Command Flags:
   --interval <duration>       Poll interval (default: 1s)
