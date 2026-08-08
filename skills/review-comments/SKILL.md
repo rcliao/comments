@@ -165,7 +165,12 @@ scale them to the work.
    documentarian findings doc — discrete findings (F1, F2, ...) each carrying
    file:line evidence, a Code References section a plan can cite, and every
    open question in Open Questions (zone: human). Then the reviewer pass
-   (below); do not start the plan until the research is signed off.
+   (below); do not start the plan until the research is signed off. Wait on
+   the signoff, don't poll the human: `comments watch <doc> --until signoff`
+   blocks until the review lands and carries the decision + note. In a
+   harness with background tasks, run the watch in the background so you
+   resume the moment the signoff arrives instead of ending your turn with
+   "let me know when you're done".
 2. **Plan** (`comments template show plan`): decisions only — the marker cap
    is 1 because open questions belong to the research phase. Cite the research
    doc by `file:line` (e.g. `research-foo.md:23`) for every Current State and
@@ -211,6 +216,10 @@ that are genuinely theirs.
 
 ## Conventions
 
+- **Comments are ≤50 words, one point each.** Lead with the actionable claim;
+  evidence is a file:line, not a paragraph. If you need two sentences of
+  context, the second is usually the comment. Split multi-point comments into
+  separate threads so each can be resolved on its own.
 - Author yourself as `claude` (or your agent name) in every comment/reply.
 - Mark comments you add for the human as non-blocking unless they truly gate
   progress; reserve `--blocking` for must-answer questions.

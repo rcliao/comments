@@ -2,7 +2,7 @@ template: research
 version: 1
 description: RPI research phase — documentarian findings with file:line evidence; open questions live HERE, not in the plan
 doc:
-  max_words: 1500
+  max_words: 900
 sections:
   - heading: "Research Question"
     required: true
@@ -18,15 +18,19 @@ sections:
   - heading: "Findings"
     required: true
     min_subsections: 2
+    max_words: 450
     review_criteria:
       - "Does each finding carry file:line or source evidence a reviewer can peek (f) or follow?"
       - "Is the tone documentarian — describing what IS, without prescribing what to build?"
+      - "Does each finding lead with the fact? A finding past ~100 words is usually two findings or padding."
   - heading: "Code References"
     required: true
+    max_words: 60
     review_criteria:
       - "Are the references the load-bearing ones (what a plan would cite), not an exhaustive dump?"
   - heading: "Open Questions"
     required: true
+    max_words: 80
     zone: human
 markers:
   needs_clarification: "[NEEDS CLARIFICATION:"
