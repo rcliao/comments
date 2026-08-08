@@ -163,16 +163,6 @@ func containsID(replies []*Comment, id string) bool {
 	return false
 }
 
-// findThreadByID finds a thread by ID (helper function)
-func findThreadByID(threads []*Comment, id string) *Comment {
-	for _, thread := range threads {
-		if thread.ID == id {
-			return thread
-		}
-	}
-	return nil
-}
-
 // ResolveThread marks a thread as resolved
 func ResolveThread(threads []*Comment, threadID string) error {
 	thread := FindThreadContaining(threads, threadID)
