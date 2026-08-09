@@ -92,6 +92,19 @@ func templateCommand(args []string) error {
 			}
 		}
 
+		// Style caps shape how the doc reads; an agent that only meets word
+		// budgets will write walls unless told the shape too.
+		if st := t.Doc.Style; st.MaxSentenceWords > 0 || st.MaxParagraphWords > 0 {
+			fmt.Println("\nWriting style (checked by validate):")
+			if st.MaxParagraphWords > 0 {
+				fmt.Printf("  Paragraphs: at most %d words, one purpose each — separate ideas into\n", st.MaxParagraphWords)
+				fmt.Println("  their own blocks, and use bullet lists where you are listing things.")
+			}
+			if st.MaxSentenceWords > 0 {
+				fmt.Printf("  Sentences: at most %d words. Lead with the claim.\n", st.MaxSentenceWords)
+			}
+		}
+
 		// The marker budget is enforced by validate but was invisible here, so
 		// agents guessed at it. Spend markers on what genuinely needs the human.
 		if t.Markers.Max > 0 {

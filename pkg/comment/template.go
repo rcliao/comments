@@ -67,6 +67,8 @@ type TemplateDocRules struct {
 	// under this template. It needs the filesystem, so it is applied by callers
 	// via ValidateCitations rather than inside the pure ValidateTemplate.
 	CheckCitations bool `yaml:"check_citations"`
+	// Style bounds prose shape so a reviewer can scan rather than read through.
+	Style TemplateStyle `yaml:"style"`
 }
 
 type TemplateSection struct {
@@ -411,6 +413,8 @@ func ValidateTemplate(content string, t *Template) []Violation {
 	if asksSec != nil && answersSec != nil {
 		violations = append(violations, validateQuestionCoverage(lines, asksSec, answersSec, asksHeading, answersHeading)...)
 	}
+
+	violations = append(violations, validateStyle(lines, t.Doc.Style)...)
 
 	// Ambiguity markers: every occurrence is a violation until removed
 	marker := t.markerPrefix()
