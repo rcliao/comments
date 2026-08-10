@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/rcliao/comments/pkg/comment"
 )
 
@@ -554,5 +556,69 @@ func TestVerdictSurvivesConcurrentAgentWrites(t *testing.T) {
 	}
 	if len(final.Reviews) != 1 || final.Reviews[0].Decision != comment.DecisionApproved {
 		t.Errorf("human's signoff lost: %+v", final.Reviews)
+	}
+}
+
+// Adding a comment while the document changed on disk must land on the TEXT
+// the human was looking at, not the stale line number (live report: comments
+// landing on the wrong line). refreshDocFromDisk swaps content under a live
+// cursor; the cursor must move with its line.
+func TestAddCommentSurvivesExternalEditAboveCursor(t *testing.T) {
+	dir := t.TempDir()
+	mdPath := filepath.Join(dir, "doc.md")
+	content := "# Title\n\nAlpha.\n\nTarget line here.\n"
+	if err := os.WriteFile(mdPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	doc := &comment.DocumentWithComments{Content: content, Threads: []*comment.Comment{}}
+	if err := comment.SaveToSidecar(mdPath, doc); err != nil {
+		t.Fatal(err)
+	}
+	loaded, _, err := comment.LoadFromSidecar(mdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := NewModelWithFile(loaded, mdPath)
+	m.width, m.height = 100, 40
+	m.handleResize()
+
+	// Human puts the cursor on "Target line here." (line 5)
+	m.mode = ModeLineSelect
+	m.selectedLine = 5
+
+	// An agent inserts three lines ABOVE while the TUI is open
+	external, _, err := comment.LoadFromSidecar(mdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	external.Content = "# Title\n\nNew para one.\nNew para two.\nNew para three.\n\nAlpha.\n\nTarget line here.\n"
+	if err := comment.SaveDocumentContent(mdPath, external); err != nil {
+		t.Fatal(err)
+	}
+	if err := comment.SaveToSidecar(mdPath, external); err != nil {
+		t.Fatal(err)
+	}
+
+	// Human composes and saves at the cursor
+	m.mode = ModeAddComment
+	m.commentInput.SetValue("about the target")
+	done, _ := m.handleAddCommentKeys(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	dm := done.(Model)
+	if dm.err != nil {
+		t.Fatal(dm.err)
+	}
+
+	final, _, err := comment.LoadFromSidecar(mdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(final.Threads) != 1 {
+		t.Fatalf("expected 1 thread, got %d", len(final.Threads))
+	}
+	got := final.Threads[0].Line
+	lines := strings.Split(final.Content, "\n")
+	if got < 1 || got > len(lines) || lines[got-1] != "Target line here." {
+		t.Errorf("comment landed on line %d (%q), want the line the human was looking at (Target line here., now line 9)",
+			got, lines[min(got-1, len(lines)-1)])
 	}
 }
