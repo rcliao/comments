@@ -3,11 +3,17 @@ version: 1
 description: Design/tech-design doc optimized for human review (bounded length, forced alternatives, explicit unknowns)
 doc:
   # 2000 was right when every section was required. With Data Flow and Data Model
-  # available, a design that carries both a sequence and a schema cannot fit: the
+  # available, a design carrying both a sequence and a schema cannot fit: the
   # required sections alone run to ~1200 words, and the two optional ones are
   # capped at 700 and 900. A doc using neither is unaffected — the per-section
-  # caps, not this one, are what actually hold a design to a reviewable size.
-  max_words: 2400
+  # caps, not this one, are what hold a design to a reviewable size.
+  #
+  # Raised twice, and the second raise is the informative one: reviewers asked for
+  # the COMPLETE data model rather than a delta plus a cross-reference, because a
+  # schema is scanned for lookup, not read linearly. A complete model of a real
+  # system runs 600-900 words on its own. If that makes a doc feel long, the fix is
+  # a smaller design, not a shorter schema.
+  max_words: 2800
 sections:
   - heading: "Problem"
     required: true
