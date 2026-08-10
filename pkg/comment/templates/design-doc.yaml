@@ -23,6 +23,19 @@ sections:
     review_criteria:
       - "Can a reviewer trace every goal to a part of the design?"
       - "Where structure or flow matters, would an ASCII diagram say it better than prose? Include one if so."
+  # Optional: many designs change no data at all, and an empty schema section is
+  # worse than none. Optional sections are also exempt from order checking, so a
+  # doc may place this wherever it reads best.
+  - heading: "Data Model"
+    required: false
+    max_words: 900
+    review_criteria:
+      - "Is the model written in a schema notation — DBML-style `Table` blocks or equivalent — that stays readable in RAW markdown source? A wide markdown table is hard to read unrendered and collapses every change into a one-line diff; prefer one field per line."
+      - "Is every entity's identity stated — the thing you look it up by — even when there is no database and it is an object key, a cache key, or nothing at all?"
+      - "Are relationships written as explicit references, distinguishing those the code enforces from those that are conventions nothing checks?"
+      - "Does each entity say where it LIVES (in memory, in a row, in an object, in a cache) and which step of the design creates it?"
+      - "For a change to existing data: is it clear what is ADDED, what is REMOVED, and what must keep being read for compatibility?"
+      - "Are entities that SHOULD exist but do not shown as such — a commented-out block beats an absence, which is invisible?"
   - heading: "Options Considered"
     required: true
     min_subsections: 2

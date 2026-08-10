@@ -1,0 +1,64 @@
+template: as-built
+version: 1
+description: As-built architecture walkthrough — what the code DOES today (data flow, data model, storage), with peekable file:line evidence and an honest gap list
+doc:
+  max_words: 3000
+sections:
+  - heading: "What This Describes"
+    required: true
+    max_words: 150
+    zone: human
+    review_criteria:
+      - "Is the exact commit or branch named, so a reader knows what the citations point at?"
+      - "Does it say what is deliberately NOT covered, so an absence does not read as an omission?"
+
+  - heading: "Data Flow"
+    required: true
+    max_words: 1150
+    review_criteria:
+      - "Is the flow told ONCE? A story and a diagram of the same sequence are two tellings — the diagram must add what prose cannot (names, files, concurrency), not repeat the narrative."
+      - "Is every step one sentence in actor / action / work-object form, so it reads as a story rather than a component list?"
+      - "Are the actors named as the things that ACT (a prober, a judge, a store) rather than as files or layers — and is it said where a role name is NOT greppable in the code?"
+      - "Does the story start at the configuration that defines the behaviour and end at what the reader actually receives — with no step where a work object appears from nowhere?"
+      - "Is each work object traceable: does something hand it over, and does something receive it?"
+      - "Are the concurrent steps distinguished from the sequential ones, since that is what the timing actually depends on?"
+      - "Is it clear what is cached versus recomputed on a second identical request?"
+
+  - heading: "Data Model"
+    required: true
+    max_words: 950
+    review_criteria:
+      - "Is the model written in a schema notation — DBML-style `Table` blocks or equivalent — that stays readable in RAW markdown source? A wide markdown table is hard to read unrendered and collapses every change into a one-line diff; prefer one field per line."
+      - "Is every entity named with its defining file:line, so a reader can peek the real type rather than trust the prose?"
+      - "Is every entity's identity stated — the thing you look it up by — even when there is no database and it is an object key, a cache key, or nothing at all?"
+      - "Does it say where each entity LIVES (in memory, in a row, in an object, in a cache)?"
+      - "Are relationships written as explicit references, distinguishing those the code enforces from those that are conventions nothing checks?"
+      - "Does each entity connect back to the step in Data Flow that produces or consumes it, so the model is not a glossary floating free of the story?"
+      - "Are entities that SHOULD exist but do not shown as such — a commented-out block beats an absence, which is invisible?"
+      - "Where one entity carries two jobs (a measurement that also holds a derived score), is that said plainly? It is usually the most useful sentence in the section."
+
+  - heading: "What Persists Where"
+    required: true
+    max_words: 350
+    review_criteria:
+      - "Is every store listed with its key shape and its invalidation rule?"
+      - "Is it stated what is NOT persisted, since that is usually the surprising part?"
+      - "Is it clear which state is lost on restart or deploy, and whether anything depends on it surviving?"
+
+  - heading: "Known Gaps"
+    required: true
+    max_words: 400
+    review_criteria:
+      - "Is each gap a specific observable defect with a file:line or a reproduction, not a vague 'could be better'?"
+      - "Is each one marked as either already-ticketed (with the ticket) or unowned?"
+      - "Are gaps the author introduced listed alongside the inherited ones, rather than quietly omitted?"
+
+  - heading: "Open Questions"
+    required: true
+    max_words: 120
+    zone: human
+    review_criteria:
+      - "Is each question one a reader of this doc would actually need answered to work on the system?"
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION:"
+  max: 3
