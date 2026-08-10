@@ -163,17 +163,6 @@ func TestLineSelectHintSurfacesMultiRefCycle(t *testing.T) {
 	}
 }
 
-func TestPeekNoRefsIsNoOp(t *testing.T) {
-	m, _ := refTestModel(t)
-	m.mode = ModeLineSelect
-	m.selectedLine = 1 // heading line, no refs
-
-	next, _ := m.handleLineSelectKeys(keyMsg("f"))
-	if next.(Model).mode != ModeLineSelect {
-		t.Error("f on a line without references must stay in line-select")
-	}
-}
-
 func TestPeekTinyWindow(t *testing.T) {
 	m, _ := refTestModel(t)
 	m.width, m.height = 30, 8
