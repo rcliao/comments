@@ -604,3 +604,23 @@ func TestShiftEnterInsertsNewlineInComposer(t *testing.T) {
 		t.Errorf("shift+enter should insert a newline, got %q", got)
 	}
 }
+
+// Reply headers are the scan lines between long replies: each carries a
+// trailing rule, so the boundary between consecutive multi-paragraph replies
+// is visible (live report: replies fused into one wall of text).
+func TestReplyHeadersCarryScanRules(t *testing.T) {
+	m := panelTestModel(t)
+	// Add a second reply so there are two boundaries to see
+	if err := comment.AddReplyToThread(m.doc.Threads, "c1", "rcliao", "a long human reply\nwith two lines"); err != nil {
+		t.Fatal(err)
+	}
+	m = openThreadAtLine5(t, m)
+	got := frame(m)
+	rules := strings.Count(got, "· ")
+	if rules < 2 {
+		t.Fatalf("expected author headers for both replies, got:\n%s", got)
+	}
+	if !strings.Contains(got, "──────") {
+		t.Errorf("reply headers should end in a scan rule:\n%s", got)
+	}
+}

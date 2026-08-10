@@ -744,17 +744,26 @@ func (m *Model) renderThreadWidth(width int) string {
 		rendered.WriteString("\n\n")
 
 		borderStyle := lipgloss.NewStyle().Foreground(theme.Border.Color())
-		authorStyle := lipgloss.NewStyle().Foreground(theme.MetaText.Color())
+		// Author headers are the scan lines of the timeline: bold, colored by
+		// side (this reviewer vs everyone else), with a trailing rule so the
+		// boundary between long multi-paragraph replies is visible at a
+		// glance. MetaText-dim headers made replies fuse into one wall.
+		selfStyle := lipgloss.NewStyle().Bold(true).Foreground(theme.Marker.Color())
+		otherStyle := lipgloss.NewStyle().Bold(true).Foreground(theme.Accent.Color())
 
 		// Calculate available width for reply text: width - padding - border characters
 		replyWidth := max(width-12, 20)
 
 		for _, reply := range m.selectedThread.Replies {
-			// Reply header with styled border and author
+			head := fmt.Sprintf("@%s · %s ", reply.Author, reply.Timestamp.Format("2006-01-02 15:04"))
+			authorStyle := otherStyle
+			if reply.Author == m.author {
+				authorStyle = selfStyle
+			}
+			rule := strings.Repeat("─", max(replyWidth-lipgloss.Width(head)-1, 0))
 			rendered.WriteString(borderStyle.Render("│ "))
-			rendered.WriteString(authorStyle.Render(fmt.Sprintf("@%s · %s",
-				reply.Author,
-				reply.Timestamp.Format("2006-01-02 15:04"))))
+			rendered.WriteString(authorStyle.Render(head))
+			rendered.WriteString(borderStyle.Render(rule))
 			rendered.WriteString("\n")
 
 			// Wrap and render reply text
