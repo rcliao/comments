@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "documentHash": "4b3892526bc5308b06f00496944e4a7f5397c7b202d55e8b6e7a1d47e63d72b1",
-  "lastValidated": "2026-08-08T21:56:25.366908-07:00",
+  "lastValidated": "2026-08-10T09:59:17.009243-07:00",
   "threads": [
     {
       "ID": "c0iyo",
@@ -96,18 +96,18 @@
       "Type": "Q",
       "Line": 34,
       "SectionID": "s9",
-      "SectionPath": "Research: How our RPI harness compares to the state of the art \u003e Findings \u003e F5 — What the surveyed tools have that we do not [Q3]",
+      "SectionPath": "Research: How our RPI harness compares to the state of the art \u003e Findings \u003e F5 — They carry the phases after planning; we stop by design [Q3]",
       "Anchor": {
-        "selected_text": "Spec Kit and Kiro both carry the phases after planning: task decomposition and an implementation driver. We stop at plan signoff. Kiro also ships an IDE surface and AWS distribution; Spec Kit supports multiple agents and a constitution phase for project-wide principles. Our templates cover research and plan only, and the harness has no users outside this repository."
+        "selected_text": "Spec Kit and Kiro both continue past planning into task decomposition and an implementation driver, and both ship broader surfaces (Kiro an IDE, Spec Kit a constitution phase). Our templates cover research and plan only. Per the project owner that fence is the bet, not a gap: the expensive step is a human reading heavy agent-written documentation, so the author distills before spending another engineer's attention. Tasks after an agreed plan are typically agent-managed or tracked as tickets."
       },
       "AnchorConfidence": "exact",
       "Resolved": true,
       "Blocking": false,
-      "Status": "orphaned",
+      "Status": "active",
       "Priority": "medium",
       "OriginalLine": 34,
-      "OrphanedReason": "Section 'Research: How our RPI harness compares to the state of the art \u003e Findings \u003e F5 — What the surveyed tools have that we do not [Q3]' no longer exists and anchor text not found",
-      "OrphanedAt": "2026-08-08T16:53:21.465681-07:00",
+      "OrphanedReason": "",
+      "OrphanedAt": null,
       "Replies": [
         {
           "ID": "cenyn",
