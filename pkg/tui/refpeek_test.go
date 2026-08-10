@@ -209,3 +209,26 @@ func TestEditorCommand(t *testing.T) {
 }
 
 // keyMsg and stripANSI helpers are shared from rendering_test.go
+
+// f on a line with no citations must answer with the empty-state box, not
+// silently do nothing (silent no-op reads as "peek is broken").
+func TestRefPeekEmptyStateOnCitationlessLine(t *testing.T) {
+	m := testModel(nil)
+	m.width, m.height = 100, 40
+	m.handleResize()
+	lineSelectAt(m, 5) // plain body line, no refs
+	next, _ := m.handleLineSelectKeys(keyMsg("f"))
+	nm := next.(Model)
+	if nm.mode != ModeRefPeek {
+		t.Fatalf("f should open the peek empty state, got %v", nm.mode)
+	}
+	if got := frame(nm); !strings.Contains(got, "no citations on line 5") {
+		t.Errorf("empty state should explain itself:\n%s", got)
+	}
+	back, _ := nm.handleRefPeekKeys(keyMsg("esc"))
+	if back.(Model).mode != ModeLineSelect {
+		t.Errorf("esc should return to line-select")
+	}
+	// enter on the empty state must not panic
+	nm.handleRefPeekKeys(keyMsg("enter"))
+}

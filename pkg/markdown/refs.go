@@ -28,7 +28,10 @@ var mdLinkRe = regexp.MustCompile(`(^|[^!])\[[^\]]+\]\(([^)\s]+)\)`)
 // fileLineRe matches bare path.ext:line tokens. The extension must come
 // immediately before the colon so `research.md:42` parses as a unit
 // (path=research.md, line=42); a leading path with slashes is optional.
-var fileLineRe = regexp.MustCompile(`(?:^|[\s(])((?:[\w.\-~]+/)*[\w.\-]+\.[A-Za-z][A-Za-z0-9]{0,9}):(\d{1,6})\b`)
+// A backtick counts as a leading boundary: `file.go:12` (code-span-wrapped
+// citations are the common style in agent-written docs, and were silently
+// unpeekable before). Range citations (file.go:11-44) parse as their start.
+var fileLineRe = regexp.MustCompile("(?:^|[\\s(`])((?:[\\w.\\-~]+/)*[\\w.\\-]+\\.[A-Za-z][A-Za-z0-9]{0,9}):(\\d{1,6})\\b")
 
 // ParseReferences scans document content for local-file references.
 // Fenced code blocks are skipped — a path in example code is not a citation.

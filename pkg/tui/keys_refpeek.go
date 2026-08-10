@@ -41,10 +41,19 @@ func buildRefMap(content, docPath string) map[int][]resolvedRef {
 }
 
 // openRefPeek enters peek mode for the references on the current cursor line.
-// No references -> no-op.
+// A line without citations opens the peek with an explanatory message — a
+// silent no-op reads as "peek is broken" (live report: a doc whose citations
+// failed to parse gave f no visible behavior at all).
 func (m Model) openRefPeek() (tea.Model, tea.Cmd) {
 	refs := m.refsByLine[m.selectedLine]
 	if len(refs) == 0 {
+		m.refPeekList = nil
+		m.refPeekIdx = 0
+		m.refPeekReturnMode = m.mode
+		m.refPeekContent = nil
+		m.refPeekTargetLine = 0
+		m.refPeekErr = fmt.Sprintf("no citations on line %d — peekable forms: path/file.go:12 (backticks ok) or [text](path.md)", m.selectedLine)
+		m.mode = ModeRefPeek
 		return m, nil
 	}
 	m.refPeekList = refs
@@ -62,6 +71,9 @@ func (m *Model) loadPeekTarget() {
 	m.refPeekErr = ""
 	m.refPeekTargetLine = 0
 
+	if len(m.refPeekList) == 0 {
+		return
+	}
 	ref := m.refPeekList[m.refPeekIdx]
 	if !ref.resolved {
 		m.refPeekErr = fmt.Sprintf("cannot resolve %s — no such file (searched from the document's directory upward)", ref.Path)
@@ -117,6 +129,9 @@ func (m Model) handleRefPeekKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "enter":
+		if len(m.refPeekList) == 0 {
+			return m, nil
+		}
 		ref := m.refPeekList[m.refPeekIdx]
 		if !ref.resolved {
 			return m, nil
@@ -133,6 +148,16 @@ func (m Model) handleRefPeekKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // browse/line-select view: a read-only excerpt of the target centered on the
 // cited location, or the resolution error.
 func (m Model) viewRefPeek() string {
+	// Empty state: f on a line without citations still answers, with the box
+	// explaining what would be peekable
+	if len(m.refPeekList) == 0 {
+		var body strings.Builder
+		body.WriteString(m.styles.title.Render("🔗 no citations") + "\n\n")
+		body.WriteString(m.refPeekErr + "\n\n")
+		body.WriteString(m.styles.help.Render("Esc: back"))
+		box := m.styles.modalOverlay.Render(body.String())
+		return m.dialogOver(m.baseView(), box)
+	}
 	ref := m.refPeekList[m.refPeekIdx]
 
 	title := ref.Path
