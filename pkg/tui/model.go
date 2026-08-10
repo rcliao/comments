@@ -464,7 +464,6 @@ func (m *Model) refreshDocFromDisk() {
 		selectedID = m.selectedThread.ID
 	}
 	contentChanged := fresh.Content != m.doc.Content
-	oldContent := m.doc.Content
 	m.doc = fresh
 	if selectedID != "" {
 		if c := fresh.FindCommentByID(selectedID); c != nil {
@@ -472,17 +471,6 @@ func (m *Model) refreshDocFromDisk() {
 		}
 	}
 	if contentChanged {
-		// The cursor follows its TEXT through the swap, not its number — a
-		// mutation about to use selectedLine must hit the line the human was
-		// looking at (live bug: comments landed on whatever shifted into the
-		// old number)
-		if m.selectedLine > 0 {
-			m.selectedLine = comment.RelocateLine(oldContent, fresh.Content, m.selectedLine)
-		}
-		if m.rangeActive {
-			m.rangeStartLine = comment.RelocateLine(oldContent, fresh.Content, m.rangeStartLine)
-			m.rangeEndLine = comment.RelocateLine(oldContent, fresh.Content, m.rangeEndLine)
-		}
 		// Re-derive everything positioned against the old content
 		m.documentSections = markdown.ParseDocument(fresh.Content)
 		m.refsByLine = buildRefMap(fresh.Content, m.filename)
