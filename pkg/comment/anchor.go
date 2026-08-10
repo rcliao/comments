@@ -50,6 +50,25 @@ type reanchorResult struct {
 	found      bool
 }
 
+// RelocateLine maps a 1-based line in oldContent to its best position in
+// newContent, using the same cascade re-anchoring trusts (exact position ->
+// exact search -> normalized search, context + proximity tie-breaks). Falls
+// back to the original line clamped into range. Used when the TUI refreshes a
+// changed document under a live cursor: the cursor follows its TEXT, so a
+// comment lands on the line the human was looking at, not a stale number.
+func RelocateLine(oldContent, newContent string, line int) int {
+	newLines := strings.Split(newContent, "\n")
+	clamp := func(n int) int { return max(1, min(n, len(newLines))) }
+	a := CaptureAnchor(oldContent, line)
+	if a == nil || strings.TrimSpace(a.SelectedText) == "" {
+		return clamp(line)
+	}
+	if r := findAnchor(newLines, a, line); r.found {
+		return r.line
+	}
+	return clamp(line)
+}
+
 // findAnchor runs cascade steps 1-3: exact position, exact search, normalized search.
 // Among multiple text matches, context agreement wins, then proximity to the old line.
 func findAnchor(lines []string, a *Anchor, oldLine int) reanchorResult {
