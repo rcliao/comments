@@ -80,10 +80,18 @@ func indexByteFrom(s string, from int, b byte) int {
 }
 
 func TestParseReferencesSkipsCodeFences(t *testing.T) {
-	content := "# D\n\n```go\n// see parser.go:10\n```\nreal.md:5 after fence.\n"
+	// Non-comment code in a fence is not a citation; a COMMENT trail in a
+	// fence is (schema templates put their file:line evidence there).
+	content := "# D\n\n```go\nload(\"parser.go:10\")\n// see parser.go:10\n```\nreal.md:5 after fence.\n"
 	refs := ParseReferences(content)
-	if len(refs) != 1 || refs[0].Path != "real.md" {
-		t.Errorf("fenced citation must be skipped, real one kept: %+v", refs)
+	if len(refs) != 2 {
+		t.Fatalf("want fence-comment + after-fence refs only, got %+v", refs)
+	}
+	if refs[0].Path != "parser.go" || refs[0].LineNum != 5 {
+		t.Errorf("fence comment-trail citation should parse: %+v", refs[0])
+	}
+	if refs[1].Path != "real.md" {
+		t.Errorf("real citation after fence kept: %+v", refs[1])
 	}
 }
 
@@ -131,5 +139,27 @@ func TestHeadingLine(t *testing.T) {
 	}
 	if got := HeadingLine(content, "nope"); got != 0 {
 		t.Errorf("unknown anchor should return 0, got %d", got)
+	}
+}
+
+// Schema-notation templates put their file:line evidence in comment trails
+// INSIDE fenced blocks (DBML `// scorer.go:41`); those must peek, while
+// non-comment code in fences stays excluded.
+func TestParseReferencesInFenceCommentTrails(t *testing.T) {
+	content := "```dbml\n" +
+		"Table check_result {\n" +
+		"  max_points int // pkg/comment/gate.go:41 hard-coded here\n" +
+		"  raw string\n" +
+		"}\n" +
+		"```\n" +
+		"```go\n" +
+		"data := load(\"types.go:12\") // not a citation target: fake.go\n" +
+		"```\n"
+	refs := ParseReferences(content)
+	if len(refs) != 1 {
+		t.Fatalf("expected exactly the comment-trail citation, got %d: %+v", len(refs), refs)
+	}
+	if refs[0].Path != "pkg/comment/gate.go" || refs[0].Line != 41 || refs[0].LineNum != 3 {
+		t.Errorf("got %+v, want gate.go:41 at doc line 3", refs[0])
 	}
 }
