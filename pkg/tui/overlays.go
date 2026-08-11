@@ -179,6 +179,14 @@ func (m Model) handleTOCKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case "g":
+		m.tocSelected = 0
+		return m, nil
+
+	case "G":
+		m.tocSelected = max(len(m.tocEntries)-1, 0)
+		return m, nil
+
 	case "enter":
 		if m.tocSelected < 0 || m.tocSelected >= len(m.tocEntries) {
 			m.mode = m.tocReturnMode

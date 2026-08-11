@@ -64,6 +64,36 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.refreshDocumentPane()
 		return m, nil
 
+	case "g":
+		// vim: first thread
+		if len(m.visibleComments()) > 0 {
+			m.selectedComment = 0
+			m.commentViewport.SetContent(m.renderComments())
+			m.scrollToComment(m.visibleComments()[0])
+			m.refreshDocumentPane()
+		}
+		return m, nil
+
+	case "G":
+		// vim: last thread
+		if vc := m.visibleComments(); len(vc) > 0 {
+			m.selectedComment = len(vc) - 1
+			m.commentViewport.SetContent(m.renderComments())
+			m.scrollToComment(vc[m.selectedComment])
+			m.refreshDocumentPane()
+		}
+		return m, nil
+
+	case "ctrl+d":
+		// vim: half page down the DOCUMENT (browse could only scroll by
+		// thread-hopping before — docs with few comments were unscrollable)
+		m.documentViewport.SetYOffset(m.documentViewport.YOffset() + m.documentViewport.Height()/2)
+		return m, nil
+
+	case "ctrl+u":
+		m.documentViewport.SetYOffset(max(m.documentViewport.YOffset()-m.documentViewport.Height()/2, 0))
+		return m, nil
+
 	case "j", "down":
 		// Navigate comments
 		visibleComments := m.visibleComments()
