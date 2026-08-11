@@ -2,6 +2,10 @@ template: as-built
 version: 1
 description: As-built architecture walkthrough — what the code DOES today (data flow, data model, storage), with peekable file:line evidence and an honest gap list
 doc:
+  check_citations: true
+  style:
+    max_sentence_words: 30
+    max_paragraph_words: 70
   max_words: 3000
 sections:
   - heading: "What This Describes"
