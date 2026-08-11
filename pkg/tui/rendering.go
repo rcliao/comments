@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -315,7 +316,19 @@ func (m *Model) gutterWidth() int {
 	if m.hideLineNumbers {
 		return 3
 	}
-	return 8
+	return 3 + m.lineNumWidth() + 1
+}
+
+// lineNumWidth is the number column's width: exactly the digits the LAST line
+// needs, right-aligned — a fixed 4-cell box left two ghost spaces between the
+// comment marker and 2-digit numbers (live review). Width shifts only when a
+// doc crosses a digit boundary (99->100), which reflows like the # toggle.
+func (m *Model) lineNumWidth() int {
+	n := 1
+	if m.doc != nil {
+		n = len(strconv.Itoa(max(1, strings.Count(m.doc.Content, "\n")+1)))
+	}
+	return max(n, 2)
 }
 
 // renderDocument renders the document pane without a cursor (browse mode)
@@ -359,7 +372,8 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 
 	for i, line := range lines {
 		lineNum := i + 1
-		lineNumStr := m.styles.lineNumber.Render(fmt.Sprintf("%d", lineNum))
+		numW := m.lineNumWidth()
+		lineNumStr := m.styles.lineNumber.Width(numW).Render(fmt.Sprintf("%d", lineNum))
 
 		marker := m.styles.lineMarker(commentsByLine[lineNum])
 
@@ -375,7 +389,7 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 			styledLine = m.styleDocLine(line, lineNum)
 		}
 		if isSelected || isFocused {
-			lineNumStr = m.styles.cursorLineNum.Render(fmt.Sprintf("%d", lineNum))
+			lineNumStr = m.styles.cursorLineNum.Width(numW).Render(fmt.Sprintf("%d", lineNum))
 		}
 
 		// Wrap long lines

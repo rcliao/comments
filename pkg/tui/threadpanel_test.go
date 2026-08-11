@@ -624,3 +624,30 @@ func TestReplyHeadersCarryScanRules(t *testing.T) {
 		t.Errorf("reply headers should end in a scan rule:\n%s", got)
 	}
 }
+
+// The number column is digit-fit: a 2-digit doc gets a 2-cell column — no
+// ghost spaces between the comment marker and the number (live review).
+func TestGutterNumberColumnDigitFit(t *testing.T) {
+	m := testModel([]*comment.Comment{{ID: "c1", Line: 3, Text: "n", Author: "a", Blocking: true}})
+	m.width, m.height = 100, 40
+	m.handleResize()
+	if got := m.lineNumWidth(); got != 2 {
+		t.Fatalf("10-line doc should get a 2-cell number column, got %d", got)
+	}
+	if got := m.gutterWidth(); got != 6 {
+		t.Fatalf("gutter should be 3+2+1=6, got %d", got)
+	}
+	row := ""
+	for _, r := range strings.Split(stripANSI(m.renderDocument()), "\n") {
+		if strings.Contains(r, "⛔1") {
+			row = r
+			break
+		}
+	}
+	if row == "" || strings.Contains(row, "⛔1  3") {
+		t.Errorf("marker should sit one cell from the number, got %q", row)
+	}
+	if !strings.Contains(row, "⛔1 3") {
+		t.Errorf("expected snug marker+number, got %q", row)
+	}
+}

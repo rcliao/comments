@@ -187,9 +187,10 @@ sidebar. Don't hand-roll that triple.
 All rendering functions are **pure functions** on the Model (`renderDocument`, `renderComments`, `renderThread`): Model state in, strings out, no side effects, no Model mutation.
 
 Both document renders go through `renderDocumentView(withCursor)` and wrap at
-`docWrapWidth()` (viewport width − 8: marker cell 3 + number 4 + space; no
-cursor column — the cursor line's background and accented number carry
-position, per live review). One shared
+`docWrapWidth()` (viewport width − gutter: marker cell 3 + digit-fit number
+column + space; no cursor column — the cursor line's background and accented
+number carry position, per live review; the number column is exactly as wide
+as the last line's digits, min 2). One shared
 width means wrap points — and therefore scroll rows — are identical in browse
 and line-select, so mode switches never reflow the document under a saved
 scroll offset. Don't reintroduce per-mode wrap widths.
