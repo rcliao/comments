@@ -48,6 +48,15 @@ func ParseReferences(content string) []Reference {
 		if inFence {
 			if closesFence(line, fenceChar, fenceLen) {
 				inFence = false
+				continue
+			}
+			// Code in a fence is not a citation — but a COMMENT TRAIL in a
+			// fence is exactly where schema-notation templates put their
+			// file:line evidence (DBML: `max_points int // scorer.go:41`).
+			// Mask everything before the comment marker, preserving byte
+			// offsets, and parse only the trail.
+			if masked, ok := commentTrail(line); ok {
+				refs = append(refs, parseLineReferences(masked, i+1)...)
 			}
 			continue
 		}
@@ -58,6 +67,22 @@ func ParseReferences(content string) []Reference {
 		refs = append(refs, parseLineReferences(line, i+1)...)
 	}
 	return refs
+}
+
+// commentTrail masks a fenced-code line up to its first comment marker
+// (`//` or `#`), preserving byte offsets so parsed reference columns still
+// point into the original line. ok=false when the line has no comment.
+func commentTrail(line string) (string, bool) {
+	idx := -1
+	for _, marker := range []string{"//", "#"} {
+		if i := strings.Index(line, marker); i >= 0 && (idx == -1 || i < idx) {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		return "", false
+	}
+	return strings.Repeat(" ", idx) + line[idx:], true
 }
 
 func parseLineReferences(line string, lineNum int) []Reference {

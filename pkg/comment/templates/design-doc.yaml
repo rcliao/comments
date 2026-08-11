@@ -1,19 +1,12 @@
 template: design-doc
 version: 1
-description: Design/tech-design doc optimized for human review (bounded length, forced alternatives, explicit unknowns)
+description: Design one-pager optimized for human review — Intent, Decisions, Data Flow, Data Model (delta), Interfaces, Done; bounded length, forced alternatives, explicit unknowns
 doc:
-  # 2000 was right when every section was required. With Data Flow and Data Model
-  # available, a design carrying both a sequence and a schema cannot fit: the
-  # required sections alone run to ~1200 words, and the two optional ones are
-  # capped at 700 and 900. A doc using neither is unaffected — the per-section
-  # caps, not this one, are what hold a design to a reviewable size.
-  #
-  # Raised twice, and the second raise is the informative one: reviewers asked for
-  # the COMPLETE data model rather than a delta plus a cross-reference, because a
-  # schema is scanned for lookup, not read linearly. A complete model of a real
-  # system runs 600-900 words on its own. If that makes a doc feel long, the fix is
-  # a smaller design, not a shorter schema.
-  max_words: 2800
+  # One-pager discipline: the complete data model belongs to an as-built doc
+  # (that template exists for exactly that); a DESIGN carries the delta. With
+  # the delta split, 2400 holds a design using every optional section. If a doc
+  # cannot fit, the fix is a smaller design, not a longer page.
+  max_words: 2400
 sections:
   - heading: "Problem"
     required: true
@@ -35,33 +28,50 @@ sections:
       - "Can a reviewer trace every goal to a part of the design?"
       - "Where structure or flow matters, would an ASCII diagram say it better than prose? Include one if so."
   # Optional: a design that changes no sequence needs no story, and an invented
-  # one is worse than none. Placed before Data Model on the same reasoning a
-  # reviewer gave for it: what MOVES through the system comes before the
-  # catalogue of what the things are. Optional sections are exempt from order
-  # checking, so a doc may place it wherever it reads best.
+  # one is worse than none. The actors of the story ARE the component list —
+  # a separate Components section exists only for casts too large to hold in
+  # the head. Optional sections are exempt from order checking.
+  #
+  # Criteria are one-line checks; the reasoning behind them lives here:
+  # actor/action/work-object keeps it a story, not a component list; actors
+  # are the things that ACT, not files, and a role name that is not greppable
+  # must say so; a story starts at what defines the behaviour and ends at what
+  # the reader receives; NEW/CHANGED marking is what separates a proposal from
+  # a description of the present; concurrency is usually the argument for the
+  # design; a story and a diagram of the same sequence are two tellings.
   - heading: "Data Flow"
     required: false
-    max_words: 700
+    max_words: 600
     review_criteria:
-      - "Is every step one sentence in actor / action / work-object form, so it reads as a story rather than a component list?"
-      - "Are the actors named as the things that ACT (a prober, a judge, a store) rather than as files or layers — and is it said where a role name will NOT be greppable in the code?"
-      - "Does the story start at whatever DEFINES the behaviour (the config, the request, the schedule) and end at what the reader actually receives — with no step where a work object appears from nowhere?"
-      - "Is each step marked NEW, CHANGED or unchanged against today? A proposed flow that does not say what moves is indistinguishable from a description of the present."
-      - "Is the flow told ONCE? A story and a diagram of the same sequence are two tellings — the diagram must add what prose cannot (names, files, concurrency), not repeat the narrative."
-      - "Are the concurrent steps distinguished from the sequential ones, since that is what the timing — and usually the argument for the design — actually depends on?"
-
-  # Optional: many designs change no data at all, and an empty schema section is
-  # worse than none.
+      - "Is every step one actor / action / work-object sentence, marked NEW, CHANGED or unchanged?"
+      - "Are actors the things that ACT (a prober, a judge, a store) — with a note wherever the role name is not greppable in the code?"
+      - "Does the story run from what defines the behaviour to what the reader receives, no work object appearing from nowhere?"
+      - "Are concurrent steps distinguished from sequential — and is the flow told ONCE (a diagram must add names, files or concurrency, never repeat the narrative)?"
+  # Optional: only when Data Flow's cast is too large to hold in the head.
+  - heading: "Components"
+    required: false
+    max_words: 150
+    review_criteria:
+      - "One line per component: the Data Flow actor's name and its home (package or file) — nothing a reader could not derive from the story, just faster."
+  # Optional: many designs change no data. DELTA only — the complete model is
+  # an as-built doc's job; a design that inlines a full schema is hiding its
+  # actual change inside an inventory.
   - heading: "Data Model"
     required: false
-    max_words: 900
+    max_words: 400
     review_criteria:
-      - "Is the model written in a schema notation — DBML-style `Table` blocks or equivalent — that stays readable in RAW markdown source? A wide markdown table is hard to read unrendered and collapses every change into a one-line diff; prefer one field per line."
-      - "Is every entity's identity stated — the thing you look it up by — even when there is no database and it is an object key, a cache key, or nothing at all?"
-      - "Are relationships written as explicit references, distinguishing those the code enforces from those that are conventions nothing checks?"
-      - "Does each entity say where it LIVES (in memory, in a row, in an object, in a cache) and which step of the design creates it?"
-      - "For a change to existing data: is it clear what is ADDED, what is REMOVED, and what must keep being read for compatibility?"
-      - "Are entities that SHOULD exist but do not shown as such — a commented-out block beats an absence, which is invisible?"
+      - "DBML-style blocks, one field per line, readable in RAW markdown — never a wide table?"
+      - "Delta only — ADDED / CHANGED / REMOVED entities and fields, plus what must keep being read for compatibility — citing the as-built doc that holds the complete model?"
+      - "Does every entity state its identity (what you look it up by) and where it lives — with references distinguishing enforced from convention?"
+      - "Are entities that SHOULD exist but do not shown commented out, since an absence is invisible?"
+  # Optional: the third pillar of a reviewable design — what the outside
+  # world calls. One line each; a signature says more than a paragraph.
+  - heading: "Interfaces"
+    required: false
+    max_words: 150
+    review_criteria:
+      - "One line per interface — CLI command, API route, function signature, or protocol — marked NEW / CHANGED / REMOVED?"
+      - "Do changed signatures show before -> after, and new ones cite the file:line where they will live (or their nearest existing neighbour)?"
   - heading: "Options Considered"
     required: true
     min_subsections: 2
