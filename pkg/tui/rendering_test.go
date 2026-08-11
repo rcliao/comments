@@ -469,3 +469,63 @@ func TestSidebarSummaryTruncationIsRuneSafe(t *testing.T) {
 		t.Error("long collapsed summary should be ellipsized")
 	}
 }
+
+// Phase 1 of docs/plan-markdown-render.md: fence interiors carry no prose
+// styling, chroma highlights code line-preservingly, and comment-trail
+// citations inside fences stay link-styled (peekable).
+func TestFenceRenderingHighlightsAndPreservesCitations(t *testing.T) {
+	content := "# T\n\n```dbml\nTable eval {\n  doc string [pk] // pkg/comment/types.go:140 key\n}\n```\n- a **bold** bullet\n"
+	doc := &comment.DocumentWithComments{Content: content, Threads: []*comment.Comment{}}
+	m := NewModelWithFile(doc, "/tmp/nonexistent-doc.md")
+	m.width, m.height = 100, 40
+	m.handleResize()
+
+	// Fence cache: delimiters at 3 and 7, code lines 4-6
+	if fl, ok := m.fenceCache[3]; !ok || !fl.delimiter {
+		t.Fatalf("line 3 should be a fence delimiter: %+v", m.fenceCache)
+	}
+	fl := m.fenceCache[5]
+	if fl.trail == "" || !strings.Contains(fl.trail, "types.go:140") {
+		t.Fatalf("line 5 should split its citation trail, got %+v", fl)
+	}
+	// Highlighted code carries ANSI but identical raw text
+	if stripANSI(fl.code)+stripANSI(fl.trail) != "  doc string [pk] // pkg/comment/types.go:140 key" {
+		t.Errorf("fence line content must be byte-identical ignoring ANSI: %q + %q", stripANSI(fl.code), stripANSI(fl.trail))
+	}
+	// Rendered doc: bullet line still styled, fence line not bullet-styled,
+	// and total line count unchanged
+	out := m.renderDocument()
+	if strings.Count(out, "\n") < strings.Count(content, "\n") {
+		t.Errorf("rendering must not drop lines")
+	}
+	styled := m.styleDocLine("  doc string [pk] // pkg/comment/types.go:140 key", 5)
+	if stripANSI(styled) != "  doc string [pk] // pkg/comment/types.go:140 key" {
+		t.Errorf("fence line styling changed characters: %q", stripANSI(styled))
+	}
+}
+
+// Phases 2-3 of docs/plan-markdown-render.md: strikethrough + links styled
+// with dimmed markers; heading hashes dim; hrule dims whole-line — all
+// byte-identical ignoring ANSI.
+func TestTyporaSpansAndGlyphs(t *testing.T) {
+	st := testStyles()
+	for _, line := range []string{
+		"~~vetoed option~~ stays visible",
+		"see [the plan](docs/plan.md) for detail",
+		"# Heading One",
+		"---",
+	} {
+		var styled string
+		if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "---" {
+			styled = st.styleMarkdownLine(line)
+		} else {
+			styled = st.styleInlineSpans(line)
+		}
+		if got := stripANSI(styled); got != line {
+			t.Errorf("styling changed characters: %q -> %q", line, got)
+		}
+	}
+	if out := stripANSI(st.styleInlineSpans("~~x~~")); out != "~~x~~" {
+		t.Errorf("strike markers must remain: %q", out)
+	}
+}

@@ -80,6 +80,10 @@ type Model struct {
 	refPeekErr        string                // resolution/read error shown in the peek
 	refPeekThread     *comment.Comment      // thread citation target (thread:c1abc), nil for file peeks
 
+	// Fence rendering cache: per-line fence state + chroma output, rebuilt on
+	// content change (docs/plan-markdown-render.md Phase 1)
+	fenceCache map[int]fenceLine
+
 	// Review pack state
 	suggestionQueue   map[string]bool // suggestion ID -> accept(true)/reject(false); applied at verdict
 	sidebarDensity    int             // densityFull / densityCondensed / densityHidden (S cycles)
@@ -196,6 +200,7 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 		m.documentSections = markdown.ParseDocument(doc.Content)
 		// Detect and resolve file references once; rendering and peek only read this
 		m.refsByLine = buildRefMap(doc.Content, filename)
+		m.fenceCache = m.buildFenceCache()
 	}
 
 	// Resume the previous review position, if one was persisted
@@ -423,6 +428,7 @@ func (m Model) loadFile(path string) (tea.Model, tea.Cmd) {
 
 	// Detect and resolve file references once; rendering and peek only read this
 	m.refsByLine = buildRefMap(m.doc.Content, path)
+	m.fenceCache = m.buildFenceCache()
 
 	// If we have dimensions, initialize viewports now
 	if m.width > 0 && m.height > 0 {
@@ -488,6 +494,7 @@ func (m *Model) refreshDocFromDisk() {
 		// Re-derive everything positioned against the old content
 		m.documentSections = markdown.ParseDocument(fresh.Content)
 		m.refsByLine = buildRefMap(fresh.Content, m.filename)
+		m.fenceCache = m.buildFenceCache()
 		m.refreshDocumentPane()
 	}
 	m.clampSelectedComment(len(m.visibleComments()))

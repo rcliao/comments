@@ -17,6 +17,8 @@ import (
 // All delimiters are ASCII, so regexp byte offsets index the line directly.
 var (
 	codeSpanPattern    = regexp.MustCompile("`[^`]+`")
+	strikePattern      = regexp.MustCompile(`~~[^~]+~~`)
+	mdLinkSpanPattern  = regexp.MustCompile(`\[[^\]]+\]\([^)\s]+\)`)
 	boldStarPattern    = regexp.MustCompile(`\*\*[^*]+\*\*`)
 	boldUnderPattern   = regexp.MustCompile(`__[^_]+__`)
 	italicStarPattern  = regexp.MustCompile(`\*[^*\s][^*]*\*`)
@@ -34,6 +36,8 @@ const (
 	spanCode spanKind = iota
 	spanBold
 	spanItalic
+	spanStrike
+	spanLink
 )
 
 // inlineSpan is one styled region of a line: [start,end) byte offsets into
@@ -71,6 +75,8 @@ func findInlineSpans(line string) []inlineSpan {
 		}
 	}
 	add(codeSpanPattern, 1, spanCode)
+	add(strikePattern, 2, spanStrike)
+	add(mdLinkSpanPattern, 0, spanLink)
 	add(boldStarPattern, 2, spanBold)
 	add(boldUnderPattern, 2, spanBold)
 	add(italicStarPattern, 1, spanItalic)
@@ -102,6 +108,17 @@ func (st *styleSet) styleInlineSpans(s string) string {
 			b.WriteString(st.boldSpan.Render(content))
 		case spanItalic:
 			b.WriteString(st.italicSpan.Render(content))
+		case spanStrike:
+			b.WriteString(st.strikeSpan.Render(content))
+		case spanLink:
+			// [text](target): text link-colored, brackets and target dimmed
+			if i := strings.Index(content, "]("); i > 0 {
+				b.WriteString(st.syntaxGlyph.Render("["))
+				b.WriteString(st.refLink.Render(content[1:i]))
+				b.WriteString(st.syntaxGlyph.Render(content[i:]))
+			} else {
+				b.WriteString(content)
+			}
 		}
 		b.WriteString(st.syntaxGlyph.Render(close))
 		last = sp.end
@@ -136,15 +153,19 @@ func (st *styleSet) styleLinePrefix(line string) (string, string) {
 // colored. The ANSI-stripped result always equals the input — line widths
 // and anchors are untouched.
 func (st *styleSet) styleMarkdownLine(line string) string {
-	// Headers - color them for better scannability
+	// Horizontal rule: the whole line dims (Phase 3, plan-markdown-render)
+	if t := strings.TrimSpace(line); t == "---" || t == "***" || t == "___" {
+		return st.syntaxGlyph.Render(line)
+	}
+	// Headers — hashes dim, title keeps its color (Typora recede-not-vanish)
 	if strings.HasPrefix(line, "# ") {
-		return st.heading1.Render(line)
+		return st.syntaxGlyph.Render("#") + st.heading1.Render(line[1:])
 	}
 	if strings.HasPrefix(line, "## ") {
-		return st.heading2.Render(line)
+		return st.syntaxGlyph.Render("##") + st.heading2.Render(line[2:])
 	}
 	if strings.HasPrefix(line, "### ") {
-		return st.heading3.Render(line)
+		return st.syntaxGlyph.Render("###") + st.heading3.Render(line[3:])
 	}
 	if strings.HasPrefix(line, "#### ") || strings.HasPrefix(line, "##### ") || strings.HasPrefix(line, "###### ") {
 		return st.heading4.Render(line)
@@ -161,6 +182,17 @@ func (st *styleSet) styleMarkdownLine(line string) string {
 // the ANSI-stripped result equals the input). Headings keep whole-line
 // styling and skip reference styling.
 func (m *Model) styleDocLine(line string, lineNum int) string {
+	// Fence lines: suppressed prose styling, chroma-highlighted code, and a
+	// citation-styled comment trail (docs/plan-markdown-render.md Phase 1)
+	if fl, ok := m.fenceCache[lineNum]; ok {
+		if fl.delimiter {
+			return m.styles.syntaxGlyph.Render(line)
+		}
+		if fl.trail == "" {
+			return fl.code
+		}
+		return fl.code + m.styleFenceTrail(fl.trail, line, lineNum)
+	}
 	refs := m.refsByLine[lineNum]
 	styled := make([]resolvedRef, 0, len(refs))
 	for _, r := range refs {
@@ -420,6 +452,29 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 	}
 
 	return rendered.String()
+}
+
+// styleFenceTrail styles a fence line's comment trail: dim comment color,
+// with any peekable citations inside it link-styled (offsets recomputed
+// against the trail's position in the raw line).
+func (m *Model) styleFenceTrail(trail, rawLine string, lineNum int) string {
+	trailStart := len(rawLine) - len(trail)
+	var b strings.Builder
+	last := 0
+	for _, r := range m.refsByLine[lineNum] {
+		if !r.resolved || r.StartCol < trailStart || r.EndCol > len(rawLine) {
+			continue
+		}
+		s0, s1 := r.StartCol-trailStart, r.EndCol-trailStart
+		if s0 < last {
+			continue
+		}
+		b.WriteString(m.styles.help.Render(trail[last:s0]))
+		b.WriteString(m.styles.refLink.Render(trail[s0:s1]))
+		last = s1
+	}
+	b.WriteString(m.styles.help.Render(trail[last:]))
+	return b.String()
 }
 
 // truncate shortens s to at most max runes, cutting on a rune boundary and

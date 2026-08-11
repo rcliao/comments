@@ -28,6 +28,10 @@ func (c ThemeColor) Color() color.Color { return lipgloss.Color(string(c)) }
 // Theme maps every color role the TUI uses to a concrete color.
 // Roles, not widgets: several widgets may share one role.
 type Theme struct {
+	// Chroma is the chroma style name used for fence syntax highlighting
+	// (docs/plan-markdown-render.md Phase 1); "" falls back to a neutral one.
+	Chroma string
+
 	// Markdown headings (whole-line, by level; Heading4 covers H4-H6)
 	Heading1 ThemeColor
 	Heading2 ThemeColor
@@ -77,12 +81,21 @@ type Theme struct {
 // DefaultThemeName is applied at startup and on unknown theme names.
 const DefaultThemeName = "nord"
 
+// ChromaStyle names the chroma style for this theme, with a neutral default.
+func (t Theme) ChromaStyle() string {
+	if t.Chroma != "" {
+		return t.Chroma
+	}
+	return "nord"
+}
+
 // themes is the registry of selectable themes.
 var themes = map[string]Theme{
 	// nord: the official Nord palette (https://www.nordtheme.com).
 	// Polar night #2E3440-#4C566A, snow storm #D8DEE9-#ECEFF4,
 	// frost #8FBCBB/#88C0D0/#81A1C1/#5E81AC, aurora #BF616A/#D08770/#EBCB8B/#A3BE8C/#B48EAD.
 	"nord": {
+		Chroma:   "nord",
 		Heading1: "#88C0D0", Heading2: "#81A1C1", Heading3: "#8FBCBB", Heading4: "#5E81AC",
 		Title: "#B48EAD", DimSyntax: "#4C566A", LineNumber: "#4C566A", HelpText: "#4C566A",
 		MetaText: "#D8DEE9", ReplyMeta: "#4C566A", Border: "#4C566A",
@@ -96,6 +109,7 @@ var themes = map[string]Theme{
 
 	// dracula: the canonical Dracula palette (https://draculatheme.com).
 	"dracula": {
+		Chroma:   "dracula",
 		Heading1: "#BD93F9", Heading2: "#FF79C6", Heading3: "#8BE9FD", Heading4: "#50FA7B",
 		Title: "#BD93F9", DimSyntax: "#6272A4", LineNumber: "#6272A4", HelpText: "#6272A4",
 		MetaText: "#6272A4", ReplyMeta: "#6272A4", Border: "#6272A4",
@@ -109,6 +123,7 @@ var themes = map[string]Theme{
 
 	// gruvbox: the canonical Gruvbox dark palette (https://github.com/morhetz/gruvbox).
 	"gruvbox": {
+		Chroma:   "gruvbox",
 		Heading1: "#FE8019", Heading2: "#FABD2F", Heading3: "#B8BB26", Heading4: "#83A598",
 		Title: "#D3869B", DimSyntax: "#928374", LineNumber: "#928374", HelpText: "#928374",
 		MetaText: "#A89984", ReplyMeta: "#928374", Border: "#665C54",
@@ -123,6 +138,7 @@ var themes = map[string]Theme{
 	// ansi: the exact 256-color values the TUI shipped with before themes
 	// existed (backward-compatible legacy look).
 	"ansi": {
+		Chroma:   "native",
 		Heading1: "99", Heading2: "33", Heading3: "39", Heading4: "45",
 		Title: "170", DimSyntax: "240", LineNumber: "240", HelpText: "241",
 		MetaText: "242", ReplyMeta: "243", Border: "240",
