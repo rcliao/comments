@@ -85,6 +85,18 @@ func DecorateType(text string) string {
 	return typeEmoji[t] + " " + text
 }
 
+// DecorateTypeCompact renders the type as its emoji and DROPS the "[X]"
+// marker from the text — for width-starved rows where "❓ [Q]" says
+// "question" twice. Text without a marker is returned unchanged.
+func DecorateTypeCompact(text string) string {
+	t, ok := LeadingType(text)
+	if !ok {
+		return text
+	}
+	trimmed := strings.TrimLeft(text, " \t")
+	return typeEmoji[t] + " " + strings.TrimLeft(trimmed[3:], " ")
+}
+
 // LeadingType extracts the type letter from a "[X]" marker at the start of
 // text, reporting false when there is no recognized marker.
 func LeadingType(text string) (string, bool) {

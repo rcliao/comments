@@ -113,7 +113,7 @@ func TestSidebarShowsBlockingAndConfidenceMarkers(t *testing.T) {
 		{ID: "c1", Line: 5, Text: "must fix", Blocking: true, AnchorConfidence: comment.ConfidenceFuzzy},
 	})
 	out := m.renderComments()
-	if !strings.Contains(out, "[BLOCKING]") {
+	if !strings.Contains(out, "⛔") {
 		t.Error("blocking thread marker missing from sidebar")
 	}
 	if !strings.Contains(out, "~fuzzy") {

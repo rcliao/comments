@@ -583,13 +583,14 @@ func TestThreadIDVisibleInPanelAndSidebar(t *testing.T) {
 	if got := frame(m); !strings.Contains(got, "c1 · Thread at") {
 		t.Errorf("panel header should lead with the thread ID:\n%s", got)
 	}
-	// Sidebar rows lead with the ID in both densities (same order everywhere)
-	if got := m.renderComments(); !strings.Contains(got, "c1 @rcliao") {
-		t.Errorf("sidebar (full) should lead the row with the thread ID:\n%s", got)
+	// Sidebar rows carry the ID in the dim meta tail in both densities
+	// (content-first layout: text gets the width, @author · id trails)
+	if got := stripANSI(m.renderComments()); !strings.Contains(got, "· c1") {
+		t.Errorf("sidebar (full) should carry the thread ID in the meta tail:\n%s", got)
 	}
 	m.sidebarDensity = densityCondensed
-	if got := m.renderComments(); !strings.Contains(got, "c1 @rcliao") {
-		t.Errorf("sidebar (condensed) should lead rows with the ID:\n%s", got)
+	if got := stripANSI(m.renderComments()); !strings.Contains(got, "@rcliao · c1") {
+		t.Errorf("sidebar (condensed) should end rows with @author · id:\n%s", got)
 	}
 }
 

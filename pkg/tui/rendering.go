@@ -490,21 +490,24 @@ func (m *Model) focusLine() int {
 }
 
 // threadMarkers builds the status/type indicator string for a thread
+// threadMarkers compresses thread state to sigils: word badges
+// ("[HIGH] [BLOCKING]") ate the row width the content needed (live review).
+// ⛔ blocking · ↑ high priority · suggestion states keep their glyphs.
 func threadMarkers(c *comment.Comment) string {
 	markers := ""
 	if c.GetPriority() == "high" && !c.Resolved {
-		markers += " [HIGH]"
+		markers += " ↑"
 	}
 	if c.Blocking && !c.Resolved {
-		markers += " [BLOCKING]"
+		markers += " ⛔"
 	}
 	if c.IsSuggestion {
 		if c.IsPending() {
-			markers += " [📝 SUGGESTION]"
+			markers += " 📝"
 		} else if c.Accepted != nil && *c.Accepted {
-			markers += " [✓ ACCEPTED]"
+			markers += " 📝✓"
 		} else if c.Accepted != nil && !*c.Accepted {
-			markers += " [✗ REJECTED]"
+			markers += " 📝✗"
 		}
 	}
 	switch c.AnchorConfidence {
@@ -638,10 +641,10 @@ func (m *Model) renderComments() string {
 
 			if expanded {
 				wrapWidth := m.sidebarWrapWidth()
-				text := fmt.Sprintf("  %s%s @%s%s%s · %s\n%s",
-					resolvedMark, c.ID, c.Author, threadMarkers(c), newBadge,
-					c.Timestamp.Format("2006-01-02 15:04"),
-					indentWrap(comment.DecorateType(c.Text), wrapWidth, "  "))
+				text := fmt.Sprintf("  %s%s@%s%s · %s · %s\n%s",
+					resolvedMark, strings.TrimLeft(threadMarkers(c)+" ", " "), c.Author, newBadge,
+					c.Timestamp.Format("15:04"), c.ID,
+					indentWrap(comment.DecorateTypeCompact(c.Text), wrapWidth, "  "))
 				rendered.WriteString(style.Render(text))
 				rendered.WriteString("\n")
 				rootRound := roundNumber(c.Timestamp, m.doc.Reviews)
@@ -649,11 +652,16 @@ func (m *Model) renderComments() string {
 				continue
 			}
 
-			// ID first: a scannable column for matching agent-referenced
-			// thread IDs ("answer c7q39") against the sidebar
-			summary := truncate(comment.DecorateType(c.Text), 41, "…")
-			text := fmt.Sprintf("  %s%s @%s%s%s: %s", resolvedMark, c.ID, c.Author, threadMarkers(c), newBadge, summary)
-			rendered.WriteString(style.Render(text))
+			// Content first, meta last: sigils + type emoji + as much text
+			// as fits, then a dim tail of @author · id (still scannable for
+			// cross-referencing "answer c7q39", but no longer eating the
+			// width the content needs — live review)
+			meta := fmt.Sprintf(" · @%s · %s", c.Author, c.ID)
+			lead := fmt.Sprintf("  %s%s%s ", resolvedMark, strings.TrimLeft(threadMarkers(c), " "), newBadge)
+			textW := max(m.sidebarWrapWidth()-lipgloss.Width(meta)-lipgloss.Width(lead), 12)
+			summary := truncate(comment.DecorateTypeCompact(c.Text), textW, "…")
+			rendered.WriteString(style.Render(lead + summary))
+			rendered.WriteString(m.styles.help.Render(meta))
 			rendered.WriteString("\n")
 		}
 		rendered.WriteString("\n")

@@ -641,7 +641,7 @@ func TestPrioritySortWalkthroughOrder(t *testing.T) {
 	if got[0].ID != "c2" || got[1].ID != "c3" || got[2].ID != "c1" {
 		t.Fatalf("walkthrough order should be high, default, low — got %s %s %s", got[0].ID, got[1].ID, got[2].ID)
 	}
-	if out := nm.renderComments(); !strings.Contains(out, "by priority") || !strings.Contains(out, "[HIGH]") {
+	if out := nm.renderComments(); !strings.Contains(out, "by priority") || !strings.Contains(out, "↑") {
 		t.Errorf("sidebar should badge the mode and the high thread:\n%s", out)
 	}
 
@@ -650,5 +650,28 @@ func TestPrioritySortWalkthroughOrder(t *testing.T) {
 	got = bm.visibleComments()
 	if got[0].ID != "c1" || got[1].ID != "c3" || got[2].ID != "c2" {
 		t.Errorf("second P should restore document order, got %s %s %s", got[0].ID, got[1].ID, got[2].ID)
+	}
+}
+
+// Condensed rows are content-first: sigils + emoji + text fill the width,
+// @author · id trail dimmed — no word badges, no doubled type marker.
+func TestCondensedRowContentFirst(t *testing.T) {
+	m := testModel([]*comment.Comment{{
+		ID: "cma7o", Line: 3, Author: "claude", Priority: "high", Blocking: true,
+		Text: "[Q] Recording your chat veto: mermaid-ER path rejected",
+	}})
+	m.width, m.height = 100, 40
+	m.handleResize()
+	m.sidebarDensity = densityCondensed
+	out := stripANSI(m.renderComments())
+	for _, want := range []string{"↑", "⛔", "❓ Recording", "@claude · cma7o"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("condensed row missing %q:\n%s", want, out)
+		}
+	}
+	for _, gone := range []string{"[HIGH]", "[BLOCKING]", "❓ [Q]"} {
+		if strings.Contains(out, gone) {
+			t.Errorf("condensed row should not contain %q:\n%s", gone, out)
+		}
 	}
 }
