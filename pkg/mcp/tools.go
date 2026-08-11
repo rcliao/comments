@@ -254,8 +254,10 @@ func (s *Server) handleAddComment(ctx context.Context, req *mcp.CallToolRequest,
 			line = resolved
 		}
 
-		// Create new comment
-		newComment := comment.NewComment(args.Author, line, args.Text)
+		// Create new comment (text carries the normalized type marker, same
+		// shape as CLI/TUI adds — PrefixType never doubles one the author
+		// already wrote)
+		newComment := comment.NewComment(args.Author, line, comment.PrefixType(args.Text, args.Type))
 		if args.Type != "" {
 			newComment.Type = args.Type
 		}
@@ -461,7 +463,7 @@ func (s *Server) handleBatchAdd(ctx context.Context, req *mcp.CallToolRequest, a
 					line = resolved
 				}
 
-				newComment = comment.NewComment(commentData.Author, line, commentData.Text)
+				newComment = comment.NewComment(commentData.Author, line, comment.PrefixType(commentData.Text, commentData.Type))
 				if commentData.Type != "" {
 					newComment.Type = commentData.Type
 				}

@@ -11,7 +11,7 @@
       "Type": "S",
       "Line": 3,
       "SectionID": "s2",
-      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Overview",
+      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Overview",
       "Anchor": {
         "selected_text": "artifact against a fresh-context reviewer until the gate is green, and (3) keeps",
         "context_before": "running RPI (1) interviews the human before drafting, (2) converges each",
@@ -34,7 +34,7 @@
           "Type": "",
           "Line": 3,
           "SectionID": "s2",
-          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Overview",
+          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Overview",
           "Anchor": {
             "selected_text": "## Overview"
           },
@@ -70,7 +70,7 @@
       "Type": "Q",
       "Line": 13,
       "SectionID": "s3",
-      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Current State",
+      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Current State",
       "Anchor": {
         "selected_text": "- We lack HumanLayer's verification rules: read-before-delegate",
         "context_before": "  template demands citations (research-rpi-loop-strength.md:99-101).",
@@ -93,7 +93,7 @@
           "Type": "",
           "Line": 13,
           "SectionID": "s3",
-          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Current State",
+          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Current State",
           "Anchor": {
             "selected_text": "## Current State"
           },
@@ -129,7 +129,7 @@
       "Type": "S",
       "Line": 39,
       "SectionID": "s5",
-      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e What We're NOT Doing",
+      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > What We're NOT Doing",
       "Anchor": {
         "selected_text": "- No new templates; only additive `review_criteria` edits to the existing two.",
         "context_before": "  machinery — they already work."
@@ -151,7 +151,7 @@
           "Type": "",
           "Line": 39,
           "SectionID": "s5",
-          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e What We're NOT Doing",
+          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > What We're NOT Doing",
           "Anchor": {
             "selected_text": "## What We're NOT Doing"
           },
@@ -187,7 +187,7 @@
       "Type": "Q",
       "Line": 53,
       "SectionID": "s7",
-      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 1: pre-draft interview + verification rules (SKILL.md)",
+      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 1: pre-draft interview + verification rules (SKILL.md)",
       "Anchor": {
         "selected_text": "codebase; wait for answers before writing. Port the two HumanLayer verification",
         "context_before": "question and the code, plus only the questions that cannot be answered from the",
@@ -210,7 +210,7 @@
           "Type": "",
           "Line": 53,
           "SectionID": "s7",
-          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 1: pre-draft interview + verification rules (SKILL.md)",
+          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 1: pre-draft interview + verification rules (SKILL.md)",
           "Anchor": {
             "selected_text": "### Phase 1: pre-draft interview + verification rules (SKILL.md)"
           },
@@ -242,11 +242,11 @@
       "ID": "cgz9g",
       "Author": "claude",
       "Timestamp": "2026-08-07T14:48:36.941324-07:00",
-      "Text": "[Q] [Q] Unstated assumption the design hinges on: the reviewer subagent must be able to run the comments CLI (or MCP) to post findings. True in this repo's Claude Code setup, but the skill ships in the plugin — a user whose agent environment can't spawn subagents gets a silently dead Phase 2. The skill text should name the fallback: a fresh SESSION with only the doc paths is an acceptable reviewer.",
+      "Text": "[Q] Unstated assumption the design hinges on: the reviewer subagent must be able to run the comments CLI (or MCP) to post findings. True in this repo's Claude Code setup, but the skill ships in the plugin — a user whose agent environment can't spawn subagents gets a silently dead Phase 2. The skill text should name the fallback: a fresh SESSION with only the doc paths is an acceptable reviewer.",
       "Type": "Q",
       "Line": 78,
       "SectionID": "s8",
-      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 2: fresh-context reviewer pass, gate-terminated (SKILL.md)",
+      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 2: fresh-context reviewer pass, gate-terminated (SKILL.md)",
       "Anchor": {
         "selected_text": "with fresh context — only the doc path, its template criteria, and (for a plan)",
         "context_before": "After self-review callouts, before requesting human review: spawn a reviewer",
@@ -269,7 +269,7 @@
           "Type": "",
           "Line": 78,
           "SectionID": "s8",
-          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 2: fresh-context reviewer pass, gate-terminated (SKILL.md)",
+          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 2: fresh-context reviewer pass, gate-terminated (SKILL.md)",
           "Anchor": {
             "selected_text": "with fresh context — only the doc path, its template criteria, and (for a plan)",
             "context_before": "After self-review callouts, before requesting human review: spawn a reviewer",
@@ -303,11 +303,11 @@
       "ID": "cl2z8",
       "Author": "claude",
       "Timestamp": "2026-08-07T14:48:36.941305-07:00",
-      "Text": "[Q] [Q] Invented numbers: the 2-pass cap and the ~5-thread budget are picked from judgment, not evidence — no reference uses these values (spec-kit's 5 is a question quota, different thing). They're starting points to tune in Phase 4 dogfooding, but flagging so you set them, not inherit them.",
+      "Text": "[Q] Invented numbers: the 2-pass cap and the ~5-thread budget are picked from judgment, not evidence — no reference uses these values (spec-kit's 5 is a question quota, different thing). They're starting points to tune in Phase 4 dogfooding, but flagging so you set them, not inherit them.",
       "Type": "Q",
       "Line": 75,
       "SectionID": "s8",
-      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 2: fresh-context reviewer pass, gate-terminated (SKILL.md)",
+      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 2: fresh-context reviewer pass, gate-terminated (SKILL.md)",
       "Anchor": {
         "selected_text": "existing comment loop. Terminate on gate green; cap at 2 reviewer passes, then",
         "context_before": "(research-rpi-loop-strength.md:91-101). Author processes them through the",
@@ -330,7 +330,7 @@
           "Type": "",
           "Line": 75,
           "SectionID": "s8",
-          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 2: fresh-context reviewer pass, gate-terminated (SKILL.md)",
+          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 2: fresh-context reviewer pass, gate-terminated (SKILL.md)",
           "Anchor": {
             "selected_text": "### Phase 2: fresh-context reviewer pass, gate-terminated (SKILL.md)"
           },
@@ -358,7 +358,7 @@
           "Type": "",
           "Line": 75,
           "SectionID": "s8",
-          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 2: fresh-context reviewer pass, gate-terminated (SKILL.md)",
+          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 2: fresh-context reviewer pass, gate-terminated (SKILL.md)",
           "Anchor": {
             "selected_text": "### Phase 2: fresh-context reviewer pass, gate-terminated (SKILL.md)"
           },
@@ -394,7 +394,7 @@
       "Type": "Q",
       "Line": 101,
       "SectionID": "s9",
-      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 3: attention budget + thought-trace convention (SKILL.md)",
+      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 3: attention budget + thought-trace convention (SKILL.md)",
       "Anchor": {
         "selected_text": "resolves itself immediately (readable via the TUI's resolved toggle `R`,",
         "context_before": "convention — agent working notes and iteration rationale go into threads it",
@@ -417,7 +417,7 @@
           "Type": "",
           "Line": 101,
           "SectionID": "s9",
-          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 3: attention budget + thought-trace convention (SKILL.md)",
+          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 3: attention budget + thought-trace convention (SKILL.md)",
           "Anchor": {
             "selected_text": "resolves itself immediately (readable via the TUI's resolved toggle `R`,",
             "context_before": "convention — agent working notes and iteration rationale go into threads it",
@@ -451,11 +451,11 @@
       "ID": "cjwys",
       "Author": "claude",
       "Timestamp": "2026-08-07T14:48:36.941279-07:00",
-      "Text": "[Q] [Q] Muddled decision in Phase 3: the text says 'add one review criterion to each template' then walks it back to skill-only in the same sentence. My actual intent: templates unchanged, budget lives in SKILL.md prose. If you agree, I'll rewrite the sentence to say only that; if you want it template-enforced instead, that changes the automated criterion too.",
+      "Text": "[Q] Muddled decision in Phase 3: the text says 'add one review criterion to each template' then walks it back to skill-only in the same sentence. My actual intent: templates unchanged, budget lives in SKILL.md prose. If you agree, I'll rewrite the sentence to say only that; if you want it template-enforced instead, that changes the automated criterion too.",
       "Type": "Q",
       "Line": 104,
       "SectionID": "s9",
-      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 3: attention budget + thought-trace convention (SKILL.md)",
+      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 3: attention budget + thought-trace convention (SKILL.md)",
       "Anchor": {
         "selected_text": "survive, consolidate before requesting review. The budget lives in SKILL.md",
         "context_before": "threads left open for the human are capped at ~5, priority-ordered; if more",
@@ -478,7 +478,7 @@
           "Type": "",
           "Line": 104,
           "SectionID": "s9",
-          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 3: attention budget + thought-trace convention (SKILL.md)",
+          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 3: attention budget + thought-trace convention (SKILL.md)",
           "Anchor": {
             "selected_text": "survive, consolidate before requesting review. The budget lives in SKILL.md",
             "context_before": "threads left open for the human are capped at ~5, priority-ordered; if more",
@@ -516,7 +516,7 @@
       "Type": "S",
       "Line": 104,
       "SectionID": "s9",
-      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 3: attention budget + thought-trace convention (SKILL.md)",
+      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 3: attention budget + thought-trace convention (SKILL.md)",
       "Anchor": {
         "selected_text": "survive, consolidate before requesting review. The budget lives in SKILL.md",
         "context_before": "threads left open for the human are capped at ~5, priority-ordered; if more",
@@ -539,7 +539,7 @@
           "Type": "",
           "Line": 104,
           "SectionID": "s9",
-          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 3: attention budget + thought-trace convention (SKILL.md)",
+          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 3: attention budget + thought-trace convention (SKILL.md)",
           "Anchor": {
             "selected_text": "survive, consolidate before requesting review. The budget lives in SKILL.md",
             "context_before": "threads left open for the human are capped at ~5, priority-ordered; if more",
@@ -577,7 +577,7 @@
       "Type": "Q",
       "Line": 114,
       "SectionID": "s10",
-      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 4: dogfood as eval + settle",
+      "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 4: dogfood as eval + settle",
       "Anchor": {
         "selected_text": "### Phase 4: dogfood as eval + settle"
       },
@@ -598,7 +598,7 @@
           "Type": "",
           "Line": 114,
           "SectionID": "s10",
-          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) \u003e Implementation Phases \u003e Phase 4: dogfood as eval + settle",
+          "SectionPath": "Plan: strengthen the RPI loop (interview, fresh reviewer, attention budget) > Implementation Phases > Phase 4: dogfood as eval + settle",
           "Anchor": {
             "selected_text": "### Phase 4: dogfood as eval + settle"
           },

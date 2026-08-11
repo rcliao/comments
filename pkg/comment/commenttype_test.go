@@ -72,3 +72,18 @@ func TestDecorateTypeIsIdempotent(t *testing.T) {
 		t.Errorf("double decoration changed the text: %q -> %q", once, twice)
 	}
 }
+
+// PrefixType normalizes instead of stacking: "[Q] text" + type Q must not
+// become "[Q] [Q] text" (live report: every typed callout this week doubled).
+func TestPrefixTypeNeverDoubles(t *testing.T) {
+	for _, tc := range []struct{ text, typ, want string }{
+		{"plain ask", "Q", "[Q] plain ask"},
+		{"[Q] already marked", "Q", "[Q] already marked"},
+		{"[B] says bug", "Q", "[Q] [B] says bug"}, // conflict: both stay visible
+		{"no type given", "", "no type given"},
+	} {
+		if got := PrefixType(tc.text, tc.typ); got != tc.want {
+			t.Errorf("PrefixType(%q,%q) = %q, want %q", tc.text, tc.typ, got, tc.want)
+		}
+	}
+}

@@ -7,11 +7,11 @@
       "ID": "czizt",
       "Author": "claude",
       "Timestamp": "2026-08-07T19:01:24.926802-07:00",
-      "Text": "[Q] [Q] My call, flagging: Phase 2 changes MCP list output (roots-nested) rather than the additive option (keep flat, add parent_thread_id). Chose consistency with CLI JSON; if any non-agent consumer exists, the additive path is safer — overrule here.",
+      "Text": "[Q] My call, flagging: Phase 2 changes MCP list output (roots-nested) rather than the additive option (keep flat, add parent_thread_id). Chose consistency with CLI JSON; if any non-agent consumer exists, the additive path is safer — overrule here.",
       "Type": "Q",
       "Line": 59,
       "SectionID": "s8",
-      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Implementation Phases \u003e Phase 2: list shape + tolerant write path",
+      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Implementation Phases > Phase 2: list shape + tolerant write path",
       "Anchor": {
         "selected_text": "consistency fix, not a new shape); filters match roots OR their replies but",
         "context_before": "MCP list returns thread ROOTS with replies nested (aligning to CLI JSON —",
@@ -34,7 +34,7 @@
           "Type": "",
           "Line": 59,
           "SectionID": "s8",
-          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Implementation Phases \u003e Phase 2: list shape + tolerant write path",
+          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Implementation Phases > Phase 2: list shape + tolerant write path",
           "Anchor": {
             "selected_text": "consistency fix, not a new shape); filters match roots OR their replies but",
             "context_before": "MCP list returns thread ROOTS with replies nested (aligning to CLI JSON —",
@@ -68,15 +68,15 @@
       "ID": "cviak",
       "Author": "claude",
       "Timestamp": "2026-08-07T19:01:24.926821-07:00",
-      "Text": "[Q] [Q] Unverified reuse claim: I assert the existing anchor-cascade code is reusable for add-time matching without reading it closely. If it is position-first (needs an expected line), Phase 1 needs a standalone text search instead — same behavior, more code than the plan implies.",
+      "Text": "[Q] Unverified reuse claim: I assert the existing anchor-cascade code is reusable for add-time matching without reading it closely. If it is position-first (needs an expected line), Phase 1 needs a standalone text search instead — same behavior, more code than the plan implies.",
       "Type": "Q",
       "Line": 47,
       "SectionID": "s7",
-      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Implementation Phases \u003e Phase 1: anchor-by-text comment creation",
+      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Implementation Phases > Phase 1: anchor-by-text comment creation",
       "Anchor": {
         "selected_text": "resolution reuses the anchor-cascade matching that re-anchoring already",
         "context_before": "alternative to `line` on add, suggest, batch_add and their MCP tools —",
-        "context_after": "trusts (pkg/comment/positions.go / anchoring code). Zero matches or \u003e1 match:"
+        "context_after": "trusts (pkg/comment/positions.go / anchoring code). Zero matches or >1 match:"
       },
       "AnchorConfidence": "exact",
       "Resolved": true,
@@ -91,15 +91,15 @@
           "ID": "cnlis",
           "Author": "claude",
           "Timestamp": "2026-08-07T19:04:29.688094-07:00",
-          "Text": "Verified: findAnchor's match() does full-doc exact+normalized search returning candidate line lists (anchor.go:61-90) — position is only a tiebreaker. Reuse the search, NOT pickCandidate: Phase 1 errors on \u003e1 match instead of auto-picking. Claim holds with that one carve-out.",
+          "Text": "Verified: findAnchor's match() does full-doc exact+normalized search returning candidate line lists (anchor.go:61-90) — position is only a tiebreaker. Reuse the search, NOT pickCandidate: Phase 1 errors on >1 match instead of auto-picking. Claim holds with that one carve-out.",
           "Type": "",
           "Line": 47,
           "SectionID": "s7",
-          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Implementation Phases \u003e Phase 1: anchor-by-text comment creation",
+          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Implementation Phases > Phase 1: anchor-by-text comment creation",
           "Anchor": {
             "selected_text": "resolution reuses the anchor-cascade matching that re-anchoring already",
             "context_before": "alternative to `line` on add, suggest, batch_add and their MCP tools —",
-            "context_after": "trusts (pkg/comment/positions.go / anchoring code). Zero matches or \u003e1 match:"
+            "context_after": "trusts (pkg/comment/positions.go / anchoring code). Zero matches or >1 match:"
           },
           "AnchorConfidence": "exact",
           "Resolved": false,
@@ -133,10 +133,10 @@
       "Type": "Q",
       "Line": 87,
       "SectionID": "s10",
-      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Implementation Phases \u003e Phase 4: seed semantics",
+      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Implementation Phases > Phase 4: seed semantics",
       "Anchor": {
         "selected_text": "the MCP response says the gate now enforces it — recording is a distinct act",
-        "context_before": "Seed responses (CLI + MCP) state `template_recorded: \u003cname\u003e` explicitly, and",
+        "context_before": "Seed responses (CLI + MCP) state `template_recorded: <name>` explicitly, and",
         "context_after": "from thread-seeding and reads like one (research-agent-surface.md:55-62)."
       },
       "AnchorConfidence": "section-level",
@@ -156,7 +156,7 @@
           "Type": "",
           "Line": 87,
           "SectionID": "s10",
-          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Implementation Phases \u003e Phase 4: seed semantics",
+          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Implementation Phases > Phase 4: seed semantics",
           "Anchor": {
             "selected_text": "### Phase 4: seed semantics"
           },
@@ -192,7 +192,7 @@
       "Type": "Q",
       "Line": 56,
       "SectionID": "s8",
-      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Implementation Phases \u003e Phase 2: list shape + tolerant write path",
+      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Implementation Phases > Phase 2: list shape + tolerant write path",
       "Anchor": {
         "selected_text": "- automated: list output contains no top-level reply items; reply-by-reply-ID",
         "context_before": "**Success Criteria**",
@@ -215,7 +215,7 @@
           "Type": "",
           "Line": 56,
           "SectionID": "s8",
-          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Implementation Phases \u003e Phase 2: list shape + tolerant write path",
+          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Implementation Phases > Phase 2: list shape + tolerant write path",
           "Anchor": {
             "selected_text": "### Phase 2: list shape + tolerant write path"
           },
@@ -251,7 +251,7 @@
       "Type": "Q",
       "Line": 30,
       "SectionID": "s5",
-      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e What We're NOT Doing",
+      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > What We're NOT Doing",
       "Anchor": {
         "selected_text": "- No change to sidecar storage or CLI text output.",
         "context_before": "  ambiguity is an error listing candidate lines, never a guess.",
@@ -274,7 +274,7 @@
           "Type": "",
           "Line": 30,
           "SectionID": "s5",
-          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e What We're NOT Doing",
+          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > What We're NOT Doing",
           "Anchor": {
             "selected_text": "## What We're NOT Doing"
           },
@@ -310,7 +310,7 @@
       "Type": "Q",
       "Line": 22,
       "SectionID": "s4",
-      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Desired End State",
+      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Desired End State",
       "Anchor": {
         "selected_text": "next RPI session runs zero `grep -n` calls for anchoring and zero raw sidecar",
         "context_before": "counts on every validate, and knows seed recorded the template. Verify: the",
@@ -333,7 +333,7 @@
           "Type": "",
           "Line": 22,
           "SectionID": "s4",
-          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Desired End State",
+          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Desired End State",
           "Anchor": {
             "selected_text": "## Desired End State"
           },
@@ -369,7 +369,7 @@
       "Type": "Q",
       "Line": 11,
       "SectionID": "s3",
-      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Current State",
+      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Current State",
       "Anchor": {
         "selected_text": "  is already roots-nested.",
         "context_before": "  nested reply text goes unfound (research-agent-surface.md:32-43). CLI JSON",
@@ -392,7 +392,7 @@
           "Type": "",
           "Line": 11,
           "SectionID": "s3",
-          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Current State",
+          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Current State",
           "Anchor": {
             "selected_text": "## Current State"
           },
@@ -428,7 +428,7 @@
       "Type": "Q",
       "Line": 3,
       "SectionID": "s2",
-      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Overview",
+      "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Overview",
       "Anchor": {
         "selected_text": "Ranked by the external agent's cost ranking, adjusted for F2's root cause.",
         "context_before": "counts and names offenders; seed states that the template was recorded."
@@ -450,7 +450,7 @@
           "Type": "",
           "Line": 3,
           "SectionID": "s2",
-          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) \u003e Overview",
+          "SectionPath": "Plan: agent-surface fixes (anchor text, list shape, validate feedback, seed) > Overview",
           "Anchor": {
             "selected_text": "## Overview"
           },

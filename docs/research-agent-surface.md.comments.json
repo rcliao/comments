@@ -7,11 +7,11 @@
       "ID": "c47z8",
       "Author": "claude",
       "Timestamp": "2026-08-07T18:49:53.361808-07:00",
-      "Text": "[S] [S] F4 is entirely secondhand — I could not reproduce the missing per-section violation; my session saw it fire correctly. The Open Question gates the plan on a repro so we don't fix the wrong layer.",
+      "Text": "[S] F4 is entirely secondhand — I could not reproduce the missing per-section violation; my session saw it fire correctly. The Open Question gates the plan on a repro so we don't fix the wrong layer.",
       "Type": "S",
       "Line": 45,
       "SectionID": "s7",
-      "SectionPath": "Research: agent-surface friction in the comments CLI/MCP \u003e Findings \u003e F3 — word-cap violations don't name the culprit (external report)",
+      "SectionPath": "Research: agent-surface friction in the comments CLI/MCP > Findings > F3 — word-cap violations don't name the culprit (external report)",
       "Anchor": {
         "selected_text": "### F3 — word-cap violations don't name the culprit (external report)"
       },
@@ -32,7 +32,7 @@
           "Type": "",
           "Line": 45,
           "SectionID": "s7",
-          "SectionPath": "Research: agent-surface friction in the comments CLI/MCP \u003e Findings \u003e F3 — word-cap violations don't name the culprit (external report)",
+          "SectionPath": "Research: agent-surface friction in the comments CLI/MCP > Findings > F3 — word-cap violations don't name the culprit (external report)",
           "Anchor": {
             "selected_text": "### F3 — word-cap violations don't name the culprit (external report)"
           },
@@ -64,11 +64,11 @@
       "ID": "chgd6",
       "Author": "claude",
       "Timestamp": "2026-08-07T18:49:53.361832-07:00",
-      "Text": "[Q] [Q] From-memory figure: the ~10 greps/session is estimated, not counted from transcripts. Direction is certain (it was the most repeated operation both sessions); the number is not. Treat as order-of-magnitude.",
+      "Text": "[Q] From-memory figure: the ~10 greps/session is estimated, not counted from transcripts. Direction is certain (it was the most repeated operation both sessions); the number is not. Treat as order-of-magnitude.",
       "Type": "Q",
       "Line": 28,
       "SectionID": "s5",
-      "SectionPath": "Research: agent-surface friction in the comments CLI/MCP \u003e Findings \u003e F1 — anchoring requires a line number the tool never provides",
+      "SectionPath": "Research: agent-surface friction in the comments CLI/MCP > Findings > F1 — anchoring requires a line number the tool never provides",
       "Anchor": {
         "selected_text": "add (~10×), and lines go stale after each edit. This session mis-anchored a",
         "context_before": "No operation maps text to a line, so both sessions ran `grep -n` before every",
@@ -91,7 +91,7 @@
           "Type": "",
           "Line": 28,
           "SectionID": "s5",
-          "SectionPath": "Research: agent-surface friction in the comments CLI/MCP \u003e Findings \u003e F1 — anchoring requires a line number the tool never provides",
+          "SectionPath": "Research: agent-surface friction in the comments CLI/MCP > Findings > F1 — anchoring requires a line number the tool never provides",
           "Anchor": {
             "selected_text": "add (~10×), and lines go stale after each edit. This session mis-anchored a",
             "context_before": "No operation maps text to a line, so both sessions ran `grep -n` before every",
@@ -129,7 +129,7 @@
       "Type": "S",
       "Line": 64,
       "SectionID": "s9",
-      "SectionPath": "Research: agent-surface friction in the comments CLI/MCP \u003e Findings \u003e F5 — what already works",
+      "SectionPath": "Research: agent-surface friction in the comments CLI/MCP > Findings > F5 — what already works",
       "Anchor": {
         "selected_text": "### F5 — what already works"
       },
@@ -150,7 +150,7 @@
           "Type": "",
           "Line": 64,
           "SectionID": "s9",
-          "SectionPath": "Research: agent-surface friction in the comments CLI/MCP \u003e Findings \u003e F5 — what already works",
+          "SectionPath": "Research: agent-surface friction in the comments CLI/MCP > Findings > F5 — what already works",
           "Anchor": {
             "selected_text": "### F5 — what already works"
           },
@@ -186,7 +186,7 @@
       "Type": "Q",
       "Line": 32,
       "SectionID": "s6",
-      "SectionPath": "Research: agent-surface friction in the comments CLI/MCP \u003e Findings \u003e F2 — list's flattened shape defeats both ID use and reply reading",
+      "SectionPath": "Research: agent-surface friction in the comments CLI/MCP > Findings > F2 — list's flattened shape defeats both ID use and reply reading",
       "Anchor": {
         "selected_text": "### F2 — list's flattened shape defeats both ID use and reply reading"
       },
@@ -207,7 +207,7 @@
           "Type": "",
           "Line": 32,
           "SectionID": "s6",
-          "SectionPath": "Research: agent-surface friction in the comments CLI/MCP \u003e Findings \u003e F2 — list's flattened shape defeats both ID use and reply reading",
+          "SectionPath": "Research: agent-surface friction in the comments CLI/MCP > Findings > F2 — list's flattened shape defeats both ID use and reply reading",
           "Anchor": {
             "selected_text": "### F2 — list's flattened shape defeats both ID use and reply reading"
           },
@@ -243,7 +243,7 @@
       "Type": "Q",
       "Line": 32,
       "SectionID": "s6",
-      "SectionPath": "Research: agent-surface friction in the comments CLI/MCP \u003e Findings \u003e F2 — list's flattened shape defeats both ID use and reply reading",
+      "SectionPath": "Research: agent-surface friction in the comments CLI/MCP > Findings > F2 — list's flattened shape defeats both ID use and reply reading",
       "Anchor": {
         "selected_text": "### F2 — list's flattened shape defeats both ID use and reply reading"
       },
@@ -264,7 +264,7 @@
           "Type": "",
           "Line": 32,
           "SectionID": "s6",
-          "SectionPath": "Research: agent-surface friction in the comments CLI/MCP \u003e Findings \u003e F2 — list's flattened shape defeats both ID use and reply reading",
+          "SectionPath": "Research: agent-surface friction in the comments CLI/MCP > Findings > F2 — list's flattened shape defeats both ID use and reply reading",
           "Anchor": {
             "selected_text": "### F2 — list's flattened shape defeats both ID use and reply reading"
           },
@@ -300,7 +300,7 @@
       "Type": "Q",
       "Line": 10,
       "SectionID": "s3",
-      "SectionPath": "Research: agent-surface friction in the comments CLI/MCP \u003e Summary",
+      "SectionPath": "Research: agent-surface friction in the comments CLI/MCP > Summary",
       "Anchor": {
         "selected_text": "Five gaps, four hit by both sessions independently. Worst by frequency:",
         "context_after": "comment creation demands a line number the tool cannot supply, forcing a"
@@ -322,7 +322,7 @@
           "Type": "",
           "Line": 10,
           "SectionID": "s3",
-          "SectionPath": "Research: agent-surface friction in the comments CLI/MCP \u003e Summary",
+          "SectionPath": "Research: agent-surface friction in the comments CLI/MCP > Summary",
           "Anchor": {
             "selected_text": "## Summary"
           },

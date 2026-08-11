@@ -493,10 +493,7 @@ func addCommand(filename string, args []string) error {
 	}
 
 	// Auto-prefix text with type if specified
-	commentText := resolvedText
-	if *commentType != "" {
-		commentText = "[" + *commentType + "] " + resolvedText
-	}
+	commentText := comment.PrefixType(resolvedText, *commentType)
 
 	// Load document
 	doc, err := loadDocument(filename)

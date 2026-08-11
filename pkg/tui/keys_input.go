@@ -75,8 +75,8 @@ func (m Model) handleAddCommentKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Create new comment with type if specified
 		var newComment *comment.Comment
 		if m.commentType != "" {
-			// Auto-prefix text with type like CLI does
-			commentText := "[" + m.commentType + "] " + text
+			// Auto-prefix text with type like CLI does (normalized)
+			commentText := comment.PrefixType(text, m.commentType)
 			newComment = comment.NewCommentWithType(m.author, m.selectedLine, commentText, m.commentType)
 		} else {
 			newComment = comment.NewComment(m.author, m.selectedLine, text)

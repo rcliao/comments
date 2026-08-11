@@ -198,11 +198,9 @@ Expected format (multi-line suggestion):
 				bc.ProposedText,
 			)
 		} else {
-			// Auto-prefix text with type if specified
-			text := bc.Text
-			if bc.Type != "" {
-				text = "[" + bc.Type + "] " + text
-			}
+			// Auto-prefix text with type (normalized: never doubles a
+			// marker the author already wrote)
+			text := comment.PrefixType(bc.Text, bc.Type)
 
 			// Create regular comment with type metadata
 			if bc.Type != "" {

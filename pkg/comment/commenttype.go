@@ -57,6 +57,22 @@ func TypesHelp() string {
 	return strings.Join(parts, ", ")
 }
 
+// PrefixType prepends the "[T] " marker to text, normalizing rather than
+// stacking: text that already leads with the same marker is returned as-is
+// (agents habitually write "[Q] ..." AND pass type=Q — stored text was
+// doubling to "[Q] [Q] ..."). A DIFFERENT leading marker is left in place and
+// the explicit type wins in front of it, which keeps both signals visible for
+// the human to untangle rather than silently dropping one.
+func PrefixType(text, t string) string {
+	if t == "" {
+		return text
+	}
+	if lead, ok := LeadingType(text); ok && lead == t {
+		return text
+	}
+	return "[" + t + "] " + text
+}
+
 // DecorateType prefixes text that opens with a "[X]" type marker with the
 // matching emoji, e.g. "[Q] Why?" becomes "❓ [Q] Why?". Text whose marker is
 // absent or unrecognized is returned unchanged, and the marker itself is kept
