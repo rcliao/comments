@@ -181,7 +181,47 @@ func (st *styleSet) styleMarkdownLine(line string) string {
 // reference boundary is simply left raw (characters are always preserved —
 // the ANSI-stripped result equals the input). Headings keep whole-line
 // styling and skip reference styling.
+// tableSepPattern matches a table separator row (|---|:--:|)
+var tableSepPattern = regexp.MustCompile(`^\s*\|?[\s:|-]+\|?\s*$`)
+
+// styleTableRow styles a markdown table line in place: pipes dim, separator
+// rows dim whole, header cells (the row above a separator) bold. Style-only —
+// no alignment, no padding — per the ratified dim-not-conceal rule: padded
+// bytes would break suggest --original matching on copied rows.
+func (m *Model) styleTableRow(line string, lineNum int) string {
+	trimmed := strings.TrimSpace(line)
+	if strings.Contains(trimmed, "|") && tableSepPattern.MatchString(trimmed) {
+		return m.styles.syntaxGlyph.Render(line)
+	}
+	// Header row: the source line below is the separator
+	isHeader := false
+	if m.doc != nil {
+		lines := strings.Split(m.doc.Content, "\n")
+		if lineNum < len(lines) {
+			next := strings.TrimSpace(lines[lineNum])
+			isHeader = strings.Contains(next, "|") && tableSepPattern.MatchString(next)
+		}
+	}
+	var b strings.Builder
+	for _, part := range strings.SplitAfter(line, "|") {
+		cell, pipe := strings.CutSuffix(part, "|")
+		if isHeader {
+			b.WriteString(m.styles.boldSpan.Render(cell))
+		} else {
+			b.WriteString(m.styles.styleInlineSpans(cell))
+		}
+		if pipe {
+			b.WriteString(m.styles.syntaxGlyph.Render("|"))
+		}
+	}
+	return b.String()
+}
+
 func (m *Model) styleDocLine(line string, lineNum int) string {
+	// Table rows: pipes recede, headers bold, separators dim (style-only)
+	if t := strings.TrimSpace(line); strings.HasPrefix(t, "|") {
+		return m.styleTableRow(line, lineNum)
+	}
 	// Fence lines: suppressed prose styling, chroma-highlighted code, and a
 	// citation-styled comment trail (docs/plan-markdown-render.md Phase 1)
 	if fl, ok := m.fenceCache[lineNum]; ok {

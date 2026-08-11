@@ -529,3 +529,27 @@ func TestTyporaSpansAndGlyphs(t *testing.T) {
 		t.Errorf("strike markers must remain: %q", out)
 	}
 }
+
+// Table rows style in place: pipes dim, header row bold, separator dim —
+// bytes identical ANSI-stripped (no alignment padding; copy fidelity holds).
+func TestTableRowStyling(t *testing.T) {
+	content := "# T\n\n| Col A | Col B |\n|---|---|\n| a | **b** |\n"
+	doc := &comment.DocumentWithComments{Content: content, Threads: []*comment.Comment{}}
+	m := NewModelWithFile(doc, "/tmp/nonexistent-t.md")
+	m.width, m.height = 100, 40
+	m.handleResize()
+
+	for i, raw := range []string{"| Col A | Col B |", "|---|---|", "| a | **b** |"} {
+		styled := m.styleDocLine(raw, 3+i)
+		if got := stripANSI(styled); got != raw {
+			t.Errorf("table styling changed bytes: %q -> %q", raw, got)
+		}
+	}
+	// Header cells bold; separator fully dim
+	if !strings.Contains(m.styleDocLine("| Col A | Col B |", 3), m.styles.boldSpan.Render(" Col A ")) {
+		t.Error("header cells should render bold")
+	}
+	if m.styleDocLine("|---|---|", 4) != m.styles.syntaxGlyph.Render("|---|---|") {
+		t.Error("separator row should dim whole-line")
+	}
+}
