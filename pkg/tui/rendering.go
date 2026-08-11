@@ -641,9 +641,10 @@ func (m *Model) renderComments() string {
 
 			if expanded {
 				wrapWidth := m.sidebarWrapWidth()
-				text := fmt.Sprintf("  %s%s@%s%s · %s · %s\n%s",
+				text := fmt.Sprintf("%s %s%s@%s%s · %s\n%s",
+					c.ID,
 					resolvedMark, strings.TrimLeft(threadMarkers(c)+" ", " "), c.Author, newBadge,
-					c.Timestamp.Format("15:04"), c.ID,
+					c.Timestamp.Format("15:04"),
 					indentWrap(comment.DecorateTypeCompact(c.Text), wrapWidth, "  "))
 				rendered.WriteString(style.Render(text))
 				rendered.WriteString("\n")
@@ -652,14 +653,17 @@ func (m *Model) renderComments() string {
 				continue
 			}
 
-			// Content first, meta last: sigils + type emoji + as much text
-			// as fits, then a dim tail of @author · id (still scannable for
-			// cross-referencing "answer c7q39", but no longer eating the
-			// width the content needs — live review)
-			meta := fmt.Sprintf(" · @%s · %s", c.Author, c.ID)
-			lead := fmt.Sprintf("  %s%s%s ", resolvedMark, strings.TrimLeft(threadMarkers(c), " "), newBadge)
-			textW := max(m.sidebarWrapWidth()-lipgloss.Width(meta)-lipgloss.Width(lead), 12)
+			// ID rail first (dim, fixed-ish width — agents refer humans to
+			// threads by ID, so the eye needs a column to scan), then sigils
+			// + type emoji + as much text as fits, author alone in the dim
+			// tail. Dimming keeps content dominant; position keeps the ID
+			// findable (live review, round 2).
+			meta := fmt.Sprintf(" · @%s", c.Author)
+			idRail := fmt.Sprintf("%-5s ", c.ID)
+			lead := fmt.Sprintf("%s%s%s ", resolvedMark, strings.TrimLeft(threadMarkers(c), " "), newBadge)
+			textW := max(m.sidebarWrapWidth()-lipgloss.Width(meta)-lipgloss.Width(lead)-lipgloss.Width(idRail), 12)
 			summary := truncate(comment.DecorateTypeCompact(c.Text), textW, "…")
+			rendered.WriteString(m.styles.help.Render(idRail))
 			rendered.WriteString(style.Render(lead + summary))
 			rendered.WriteString(m.styles.help.Render(meta))
 			rendered.WriteString("\n")

@@ -664,10 +664,13 @@ func TestCondensedRowContentFirst(t *testing.T) {
 	m.handleResize()
 	m.sidebarDensity = densityCondensed
 	out := stripANSI(m.renderComments())
-	for _, want := range []string{"↑", "⛔", "❓ Recording", "@claude · cma7o"} {
+	for _, want := range []string{"↑", "⛔", "❓ Recording", "cma7o"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("condensed row missing %q:\n%s", want, out)
 		}
+	}
+	if !strings.Contains(out, "· @claude") {
+		t.Errorf("author should trail dimmed:\n%s", out)
 	}
 	for _, gone := range []string{"[HIGH]", "[BLOCKING]", "❓ [Q]"} {
 		if strings.Contains(out, gone) {
