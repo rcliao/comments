@@ -21,8 +21,10 @@ type ListCommentsRequest struct {
 
 // GetCommentRequest represents a request to get a specific comment with context
 type GetCommentRequest struct {
-	FilePath  string `json:"filepath" jsonschema:"Path to the markdown file"`
-	CommentID string `json:"comment_id" jsonschema:"ID of the comment to retrieve"`
+	FilePath  string `json:"filepath,omitempty" jsonschema:"Path to the markdown file (or use cite)"`
+	CommentID string `json:"comment_id,omitempty" jsonschema:"ID of the comment to retrieve (or use cite)"`
+	Cite      string `json:"cite,omitempty" jsonschema:"A thread citation verbatim from a document (thread:c1abc or thread:path.md#c1abc); relative paths resolve against from"`
+	From      string `json:"from,omitempty" jsonschema:"The citing document's path — required for same-doc citations, resolves a cite's relative path"`
 }
 
 // StatusRequest represents a request to get document status

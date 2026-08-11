@@ -162,6 +162,15 @@ func (s *Server) handleListComments(ctx context.Context, req *mcp.CallToolReques
 }
 
 func (s *Server) handleGetComment(ctx context.Context, req *mcp.CallToolRequest, args GetCommentRequest) (*mcp.CallToolResult, any, error) {
+	// Citation-literal form: cite carries the syntax exactly as it appears in
+	// a document; relative paths resolve against the CITING doc (from)
+	if args.Cite != "" {
+		path, id, err := comment.ResolveThreadCitation(args.Cite, args.From)
+		if err != nil {
+			return nil, nil, err
+		}
+		args.FilePath, args.CommentID = path, id
+	}
 	return withDoc(args.FilePath, func(absPath string, doc *comment.DocumentWithComments, _ *comment.LoadReport) (any, error) {
 		foundComment := doc.FindCommentByID(args.CommentID)
 		if foundComment == nil {

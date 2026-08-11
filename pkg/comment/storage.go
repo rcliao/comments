@@ -145,6 +145,29 @@ func FormatLoadReport(report *LoadReport) string {
 	return b.String()
 }
 
+// ResolveThreadCitation parses a thread citation exactly as it appears in a
+// document — thread:c1abc or thread:path.md#c1abc — into (docPath, threadID).
+// Relative citation paths resolve against fromDoc's directory (citations are
+// written relative to the CITING doc; resolving them against an agent's cwd
+// silently reads the wrong sidecar). A bare same-doc citation returns fromDoc.
+func ResolveThreadCitation(cite, fromDoc string) (string, string, error) {
+	rest, ok := strings.CutPrefix(cite, "thread:")
+	if !ok {
+		return "", "", fmt.Errorf("not a thread citation: %q (want thread:c1abc or thread:path.md#c1abc)", cite)
+	}
+	path, id, hasPath := strings.Cut(rest, "#")
+	if !hasPath {
+		if fromDoc == "" {
+			return "", "", fmt.Errorf("same-doc citation %q needs the citing document (--from)", cite)
+		}
+		return fromDoc, path, nil
+	}
+	if !filepath.IsAbs(path) && fromDoc != "" {
+		path = filepath.Join(filepath.Dir(fromDoc), path)
+	}
+	return path, id, nil
+}
+
 // ReadThread fetches one thread from a document's sidecar by ID, RAW — no
 // re-anchoring, no validation side effects. Built for thread citations
 // (thread:c1abc peek): a read path that must work from any doc's context.

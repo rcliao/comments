@@ -566,3 +566,28 @@ func TestLoadFromSidecarVersionMismatch(t *testing.T) {
 		t.Errorf("wrong error: %v", err)
 	}
 }
+
+// Citations resolve relative to the CITING doc, never the caller's cwd —
+// resolving against cwd silently reads the wrong sidecar.
+func TestResolveThreadCitation(t *testing.T) {
+	for _, tc := range []struct {
+		cite, from, wantDoc, wantID string
+		wantErr                     bool
+	}{
+		{"thread:c1abc", "docs/plan.md", "docs/plan.md", "c1abc", false},
+		{"thread:research.md#c6mv7", "docs/plan.md", "docs/research.md", "c6mv7", false},
+		{"thread:sub/r.md#c6mv7", "docs/plan.md", "docs/sub/r.md", "c6mv7", false},
+		{"thread:/abs/r.md#c6mv7", "docs/plan.md", "/abs/r.md", "c6mv7", false},
+		{"thread:c1abc", "", "", "", true},                  // same-doc needs the citing doc
+		{"research.md#c6mv7", "docs/plan.md", "", "", true}, // no scheme
+	} {
+		doc, id, err := ResolveThreadCitation(tc.cite, tc.from)
+		if tc.wantErr != (err != nil) {
+			t.Errorf("%q from %q: err = %v", tc.cite, tc.from, err)
+			continue
+		}
+		if !tc.wantErr && (doc != tc.wantDoc || id != tc.wantID) {
+			t.Errorf("%q from %q = (%q,%q), want (%q,%q)", tc.cite, tc.from, doc, id, tc.wantDoc, tc.wantID)
+		}
+	}
+}

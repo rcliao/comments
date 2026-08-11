@@ -244,6 +244,10 @@ The thread record is the design's memory; rounds inherit it, never restart.
   under Options Considered (or What We're NOT Doing) citing its thread
   (`thread:c1abc`, cross-doc `thread:research.md#c1abc` — peekable with f),
   reply what was recorded, resolve the thread.
+- **Following a citation you encounter**: paste it verbatim —
+  `comments get 'thread:research.md#c1abc' --from <the-doc-you-read-it-in>`
+  (MCP: `comments_get` with `cite` + `from`). The `--from` matters:
+  citation paths are relative to the CITING doc, not your cwd.
 - **No silent re-proposal**: never re-propose a recorded veto. New evidence
   that justifies revisiting must cite the vetoed thread and say what changed.
 - **Decisions made outside threads don't exist**: a decision reached in chat

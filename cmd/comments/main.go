@@ -388,15 +388,27 @@ func listCommand(filename string, args []string) error {
 func getCommand(filename string, args []string) error {
 	// Parse flags
 	fs := flag.NewFlagSet("get", flag.ContinueOnError)
-	threadID := fs.String("thread", "", "Thread ID to get (required)")
+	threadID := fs.String("thread", "", "Thread ID to get (required unless a thread: citation is given)")
+	fromDoc := fs.String("from", "", "Citing document, for resolving a citation's relative path / same-doc form")
 	withReplies := fs.Bool("with-replies", true, "Include replies in output (default: true)")
 
 	if err := fs.Parse(args); err != nil {
 		return exitSilent(2)
 	}
 
+	// Citation-literal form: `comments get thread:research.md#c1abc [--from plan.md]`
+	// — accept the syntax exactly as it appears in docs, so agents following a
+	// citation paste it instead of translating it
+	if strings.HasPrefix(filename, "thread:") {
+		path, id, err := comment.ResolveThreadCitation(filename, *fromDoc)
+		if err != nil {
+			return failf("Error: %v", err)
+		}
+		filename, *threadID = path, id
+	}
+
 	if *threadID == "" {
-		return failf("Error: --thread flag is required\nUsage: comments get <file> --thread <thread-id>")
+		return failf("Error: --thread flag is required\nUsage: comments get <file> --thread <thread-id>\n   or: comments get thread:path.md#c1abc [--from citing-doc.md]")
 	}
 
 	// Load document
