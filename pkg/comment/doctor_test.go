@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -61,7 +62,7 @@ func okProbe(context.Context, string) (MCPInfo, error) {
 func TestDoctorHealthyInstall(t *testing.T) {
 	dir := t.TempDir()
 	writeCommentedDoc(t, dir, "doc.md", "line one\nline two\n")
-	state := writePluginState(t, dir, `{"plugins":{"comments@comments":[{"scope":"user"}]}}`)
+	state := writePluginState(t, dir, `{"plugins":{"comments@comments":[{"scope":"user","version":"`+PluginVersion+`"}]}}`)
 
 	report := RunDoctor(context.Background(), DoctorOptions{
 		Target:          dir,
@@ -84,6 +85,28 @@ func TestDoctorHealthyInstall(t *testing.T) {
 	}
 	if got := findCheck(t, report, "mcp").Detail; got != "20 tools, protocol 2026-07-28" {
 		t.Errorf("mcp detail = %q", got)
+	}
+}
+
+// A stale installed plugin is the drift doctor exists to catch: the
+// marketplace clone never auto-pulls, so a fresh binary + old skill bundle is
+// the common failure. Warn, and say the exact fix.
+func TestDoctorStalePluginVersion(t *testing.T) {
+	dir := t.TempDir()
+	writeCommentedDoc(t, dir, "doc.md", "line one\n")
+	state := writePluginState(t, dir, `{"plugins":{"comments@comments":[{"scope":"user","version":"0.0.1"}]}}`)
+
+	report := RunDoctor(context.Background(), DoctorOptions{
+		Target: dir, Version: "dev", PluginStatePath: state,
+	})
+	c := findCheck(t, report, "plugin")
+	if c.Status != StatusWarn {
+		t.Fatalf("stale plugin should warn, got %v (%s)", c.Status, c.Detail)
+	}
+	for _, want := range []string{"0.0.1", PluginVersion, "claude plugin update comments@comments"} {
+		if !strings.Contains(c.Detail, want) {
+			t.Errorf("drift warning should contain %q: %s", want, c.Detail)
+		}
 	}
 }
 

@@ -81,9 +81,11 @@ After any merge that touches `skills/`, `pkg/mcp/`, templates, or bumps
 claude plugin update comments@comments   # pulls the marketplace clone AND rebuilds the cache
 ```
 
-Then restart running Claude sessions to pick it up. `comments doctor` verifies
-the install but does not detect a stale plugin version — the update command is
-the check.
+Then restart running Claude sessions to pick it up. `comments doctor` compares
+the installed plugin version against the one this binary ships
+(`PluginVersion` in pkg/comment/doctor.go — bumped together with
+`.claude-plugin/plugin.json`, a test enforces the pair) and warns with the
+update command when they drift.
 
 ### Doc Templates (Review Guardrails)
 

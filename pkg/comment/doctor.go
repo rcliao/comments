@@ -112,6 +112,11 @@ func checkMCP(ctx context.Context, opts DoctorOptions) Check {
 	return Check{"mcp", StatusPass, detail}
 }
 
+// PluginVersion is the plugin bundle version this binary was built with.
+// It MUST match .claude-plugin/plugin.json — TestPluginVersionMatchesManifest
+// fails the build otherwise, so a release bumping one cannot forget the other.
+const PluginVersion = "2.2.0"
+
 // pluginStateFile is the Claude Code install record. It belongs to another
 // tool and is undocumented, so every unexpected shape degrades to a warning
 // rather than failing an otherwise healthy install.
@@ -140,14 +145,35 @@ func checkPlugin(opts DoctorOptions) Check {
 	}
 
 	var state struct {
-		Plugins map[string]json.RawMessage `json:"plugins"`
+		Plugins map[string][]struct {
+			Version string `json:"version"`
+		} `json:"plugins"`
 	}
 	if err := json.Unmarshal(data, &state); err != nil {
 		return Check{"plugin", StatusWarn, "unknown: plugin state file is not in the expected shape"}
 	}
-	for name := range state.Plugins {
-		if name == "comments" || strings.HasPrefix(name, "comments@") {
-			return Check{"plugin", StatusPass, fmt.Sprintf("installed as %s", name)}
+	for name, installs := range state.Plugins {
+		if name != "comments" && !strings.HasPrefix(name, "comments@") {
+			continue
+		}
+		// Version drift is the failure doctor exists to catch here: the
+		// plugin is built from a marketplace clone that never auto-pulls,
+		// so a fresh binary routinely coexists with a stale skill/MCP
+		// bundle (it once sat five days behind). Compare what Claude loads
+		// against what this binary was built with.
+		installed := ""
+		if len(installs) > 0 {
+			installed = installs[0].Version
+		}
+		switch {
+		case installed == "":
+			return Check{"plugin", StatusWarn, fmt.Sprintf("installed as %s, version unreadable from plugin state", name)}
+		case installed != PluginVersion:
+			return Check{"plugin", StatusWarn, fmt.Sprintf(
+				"installed as %s v%s but this binary ships v%s — run: claude plugin update comments@comments (then restart sessions)",
+				name, installed, PluginVersion)}
+		default:
+			return Check{"plugin", StatusPass, fmt.Sprintf("installed as %s v%s (matches this binary)", name, installed)}
 		}
 	}
 	return Check{"plugin", StatusWarn, "not installed as a Claude Code plugin"}
