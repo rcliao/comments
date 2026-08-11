@@ -1,12 +1,14 @@
 template: design-doc
 version: 1
-description: Design one-pager optimized for human review — Intent, Decisions, Data Flow, Data Model (delta), Interfaces, Done; bounded length, forced alternatives, explicit unknowns
+description: Design one-pager optimized for human review — Intent, Decisions, Data Flow, Data Model, Interfaces, Done; bounded length, forced alternatives, explicit unknowns
 doc:
-  # One-pager discipline: the complete data model belongs to an as-built doc
-  # (that template exists for exactly that); a DESIGN carries the delta. With
-  # the delta split, 2400 holds a design using every optional section. If a doc
-  # cannot fit, the fix is a smaller design, not a longer page.
-  max_words: 2400
+  # The data model is the exception to one-pager discipline: it is the section
+  # engineers review hardest, and it is reviewed by PASTING the DBML block into
+  # a visualizer — which only renders relationships between tables that are IN
+  # the block. So the model carries the full picture (changed entities plus the
+  # adjacent unchanged ones they reference), and the doc cap makes room for it.
+  # A doc with no data model is unaffected; per-section caps hold the rest.
+  max_words: 2800
 sections:
   - heading: "Problem"
     required: true
@@ -53,16 +55,17 @@ sections:
     max_words: 150
     review_criteria:
       - "One line per component: the Data Flow actor's name and its home (package or file) — nothing a reader could not derive from the story, just faster."
-  # Optional: many designs change no data. DELTA only — the complete model is
-  # an as-built doc's job; a design that inlines a full schema is hiding its
-  # actual change inside an inventory.
+  # Optional: many designs change no data. When one does, this is the most
+  # reviewed section in the doc — reviewers paste the block into a DBML
+  # visualizer, so it must be the FULL PICTURE (a fragment cannot render
+  # relationships to tables outside the block) with the delta marked inside it.
   - heading: "Data Model"
     required: false
-    max_words: 400
+    max_words: 900
     review_criteria:
-      - "DBML-style blocks, one field per line, readable in RAW markdown — never a wide table?"
-      - "Delta only — ADDED / CHANGED / REMOVED entities and fields, plus what must keep being read for compatibility — citing the as-built doc that holds the complete model?"
-      - "Does every entity state its identity (what you look it up by) and where it lives — with references distinguishing enforced from convention?"
+      - "One DBML block, one field per line, valid enough to paste whole into a visualizer — never a wide markdown table?"
+      - "Full picture with the delta MARKED: changed entities plus the adjacent unchanged ones they reference, each entity/field tagged NEW / CHANGED / REMOVED or left unmarked as unchanged — plus what must keep being read for compatibility?"
+      - "Does every entity state its identity (what you look it up by) and where it lives — with Ref lines distinguishing enforced from convention?"
       - "Are entities that SHOULD exist but do not shown commented out, since an absence is invisible?"
   # Optional: the third pillar of a reviewable design — what the outside
   # world calls. One line each; a signature says more than a paragraph.
