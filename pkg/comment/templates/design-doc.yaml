@@ -2,6 +2,10 @@ template: design-doc
 version: 1
 description: Design one-pager optimized for human review — Intent, Decisions, Data Flow, Data Model, Interfaces, Done; bounded length, forced alternatives, explicit unknowns
 doc:
+  check_citations: true
+  style:
+    max_sentence_words: 30
+    max_paragraph_words: 70
   # The data model is the exception to one-pager discipline: it is the section
   # engineers review hardest, and it is reviewed by PASTING the DBML block into
   # a visualizer — which only renders relationships between tables that are IN

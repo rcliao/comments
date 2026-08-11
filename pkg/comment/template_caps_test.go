@@ -115,3 +115,22 @@ func TestSubsectionCapsOptOut(t *testing.T) {
 		}
 	}
 }
+
+// A template that asks for peekable file:line evidence in its review criteria
+// must also enable the check that verifies the reference resolves. The criteria
+// alone are a promise; check_citations is what keeps it. Pinned because this
+// repo's hand-maintained lists drift.
+func TestEvidenceTemplatesEnforceTheirPromises(t *testing.T) {
+	for _, name := range []string{"research", "plan", "design-doc", "as-built"} {
+		tpl, err := LoadTemplate(name)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if !tpl.Doc.CheckCitations {
+			t.Errorf("%s asks for peekable evidence but does not set check_citations", name)
+		}
+		if tpl.Doc.Style.MaxParagraphWords == 0 || tpl.Doc.Style.MaxSentenceWords == 0 {
+			t.Errorf("%s has no style caps; review artifacts should be scannable", name)
+		}
+	}
+}
