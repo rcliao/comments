@@ -47,7 +47,7 @@ sections:
     review_criteria:
       - "Is every step one actor / action / work-object sentence, marked NEW, CHANGED or unchanged?"
       - "Are actors the things that ACT (a prober, a judge, a store) — with a note wherever the role name is not greppable in the code?"
-      - "Does the story run from what defines the behaviour to what the reader receives, no work object appearing from nowhere?"
+      - "Does the story run from what defines the behaviour to what the reader receives, no work object appearing from nowhere — and does every step that crosses a system boundary name the interface it calls (detailed under Interfaces)?"
       - "Are concurrent steps distinguished from sequential — and is the flow told ONCE (a diagram must add names, files or concurrency, never repeat the narrative)?"
   # Optional: only when Data Flow's cast is too large to hold in the head.
   - heading: "Components"
@@ -67,14 +67,20 @@ sections:
       - "Full picture with the delta MARKED: changed entities plus the adjacent unchanged ones they reference, each entity/field tagged NEW / CHANGED / REMOVED or left unmarked as unchanged — plus what must keep being read for compatibility?"
       - "Does every entity state its identity (what you look it up by) and where it lives — with Ref lines distinguishing enforced from convention?"
       - "Are entities that SHOULD exist but do not shown commented out, since an absence is invisible?"
-  # Optional: the third pillar of a reviewable design — what the outside
-  # world calls. One line each; a signature says more than a paragraph.
+  # The review triad this template encodes: Data Flow says who VERBS whom —
+  # and a verb across a system boundary IS an interface usage. Interfaces are
+  # those verbs' contracts. Each system's data model is the gravity behind it
+  # once data is stored. Review order: the model shows what is extra; the
+  # interfaces show how the models link between systems. So every interface
+  # here traces back to the flow step that uses it, and forward to the
+  # entities it reads or writes.
   - heading: "Interfaces"
     required: false
-    max_words: 150
+    max_words: 300
     review_criteria:
-      - "One line per interface — CLI command, API route, function signature, or protocol — marked NEW / CHANGED / REMOVED?"
-      - "Do changed signatures show before -> after, and new ones cite the file:line where they will live (or their nearest existing neighbour)?"
+      - "Is each interface a compact contract — name (route, command, or signature), input fields WITH their constraints, output shape, and the error/limit cases — enough that a caller could write the call without reading code?"
+      - "Does each interface name the Data Flow step(s) that use it, and the data-model entities it reads or writes — so flow, contract, and model link in both directions?"
+      - "Marked NEW / CHANGED / REMOVED, with changed contracts showing before -> after?"
   - heading: "Options Considered"
     required: true
     min_subsections: 2

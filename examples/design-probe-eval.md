@@ -88,9 +88,24 @@ Ref: probe.id > eval_record.results          // by probe id inside the json; con
 
 ## Interfaces
 
-- NEW `comments eval log <doc.md>` — print the doc's eval records (jq-able).
-- NEW skill section "Artifact probes (post-signoff)" in `skills/review-comments/SKILL.md` — the probe protocol itself.
-- CHANGED none — `gate`, `signoff`, `validate` signatures untouched.
+NEW `comments eval log <doc.md>` — used by the human after Data Flow step 6; reads `eval_record`.
+
+```
+in:  doc.md path (must exist; no sidecar required)
+out: the doc's eval records as JSON lines, newest first; exit 0 even when empty
+err: exit 1 only when the path is unreadable — an unscored doc is empty, not an error
+```
+
+NEW skill contract "Artifact probes (post-signoff)" — fires Data Flow step 1; writes `eval_record`, creates `probe`.
+
+```
+in:  a signed-off doc + its research question (from the doc's Research Question section)
+out: one appended line in .comments/evals.jsonl {doc_path, doc_hash, probe_type, results, scored_at}
+constraints: never blocks gate/signoff; five probes per type; subagents are
+fresh-context with input allowlists (generator never sees the doc)
+```
+
+CHANGED none — `gate`, `signoff`, `validate` contracts untouched; the eval reads the same sidecar they write (`review_record`, `thread`).
 
 ## Options Considered
 
