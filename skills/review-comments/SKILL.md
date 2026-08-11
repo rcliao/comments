@@ -257,9 +257,34 @@ The thread record is the design's memory; rounds inherit it, never restart.
 ## RPI mode (Research → Plan → Implement)
 
 For feature-sized work, split drafting into two phase docs with the dedicated
-templates, and treat the human signoff between them as a hard gate. These steps
-are opinionated about what makes a quality artifact, not a ceremony to perform:
-scale them to the work.
+templates. These steps are opinionated about what makes a quality artifact,
+not a ceremony to perform: scale them to the work.
+
+**The autonomous chain is the DEFAULT** (decided in review, 2026-08-11: the
+human's value lands at plan review — research signoff was ceremony). After the
+interview, run question → research → plan WITHOUT a mid-chain human gate:
+
+- Research uses the `research-deep` template (agent-audience caps — depth
+  beats brevity; the human reaches detail via citations from the plan) and
+  converges through the fresh-context reviewer alone. No human signoff.
+- Minimize markers in autonomous research: decide and record assumptions.
+  Human questions that survive CARRY FORWARD as priority-high threads on the
+  PLAN — answered in the one review sitting, costing at most a revision round
+  if an assumption was wrong.
+- **Pause-on-shape**: a question whose answer would change the plan's SCOPE
+  or direction (not its details) stops the chain — request review early with
+  what exists. Use the interview ranking: scope > security > UX > technical.
+- **The plan gets extra teeth** (the only human gate must be the strongest):
+  TWO fresh-context reviewer passes with distinct lenses — one for
+  correctness/coverage against the research, one for implementability as
+  written — pass cap 3 total. Every citation verified, both directions.
+- One human sitting reviews the PLAN (research one peek away as backdrop;
+  carried questions lead the walkthrough). Research needs no signoff of its
+  own; the human may `q → a` it in the same sitting if they read it.
+
+The two-gate flow below remains for when the human ASKS to review research
+(learning a domain, high-stakes direction) — say "gate the research" to get
+it.
 
 0. **Interview before drafting** (each phase doc): present your understanding
    of the question and the relevant code, plus only the questions you genuinely
@@ -279,12 +304,10 @@ scale them to the work.
    documentarian findings doc — discrete findings (F1, F2, ...) each carrying
    file:line evidence, a Code References section a plan can cite, and every
    open question in Open Questions (zone: human). Then the reviewer pass
-   (below); do not start the plan until the research is signed off. Wait on
-   the signoff, don't poll the human: `comments watch <doc> --until signoff`
-   blocks until the review lands and carries the decision + note. In a
-   harness with background tasks, run the watch in the background so you
-   resume the moment the signoff arrives instead of ending your turn with
-   "let me know when you're done".
+   (below). In the DEFAULT autonomous chain, proceed straight to the plan
+   once the reviewer converges; in gated mode, wait on the signoff, don't
+   poll: `comments watch <doc> --until signoff` blocks until the review
+   lands (run it in the background in harnesses that support it).
 2. **Plan** (`comments template show plan`): decisions only — the marker cap
    is 1 because open questions belong to the research phase. Cite the research
    doc by `file:line` (e.g. `research-foo.md:23`) for every Current State and

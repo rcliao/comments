@@ -138,7 +138,7 @@ Comments can target a markdown section instead of a line: `--section "Implementa
 
 ## RPI Flow (Research → Plan → Implement)
 
-For feature-sized work, use the phase templates: agent drafts research under the `research` template (findings with file:line evidence; open questions live there) → human signs off → agent drafts the plan under the `plan` template, citing the research by `file:line` → human reviews the plan in the TUI, peeking citations with `f` → gate green → implement phase by phase. Plans carry no open questions (marker cap 1) and split every phase's success criteria into automated vs manual. See `skills/review-comments/SKILL.md` (RPI mode).
+For feature-sized work the AUTONOMOUS CHAIN is the default: interview once, then question → research (`research-deep`, agent-gated via fresh reviewer, no human signoff) → plan (two-lens review, extra teeth) → ONE human sitting on the plan with research as peekable backdrop; surviving human questions carry as high threads on the plan; shape-changing questions pause the chain. Say "gate the research" for the two-gate flow: agent drafts research under the `research` template (findings with file:line evidence; open questions live there) → human signs off → agent drafts the plan under the `plan` template, citing the research by `file:line` → human reviews the plan in the TUI, peeking citations with `f` → gate green → implement phase by phase. Plans carry no open questions (marker cap 1) and split every phase's success criteria into automated vs manual. See `skills/review-comments/SKILL.md` (RPI mode).
 
 ## Recommended Review Flow (the tool's core loop)
 

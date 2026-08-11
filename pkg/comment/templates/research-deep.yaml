@@ -1,0 +1,52 @@
+template: research-deep
+version: 1
+description: Autonomous-chain research — agent-audience depth (humans reach detail via citations from the plan); same rigor as `research`, roomier caps
+doc:
+  check_citations: true
+  style:
+    max_sentence_words: 30
+    max_paragraph_words: 70
+  # Sized for an AGENT audience (decided in review, 2026-08-11): in the
+  # autonomous chain no human reads research linearly mid-flight — they peek
+  # citations from the plan. Depth beats brevity here; the tight `research`
+  # template remains for human-facing research reviews.
+  max_words: 2400
+sections:
+  - heading: "Research Question"
+    required: true
+    max_words: 100
+    zone: human
+    enumerates_questions: true
+    review_criteria:
+      - "Is every clause of the question its own numbered sub-question (Q1., Q2., ...)? A clause left inside prose is a clause nothing checks for an answer."
+      - "Is the question specific enough that the Summary can answer it in a few sentences?"
+  - heading: "Summary"
+    required: true
+    max_words: 150
+    review_criteria:
+      - "Does the Summary actually answer the Research Question, readable on its own?"
+  - heading: "Findings"
+    required: true
+    answers_questions: true
+    min_subsections: 2
+    max_subsections: 12
+    max_subsection_words: 200
+    max_words: 1600
+    review_criteria:
+      - "Does each finding tag the sub-question it answers, e.g. \"### F1 — the cascade [Q1]\"?"
+      - "Does each finding carry file:line evidence a reviewer can peek (f)? Cite the path from the repo root — a bare basename like gate.go:39 is unpeekable when several files share the name."
+      - "Is each paragraph one purpose, short enough to scan, with lists rendered as bullets rather than buried in prose?"
+      - "Is the tone documentarian — describing what IS, without prescribing what to build? A \"what would it take\" sub-question is answered as what is currently ABSENT — name the ceiling and cite where it was decided; the plan phase designs past it."
+      - "Does each finding lead with the fact, and would it still read as ONE finding after the next revision? Answering a review comment by growing a finding past its cap means rewriting it, not appending to it."
+  - heading: "Code References"
+    required: true
+    max_words: 150
+    review_criteria:
+      - "Are the references the load-bearing ones (what a plan would cite), not an exhaustive dump?"
+  - heading: "Open Questions"
+    required: true
+    max_words: 120
+    zone: human
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION:"
+  max: 3
