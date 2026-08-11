@@ -143,3 +143,14 @@ func TestSetThemeConcurrentWithRendering(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// The gutter comment-count marker must never share a color with the cursor
+// accent — identical values made counts blend into the highlighted line
+// number (live review).
+func TestMarkerDiffersFromCursorAccent(t *testing.T) {
+	for name, th := range themes {
+		if th.Marker == th.CursorAccent {
+			t.Errorf("theme %q: Marker == CursorAccent (%s) — gutter counts must have their own color", name, th.Marker)
+		}
+	}
+}

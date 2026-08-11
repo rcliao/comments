@@ -56,7 +56,7 @@ type Theme struct {
 
 	// Gutter markers and badges
 	Blocking    ThemeColor // unresolved blocking threads
-	Marker      ThemeColor // unresolved thread marker + open counts
+	Marker      ThemeColor // unresolved thread marker + open counts — MUST differ from CursorAccent (live review: identical values made gutter counts blend with the highlighted line number)
 	Resolved    ThemeColor // resolved checkmark
 	VirtualText ThemeColor // end-of-line thread summaries
 	GroupHeader ThemeColor // sidebar group headers, panel/thread borders
@@ -101,7 +101,7 @@ var themes = map[string]Theme{
 		MetaText: "#D8DEE9", ReplyMeta: "#4C566A", Border: "#4C566A",
 		CursorAccent: "#B48EAD", CursorLineBg: "#3B4252", SelectionBg: "#434C5E",
 		SelectionFg: "#ECEFF4", Accent: "#88C0D0",
-		Blocking: "#BF616A", Marker: "#B48EAD", Resolved: "#A3BE8C",
+		Blocking: "#BF616A", Marker: "#D08770", Resolved: "#A3BE8C",
 		VirtualText: "#4C566A", GroupHeader: "#81A1C1", New: "#EBCB8B",
 		Code: "#D08770", Bullet: "#D08770", Quote: "#A3BE8C", Warning: "#EBCB8B",
 		TypeQ: "#EBCB8B", TypeS: "#81A1C1", TypeB: "#BF616A", TypeT: "#B48EAD", TypeE: "#88C0D0",
@@ -115,7 +115,7 @@ var themes = map[string]Theme{
 		MetaText: "#6272A4", ReplyMeta: "#6272A4", Border: "#6272A4",
 		CursorAccent: "#FF79C6", CursorLineBg: "#44475A", SelectionBg: "#44475A",
 		SelectionFg: "#F8F8F2", Accent: "#8BE9FD",
-		Blocking: "#FF5555", Marker: "#FF79C6", Resolved: "#50FA7B",
+		Blocking: "#FF5555", Marker: "#FFB86C", Resolved: "#50FA7B",
 		VirtualText: "#6272A4", GroupHeader: "#BD93F9", New: "#FFB86C",
 		Code: "#F1FA8C", Bullet: "#FFB86C", Quote: "#50FA7B", Warning: "#F1FA8C",
 		TypeQ: "#F1FA8C", TypeS: "#8BE9FD", TypeB: "#FF5555", TypeT: "#BD93F9", TypeE: "#50FA7B",
@@ -129,7 +129,7 @@ var themes = map[string]Theme{
 		MetaText: "#A89984", ReplyMeta: "#928374", Border: "#665C54",
 		CursorAccent: "#FE8019", CursorLineBg: "#3C3836", SelectionBg: "#504945",
 		SelectionFg: "#FBF1C7", Accent: "#83A598",
-		Blocking: "#FB4934", Marker: "#D3869B", Resolved: "#B8BB26",
+		Blocking: "#FB4934", Marker: "#FABD2F", Resolved: "#B8BB26",
 		VirtualText: "#928374", GroupHeader: "#83A598", New: "#FABD2F",
 		Code: "#8EC07C", Bullet: "#FE8019", Quote: "#8EC07C", Warning: "#FABD2F",
 		TypeQ: "#FABD2F", TypeS: "#83A598", TypeB: "#FB4934", TypeT: "#D3869B", TypeE: "#8EC07C",
@@ -144,7 +144,7 @@ var themes = map[string]Theme{
 		MetaText: "242", ReplyMeta: "243", Border: "240",
 		CursorAccent: "205", CursorLineBg: "237", SelectionBg: "235",
 		SelectionFg: "255", Accent: "39",
-		Blocking: "196", Marker: "212", Resolved: "28",
+		Blocking: "196", Marker: "214", Resolved: "28",
 		VirtualText: "240", GroupHeader: "63", New: "205",
 		Code: "173", Bullet: "214", Quote: "108", Warning: "3",
 		TypeQ: "220", TypeS: "33", TypeB: "196", TypeT: "13", TypeE: "14",
