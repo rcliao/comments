@@ -14,9 +14,10 @@ import (
 // span styling.
 type Reference struct {
 	Raw      string // exact token as it appears in the line
-	Path     string // path as written (unresolved)
+	Path     string // path as written (unresolved; "" for same-doc thread refs)
 	Line     int    // cited line number (0 = none)
 	Heading  string // cited #heading anchor (markdown links only, "" = none)
+	ThreadID string // cited comment thread (thread:c1abc form, "" = none)
 	LineNum  int    // 1-based document line the reference appears on
 	StartCol int    // byte offset of Raw within the line
 	EndCol   int    // byte offset just past Raw
@@ -32,6 +33,12 @@ var mdLinkRe = regexp.MustCompile(`(^|[^!])\[[^\]]+\]\(([^)\s]+)\)`)
 // citations are the common style in agent-written docs, and were silently
 // unpeekable before). Range citations (file.go:11-44) parse as their start.
 var fileLineRe = regexp.MustCompile("(?:^|[\\s(`])((?:[\\w.\\-~]+/)*[\\w.\\-]+\\.[A-Za-z][A-Za-z0-9]{0,9}):(\\d{1,6})\\b")
+
+// threadRefRe matches thread citations (docs/plan-compounding-rpi.md Phase 1,
+// syntax decided in review thread cmvlt): thread:c1abc cites a thread in this
+// document, thread:path.md#c1abc in another. An explicit scheme, so there is
+// no collision with heading anchors and no precedence rule to remember.
+var threadRefRe = regexp.MustCompile("(?:^|[\\s(`])thread:(?:((?:[\\w.\\-~]+/)*[\\w.\\-]+\\.md)#)?(c[a-z0-9]{4,12})\\b")
 
 // ParseReferences scans document content for local-file references.
 // Fenced code blocks are skipped — a path in example code is not a citation.
@@ -113,6 +120,30 @@ func parseLineReferences(line string, lineNum int) []Reference {
 		}
 		refs = append(refs, ref)
 		for c := linkStart; c < m[1]; c++ {
+			claimed[c] = true
+		}
+	}
+
+	for _, m := range threadRefRe.FindAllStringSubmatchIndex(line, -1) {
+		// group 1 = optional path, group 2 = thread id
+		idStart, idEnd := m[4], m[5]
+		tokStart := strings.Index(line[m[0]:m[1]], "thread:") + m[0]
+		if claimed[tokStart] {
+			continue
+		}
+		path := ""
+		if m[2] >= 0 {
+			path = line[m[2]:m[3]]
+		}
+		refs = append(refs, Reference{
+			Raw:      line[tokStart:idEnd],
+			Path:     path,
+			ThreadID: line[idStart:idEnd],
+			LineNum:  lineNum,
+			StartCol: tokStart,
+			EndCol:   idEnd,
+		})
+		for c := tokStart; c < idEnd; c++ {
 			claimed[c] = true
 		}
 	}

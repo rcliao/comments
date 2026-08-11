@@ -145,6 +145,29 @@ func FormatLoadReport(report *LoadReport) string {
 	return b.String()
 }
 
+// ReadThread fetches one thread from a document's sidecar by ID, RAW — no
+// re-anchoring, no validation side effects. Built for thread citations
+// (thread:c1abc peek): a read path that must work from any doc's context.
+func ReadThread(mdPath, id string) (*Comment, error) {
+	data, err := os.ReadFile(GetSidecarPath(mdPath))
+	if err != nil {
+		return nil, fmt.Errorf("no sidecar for %s", mdPath)
+	}
+	var storage StorageFormat
+	if err := json.Unmarshal(data, &storage); err != nil {
+		return nil, fmt.Errorf("unreadable sidecar for %s", mdPath)
+	}
+	if c := findCommentByID(storage.Threads, id); c != nil {
+		// Return the containing ROOT so the peek shows the whole debate even
+		// when the citation names a reply
+		if root := FindThreadContaining(storage.Threads, id); root != nil {
+			return root, nil
+		}
+		return c, nil
+	}
+	return nil, fmt.Errorf("thread %s not found in %s", id, mdPath)
+}
+
 // SaveDocumentContent writes doc.Content to the markdown file atomically.
 // Call it ONLY from paths that legitimately changed the content (suggestion
 // accepts). It is deliberately separate from SaveToSidecar: a signoff or a

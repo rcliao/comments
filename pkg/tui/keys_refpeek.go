@@ -10,6 +10,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/rcliao/comments/pkg/comment"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -32,6 +34,20 @@ func buildRefMap(content, docPath string) map[int][]resolvedRef {
 	}
 	byLine := map[int][]resolvedRef{}
 	for _, ref := range markdown.ParseReferences(content) {
+		if ref.ThreadID != "" {
+			// Thread citation: target doc is the cited path, or this doc
+			target := docPath
+			ok := true
+			if ref.Path != "" {
+				target, ok = markdown.ResolveReference(docDir, ref.Path)
+			} else if abs, err := filepath.Abs(docPath); err == nil {
+				target = abs
+			}
+			byLine[ref.LineNum] = append(byLine[ref.LineNum], resolvedRef{
+				Reference: ref, absPath: target, resolved: ok,
+			})
+			continue
+		}
 		abs, ok := markdown.ResolveReference(docDir, ref.Path)
 		byLine[ref.LineNum] = append(byLine[ref.LineNum], resolvedRef{
 			Reference: ref, absPath: abs, resolved: ok,
@@ -75,8 +91,20 @@ func (m *Model) loadPeekTarget() {
 		return
 	}
 	ref := m.refPeekList[m.refPeekIdx]
+	m.refPeekThread = nil
 	if !ref.resolved {
 		m.refPeekErr = fmt.Sprintf("cannot resolve %s — no such file (searched from the document's directory upward)", ref.Path)
+		return
+	}
+	if ref.ThreadID != "" {
+		// Thread citation: render the cited debate instead of file lines
+		thread, err := comment.ReadThread(ref.absPath, ref.ThreadID)
+		if err != nil {
+			m.refPeekErr = err.Error()
+			return
+		}
+		m.refPeekThread = thread
+		m.refPeekTargetLine = thread.Line
 		return
 	}
 	data, err := os.ReadFile(ref.absPath)
@@ -136,6 +164,10 @@ func (m Model) handleRefPeekKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !ref.resolved {
 			return m, nil
 		}
+		// Thread peek: Enter opens the cited DOC at the thread's anchor line
+		if ref.ThreadID != "" && m.refPeekThread == nil {
+			return m, nil
+		}
 		line := m.refPeekTargetLine
 		return m, tea.ExecProcess(editorCommand(ref.absPath, line), func(err error) tea.Msg {
 			return editorFinishedMsg{err: err}
@@ -161,7 +193,12 @@ func (m Model) viewRefPeek() string {
 	ref := m.refPeekList[m.refPeekIdx]
 
 	title := ref.Path
-	if ref.Line > 0 {
+	if ref.ThreadID != "" {
+		title = "thread:" + ref.ThreadID
+		if ref.Path != "" {
+			title = fmt.Sprintf("thread:%s#%s", ref.Path, ref.ThreadID)
+		}
+	} else if ref.Line > 0 {
 		title = fmt.Sprintf("%s:%d", ref.Path, ref.Line)
 	} else if ref.Heading != "" {
 		title = fmt.Sprintf("%s#%s", ref.Path, ref.Heading)
@@ -175,6 +212,12 @@ func (m Model) viewRefPeek() string {
 
 	if m.refPeekErr != "" {
 		body.WriteString(m.refPeekErr + "\n")
+	} else if m.refPeekThread != nil {
+		// Cited debate rendered whole: root, replies, resolution — the
+		// compounding record beside the doc that cites it
+		tm := m
+		tm.selectedThread = m.refPeekThread
+		body.WriteString(tm.renderThreadWidth(min(m.width-8, 100)))
 	} else {
 		excerptHeight := min(20, max(m.height-8, 3))
 		lineWidth := max(min(m.width-14, 96), 20)

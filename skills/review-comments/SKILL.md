@@ -231,6 +231,25 @@ Only list comments whose target text you moved, rewrote, or deleted-and-replaced
 untouched comments keep their anchors. The load-time re-anchor cascade is a
 safety net for edits made outside this loop, not a substitute for this step.
 
+## Compounding: rounds build on doc + thread history (required)
+
+The thread record is the design's memory; rounds inherit it, never restart.
+
+- **History first**: before ANY drafting round, read the doc's full thread
+  history — open AND resolved (the resolved trace is the reasoning archive).
+  When drafting a plan, also read the research doc's threads.
+  The fresh-context reviewer's allowlist includes the sidecar(s): fresh
+  context applies to the draft, not to the review record.
+- **Vetoes move into the doc**: when a design dies in a thread, write it
+  under Options Considered (or What We're NOT Doing) citing its thread
+  (`thread:c1abc`, cross-doc `thread:research.md#c1abc` — peekable with f),
+  reply what was recorded, resolve the thread.
+- **No silent re-proposal**: never re-propose a recorded veto. New evidence
+  that justifies revisiting must cite the vetoed thread and say what changed.
+- **Decisions made outside threads don't exist**: a decision reached in chat
+  gets recorded as a thread the human ratifies by resolving — otherwise the
+  next round cannot inherit it.
+
 ## RPI mode (Research → Plan → Implement)
 
 For feature-sized work, split drafting into two phase docs with the dedicated

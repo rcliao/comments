@@ -221,3 +221,56 @@ func TestRefPeekEmptyStateOnCitationlessLine(t *testing.T) {
 	// enter on the empty state must not panic
 	nm.handleRefPeekKeys(keyMsg("enter"))
 }
+
+// Thread citations (plan-compounding-rpi Phase 1): f on thread:c1abc renders
+// the cited debate — root, replies, resolution — beside the doc; cross-doc
+// form reads the other doc's sidecar; unknown IDs report in-box.
+func TestRefPeekThreadCitation(t *testing.T) {
+	dir := t.TempDir()
+	// The cited doc, with a resolved veto thread
+	cited := filepath.Join(dir, "research.md")
+	if err := os.WriteFile(cited, []byte("# R\n\nDecision line.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc := &comment.DocumentWithComments{Content: "# R\n\nDecision line.\n", Threads: []*comment.Comment{
+		{ID: "cveto", Line: 3, Author: "rcliao", Text: "vetoed: stay simple", Resolved: true,
+			Replies: []*comment.Comment{{ID: "crep1", Line: 3, Author: "claude", Text: "recorded in alternatives"}}},
+	}}
+	if err := comment.SaveToSidecar(cited, doc); err != nil {
+		t.Fatal(err)
+	}
+	// The citing doc
+	citing := filepath.Join(dir, "plan.md")
+	content := "# P\n\nRejected per thread:research.md#cveto earlier.\nUnknown thread:research.md#c0000 here.\n"
+	if err := os.WriteFile(citing, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pdoc := &comment.DocumentWithComments{Content: content, Threads: []*comment.Comment{}}
+	m := NewModelWithFile(pdoc, citing)
+	m.width, m.height = 100, 40
+	m.handleResize()
+
+	// Peek the valid citation (line 3)
+	m.mode = ModeLineSelect
+	m.selectedLine = 3
+	next, _ := m.openRefPeek()
+	nm := next.(Model)
+	if nm.mode != ModeRefPeek {
+		t.Fatalf("f on a thread citation should open the peek, got %v", nm.mode)
+	}
+	got := frame(nm)
+	for _, want := range []string{"thread:research.md#cveto", "vetoed: stay simple", "recorded in alternatives"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("thread peek missing %q:\n%s", want, got)
+		}
+	}
+
+	// Unknown ID reports in-box
+	nm.mode = ModeLineSelect
+	nm.selectedLine = 4
+	next2, _ := nm.openRefPeek()
+	nm2 := next2.(Model)
+	if got := frame(nm2); !strings.Contains(got, "not found") {
+		t.Errorf("unknown thread ID should report in the peek box:\n%s", got)
+	}
+}

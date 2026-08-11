@@ -59,6 +59,6 @@ It never instructs an agent to run the eval harness, read past reviewer yield, o
 
 ## Open Questions
 
-- Build order: probes (new capability) vs harness wiring (use what exists) vs lead-lag join (measure first)? [NEEDS CLARIFICATION: which comes first — the answer decides the next plan doc.]
-- Should reviewer prompts evolve from recorded yield (a "what past reviewers caught here" appendix), or stay stateless for fresh-context purity?
+- ~~Build order~~ — decided in review (c6mv7): lead-lag join first, harness wiring second; probes wait until their value is explained and felt.
+- ~~Reviewer statelessness~~ — decided with it: agents, including the reviewer, get the doc AND its thread history before the next round starts; fresh context applies to the draft, not to the review record.
 - Do lagging signals stay per-repo telemetry, or aggregate across repos where the plugin runs?

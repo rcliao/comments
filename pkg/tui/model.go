@@ -78,6 +78,7 @@ type Model struct {
 	refPeekContent    []string              // target file lines (read at peek open)
 	refPeekTargetLine int                   // cited line in the target (0 = none)
 	refPeekErr        string                // resolution/read error shown in the peek
+	refPeekThread     *comment.Comment      // thread citation target (thread:c1abc), nil for file peeks
 
 	// Review pack state
 	suggestionQueue   map[string]bool // suggestion ID -> accept(true)/reject(false); applied at verdict

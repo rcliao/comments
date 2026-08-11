@@ -163,3 +163,24 @@ func TestParseReferencesInFenceCommentTrails(t *testing.T) {
 		t.Errorf("got %+v, want gate.go:41 at doc line 3", refs[0])
 	}
 }
+
+// Thread citations (plan-compounding-rpi Phase 1): explicit thread: scheme,
+// same-doc and cross-doc forms; fences follow the comment-trail rule.
+func TestParseThreadReferences(t *testing.T) {
+	content := "Vetoed in thread:cz1xk after review.\n" +
+		"Inherited from `thread:research.md#c6mv7` (the join decision).\n" +
+		"```go\nx := \"thread:cfake\" // but thread:c9real in a trail\n```\n"
+	refs := ParseReferences(content)
+	if len(refs) != 3 {
+		t.Fatalf("want 3 thread refs, got %d: %+v", len(refs), refs)
+	}
+	if refs[0].ThreadID != "cz1xk" || refs[0].Path != "" || refs[0].LineNum != 1 {
+		t.Errorf("same-doc form: %+v", refs[0])
+	}
+	if refs[1].ThreadID != "c6mv7" || refs[1].Path != "research.md" {
+		t.Errorf("cross-doc form: %+v", refs[1])
+	}
+	if refs[2].ThreadID != "c9real" || refs[2].LineNum != 4 {
+		t.Errorf("fence comment-trail form: %+v", refs[2])
+	}
+}
