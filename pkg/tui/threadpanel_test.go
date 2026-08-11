@@ -523,8 +523,8 @@ func TestHideLineNumbersToggle(t *testing.T) {
 			t.Errorf("hidden mode must not render the number column: %q", row)
 		}
 	}
-	if nm.gutterWidth() != 8 {
-		t.Errorf("hidden gutter should be 8, got %d", nm.gutterWidth())
+	if nm.gutterWidth() != 3 {
+		t.Errorf("hidden gutter should be 3 (marker cell only), got %d", nm.gutterWidth())
 	}
 
 	// toggle back in line-select too

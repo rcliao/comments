@@ -299,24 +299,23 @@ func (m *Model) lineSummarySuffix(threads []*comment.Comment) string {
 }
 
 // docWrapWidth is the text wrap width for the document pane, shared by both
-// document renders and the scroll math. One constant for both layouts: the
-// widest gutter is the cursor view's — cursor (2) + space + line number (4) +
-// space + marker (up to 3) + space = 12. Browse mode's gutter is 2 narrower,
-// but sharing the cursor width keeps wrap points (and therefore scroll rows)
-// identical across modes, so entering/leaving line-select never reflows the
-// document under a saved scroll offset.
+// document renders and the scroll math, so entering/leaving line-select never
+// reflows the document under a saved scroll offset.
 func (m *Model) docWrapWidth() int {
 	return max(m.documentViewport.Width()-m.gutterWidth(), 40)
 }
 
 // gutterWidth is the fixed left-gutter width shared by both document renders
-// and the scroll math: cursor (2) + space + marker (4) + line number (4) +
-// space = 12, shrinking by the number column when line numbers are hidden.
+// and the scroll math: marker (3) + line number (4) + space = 8, shrinking to
+// the marker cell alone when line numbers are hidden. There is deliberately
+// no cursor column: the cursor line's background and accented number carry
+// the position (live review: the arrow was noise), and range lines carry the
+// range background.
 func (m *Model) gutterWidth() int {
 	if m.hideLineNumbers {
-		return 8
+		return 3
 	}
-	return 12
+	return 8
 }
 
 // renderDocument renders the document pane without a cursor (browse mode)
@@ -388,45 +387,20 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 				wrappedLine = m.styles.selectedLine.Render(wrappedLine)
 			}
 
-			// Marker column sits LEFT of the line number (fixed 4 cells)
-			// so text alignment never shifts on commented lines. The number
-			// column disappears entirely when hidden (# toggles).
-			markerCell := marker + strings.Repeat(" ", max(0, 4-lipgloss.Width(marker)))
+			// One gutter for both modes: marker cell (3, left of the number
+			// so alignment never shifts on commented lines) + line number.
+			// No cursor column — the line background and accented number
+			// carry position; the range background carries the range.
+			markerCell := marker + strings.Repeat(" ", max(0, 3-lipgloss.Width(marker)))
 			numCell := lineNumStr + " "
 			if m.hideLineNumbers {
 				numCell = ""
 			}
-			contPad := strings.Repeat(" ", m.gutterWidth()-4)
-
-			if !withCursor {
-				if j == 0 {
-					// First line: marker, line number, then text + summary
-					fmt.Fprintf(&rendered, "%s%s%s%s\n", markerCell, numCell, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
-				} else {
-					// Continuation lines: indent with spaces
-					fmt.Fprintf(&rendered, "%s%s\n", contPad, wrappedLine)
-				}
-				continue
-			}
 
 			if j == 0 {
-				// First line: cursor, marker, line number, text
-				cursor := "  "
-				if isSelected {
-					cursor = m.styles.cursorAccent.Render("▶ ")
-				} else if inRange {
-					cursor = m.styles.rangeMarker.Render("│")
-				}
-				fmt.Fprintf(&rendered, "%s %s%s%s%s\n", cursor, markerCell, numCell, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
+				fmt.Fprintf(&rendered, "%s%s%s%s\n", markerCell, numCell, wrappedLine, m.lineSummarySuffix(commentsByLine[lineNum]))
 			} else {
-				// Continuation lines: indent with spaces
-				displayCursor := "  "
-				if isSelected {
-					displayCursor = m.styles.cursorAccent.Render("▶ ")
-				} else if inRange {
-					displayCursor = m.styles.rangeMarker.Render("│ ")
-				}
-				fmt.Fprintf(&rendered, "%s %s%s\n", displayCursor, contPad, wrappedLine)
+				fmt.Fprintf(&rendered, "%s%s\n", strings.Repeat(" ", m.gutterWidth()), wrappedLine)
 			}
 		}
 	}
