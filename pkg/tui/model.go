@@ -84,6 +84,7 @@ type Model struct {
 	sidebarDensity    int             // densityFull / densityCondensed / densityHidden (S cycles)
 	showLineSummaries bool            // dimmed end-of-line thread summaries (L toggles)
 	hideLineNumbers   bool            // line-number column hidden (# toggles)
+	sortByPriority    bool            // sidebar in walkthrough order: priority first (P toggles)
 	helpReturnMode    ViewMode        // mode to restore when closing the help overlay
 	tocReturnMode     ViewMode        // mode to restore when closing the TOC overlay
 	tocEntries        []tocEntry      // flattened section list for the TOC overlay

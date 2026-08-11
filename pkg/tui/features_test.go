@@ -622,3 +622,33 @@ func TestAddCommentSurvivesExternalEditAboveCursor(t *testing.T) {
 			got, lines[min(got-1, len(lines)-1)])
 	}
 }
+
+// P sorts the sidebar into walkthrough order: the threads ARE the highlight
+// layer of a big artifact — priority-high decisions/asks first, doc order
+// within a priority; second press restores document order.
+func TestPrioritySortWalkthroughOrder(t *testing.T) {
+	m := testModel([]*comment.Comment{
+		{ID: "c1", Line: 5, Author: "claude", Text: "minor nit", Priority: "low"},
+		{ID: "c2", Line: 9, Author: "claude", Text: "pivotal decision", Priority: "high"},
+		{ID: "c3", Line: 7, Author: "claude", Text: "context note"},
+	})
+	m.width, m.height = 100, 40
+	m.handleResize()
+
+	next, _ := m.handleBrowseKeys(keyMsg("P"))
+	nm := next.(Model)
+	got := nm.visibleComments()
+	if got[0].ID != "c2" || got[1].ID != "c3" || got[2].ID != "c1" {
+		t.Fatalf("walkthrough order should be high, default, low — got %s %s %s", got[0].ID, got[1].ID, got[2].ID)
+	}
+	if out := nm.renderComments(); !strings.Contains(out, "by priority") || !strings.Contains(out, "[HIGH]") {
+		t.Errorf("sidebar should badge the mode and the high thread:\n%s", out)
+	}
+
+	back, _ := nm.handleBrowseKeys(keyMsg("P"))
+	bm := back.(Model)
+	got = bm.visibleComments()
+	if got[0].ID != "c1" || got[1].ID != "c3" || got[2].ID != "c2" {
+		t.Errorf("second P should restore document order, got %s %s %s", got[0].ID, got[1].ID, got[2].ID)
+	}
+}

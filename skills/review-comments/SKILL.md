@@ -139,6 +139,20 @@ small changes, or a project template):
    signal that you checked it. The human reviews your specific doubts, not a
    generic checklist. For feature-sized docs, follow with the fresh-context
    reviewer pass (see RPI mode) before requesting human review.
+
+   **On large artifacts, your open threads are also the human's walkthrough**
+   (`P` in the TUI sorts the sidebar priority-first): the reviewer may have
+   minutes of face time to discuss a design that took hours to write, and
+   your threads are the slides. So:
+
+   - Mark the 2-4 threads the design genuinely turns on `priority: high` —
+     each names the decision, what hinges on it, and the ask, in one breath
+     ("Chose skill-prose over a Go command; hinges on prompt quality — veto
+     if you want it enforceable"). Everything else stays medium/low.
+   - Anchor each high thread where the decision lives in the doc, so
+     opening it puts the relevant detail beside it as the backdrop.
+   - High-priority is a walkthrough slot, not emphasis — if six threads are
+     high, none are.
 4. **Seed the ambiguity markers**: `comments seed <doc.md> --template <name> --markers-only`
    — turns each NEEDS CLARIFICATION marker into a blocking Q thread at its line
    and records the template so the gate enforces structure. (Full `seed` without

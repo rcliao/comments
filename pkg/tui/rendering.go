@@ -469,6 +469,21 @@ func (st *styleSet) getCommentTypeColor(text string) string {
 // so the sidebar reads top-to-bottom with the document (focus-follows-cursor, G3)
 func (m *Model) visibleComments() []*comment.Comment {
 	visible := comment.GetVisibleComments(m.doc.Threads, m.showResolved)
+	if m.sortByPriority {
+		// Walkthrough order: the threads ARE the presentation layer of a big
+		// artifact — priority-high decisions and asks first, the doc as
+		// backdrop behind each. Line order within a priority keeps ties
+		// stable and readable.
+		rank := map[string]int{"high": 0, "medium": 1, "": 1, "low": 2}
+		sort.SliceStable(visible, func(i, j int) bool {
+			ri, rj := rank[visible[i].Priority], rank[visible[j].Priority]
+			if ri != rj {
+				return ri < rj
+			}
+			return visible[i].Line < visible[j].Line
+		})
+		return visible
+	}
 	sort.SliceStable(visible, func(i, j int) bool { return visible[i].Line < visible[j].Line })
 	return visible
 }
@@ -489,6 +504,9 @@ func (m *Model) focusLine() int {
 // threadMarkers builds the status/type indicator string for a thread
 func threadMarkers(c *comment.Comment) string {
 	markers := ""
+	if c.GetPriority() == "high" && !c.Resolved {
+		markers += " [HIGH]"
+	}
 	if c.Blocking && !c.Resolved {
 		markers += " [BLOCKING]"
 	}
@@ -571,6 +589,9 @@ func (m *Model) renderComments() string {
 	statusText := "unresolved"
 	if m.showResolved {
 		statusText = "all"
+	}
+	if m.sortByPriority {
+		statusText += " · by priority"
 	}
 	focus := m.focusLine()
 	since := lastSignoffTime(m.doc.Reviews)

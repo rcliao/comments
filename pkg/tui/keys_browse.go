@@ -107,6 +107,16 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case "P":
+		// Walkthrough order: sidebar sorts priority-high first (the agent's
+		// pivotal decisions/asks), back to document order on second press.
+		// Selection follows the same clamp rule as R: the visible ORDER
+		// changed under it.
+		m.sortByPriority = !m.sortByPriority
+		m.selectedComment = 0
+		m.commentViewport.SetContent(m.renderComments())
+		return m, nil
+
 	case "R":
 		// Toggle showing resolved comments; the visible set just changed, so
 		// the selection index from the old set must be clamped or the next
