@@ -58,6 +58,22 @@ comments seed draft.md --template design-doc  # criteria + markers become review
 
 `j/k` move · `r` dive into thread at cursor · `Tab` cycle stacked threads · `n/N` next/prev NEW since your last signoff · `f` peek citation (Enter → `$EDITOR` at file:line) · `t` table of contents · `a`/`x` queue accept/reject on suggestions · `q` verdict (approve / request changes, `n` for a review note) · `?` full keybinding help
 
+## What the templates produce
+
+Every template ships with a worked example under [`docs/examples/`](docs/examples/) — real subjects from this repo, written to every constraint, validating clean:
+
+| Template | Example | Shows off |
+|---|---|---|
+| `design-doc` | [design-doc.md](docs/examples/design-doc.md) | one-pager: data flow story, full DBML model, contract interfaces |
+| `as-built` | [as-built.md](docs/examples/as-built.md) | the gate/signoff loop as it runs today, with peekable evidence |
+| `research` | [research.md](docs/examples/research.md) | documentarian findings with file:line per claim |
+| `plan` | [plan.md](docs/examples/plan.md) | phases with automated/manual success criteria |
+| `adr` | [adr.md](docs/examples/adr.md) | one decision, honest consequences |
+| `rfc` | [rfc.md](docs/examples/rfc.md) | thread citations, guide + reference level |
+| `mini` | [mini.md](docs/examples/mini.md) | a whole change in 400 words |
+
+Review any of them in the tool itself: `comments view docs/examples/design-doc.md` — peek the citations with `f`.
+
 ## Storage
 
 Comments live in `doc.md.comments.json` sidecars: markdown stays clean, collaboration data versions independently, and a SHA-256 document hash drives staleness detection and the re-anchoring cascade (exact → text → fuzzy → section → orphan).

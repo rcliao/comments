@@ -36,7 +36,7 @@ No prompt, allowlist, or pass-count learns from that record; each reviewer start
 
 ### F3 — The probe layer is designed, exampled, and unbuilt [Q3]
 
-Faithfulness/coverage probes and the executability brief exist as design history (docs/plan-artifact-quality-eval.md) and as the worked example (examples/design-probe-eval.md).
+Faithfulness/coverage probes and the executability brief exist as design history (docs/plan-artifact-quality-eval.md) and as the worked example (docs/examples/design-doc.md).
 They are the only proposed signal that tests an artifact by its function — what a fresh reader can reconstruct — rather than by its shape.
 
 ### F4 — Lagging truth accrues free and unjoined [Q1] [Q3]

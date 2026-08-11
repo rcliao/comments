@@ -2,10 +2,12 @@
 
 ## Problem
 
-The RPI loop measures its *process* (reviewer signal ratio, passes to gate green) but nothing measures the *artifact*: a research doc can be gate-clean — every thread resolved — and still be thin, wrong, or quietly narrower than its question.
-Today the only detector for that is the human reviewer, which is exactly the expensive attention the loop exists to protect.
-The failure mode is documented: prose that reads convincingly while its claims are unverified (the plan-reading illusion).
-Affected: every RPI doc reviewed in this repo, and the skill-tuning work that has no quality signal to tune against.
+The RPI loop measures its *process* — reviewer signal, passes to gate green — but nothing measures the *artifact*.
+A research doc can be gate-clean and still be thin, wrong, or quietly narrower than its question.
+
+Today the only detector is the human reviewer: exactly the expensive attention the loop exists to protect.
+The failure mode is documented — prose that reads convincingly while its claims are unverified.
+Affected: every RPI doc in this repo, and skill tuning with no quality signal to tune against.
 
 ## Goals / Non-Goals
 
@@ -30,7 +32,8 @@ Three probe types, run post-signoff by the skill, results appended to a log the 
 
 **Executability probe** (plan docs): a cold subagent receives the plan alone and writes an execution brief — files it would touch, in what order, every question it cannot answer. It does not implement. Score = forced-question count plus the human's read of brief-vs-intent divergence (observed, not automated, in v1).
 
-Each run appends one JSON line to `.comments/evals.jsonl` keyed by doc path and content hash, so a revised doc re-scores as a new entry and the rewrite-not-expand rule is checkable: same hash family, fewer words, higher score.
+Each run appends one JSON line to `.comments/evals.jsonl`, keyed by doc path and content hash.
+A revised doc re-scores as a new entry, making rewrite-not-expand checkable: same path, fewer words, higher score.
 
 ## Data Flow
 
