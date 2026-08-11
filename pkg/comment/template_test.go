@@ -266,7 +266,7 @@ func TestComputeSeedTargetsSegmentBoundary(t *testing.T) {
 }
 
 func TestLoadBuiltinTemplates(t *testing.T) {
-	for _, name := range []string{"design-doc", "adr", "rfc", "mini", "research", "plan"} {
+	for _, name := range []string{"design-doc", "adr", "rfc", "mini", "research", "plan", "as-built"} {
 		tmpl, err := LoadTemplate(name)
 		if err != nil {
 			t.Errorf("built-in template %q failed to load: %v", name, err)

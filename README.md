@@ -13,7 +13,7 @@ Google-Docs-style review for markdown, in the terminal. Inline comment threads a
 - **Inline comments & threads**: anchored to lines or markdown sections, with nested replies and content-based re-anchoring when the doc changes
 - **Edit suggestions**: multi-line proposals with preview and accept/reject; queued decisions apply atomically at review verdict
 - **Review gate**: `comments gate` exits 0 (approved) or 10 (changes requested); `signoff` records the human pass agents block on
-- **Doc templates as guardrails**: required sections, word caps, forced alternatives, human-owned zones, `[NEEDS CLARIFICATION:]` marker caps — built-ins: `design-doc`, `mini`, `research`, `plan`, `adr`, `rfc`
+- **Doc templates as guardrails**: required sections, word caps, forced alternatives, human-owned zones, `[NEEDS CLARIFICATION:]` marker caps — built-ins: `design-doc`, `mini`, `research`, `plan`, `adr`, `rfc`, `as-built`
 - **RPI flow**: research docs with file:line evidence → plans citing the research → reviewed in the TUI where `f` peeks any citation and Enter opens `$EDITOR` there
 - **Watch**: `comments watch --until signoff` streams NDJSON review events so agents can wait on humans
 - **MCP server**: 20 tools over stdio for agent integration; batch operations; `@filename` text input
