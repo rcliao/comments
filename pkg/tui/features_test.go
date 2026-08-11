@@ -780,3 +780,34 @@ func TestSlashSearchCycling(t *testing.T) {
 		t.Errorf("prompt should show the match counter:\n%s", out)
 	}
 }
+
+// hlsearch: while the prompt is open, match substrings on every matching
+// line carry the search-hit background; style-only (bytes identical
+// ANSI-stripped) and gone once the search closes.
+func TestSearchHighlightsAllMatches(t *testing.T) {
+	m := testModel(nil)
+	m.width, m.height = 100, 40
+	m.handleResize()
+	m.mode = ModeLineSelect
+	m.selectedLine = 1
+	next, _ := m.handleLineSelectKeys(keyMsg("/"))
+	sm := next.(Model)
+	for _, ch := range "body" {
+		n, _ := sm.handleSearchKeys(keyMsg(string(ch)))
+		sm = n.(Model)
+	}
+	hit := sm.styles.searchHit.Render("body")
+	out := sm.renderDocumentWithCursor()
+	if got := strings.Count(out, hit); got < 1 {
+		t.Fatalf("expected highlighted matches in the doc render, found %d", got)
+	}
+	if stripANSI(sm.highlightMatches("Alpha body text.", "body")) != "Alpha body text." {
+		t.Error("highlighting must not change bytes")
+	}
+	// Accepting the search drops the highlight
+	n2, _ := sm.handleSearchKeys(keyMsg("enter"))
+	am := n2.(Model)
+	if strings.Contains(am.renderDocumentWithCursor(), hit) {
+		t.Error("highlight should clear when the prompt closes")
+	}
+}

@@ -417,7 +417,13 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 		// composes with spans poorly, so these lines keep raw text but a
 		// gentle background; range keeps raw too)
 		styledLine := line
-		if !isSelected && !isFocused && !inRange {
+		if q := m.activeSearchQuery(); q != "" && !isSelected && !isFocused && !inRange &&
+			strings.Contains(strings.ToLower(line), strings.ToLower(q)) {
+			// hlsearch while the prompt is open: match lines render raw with
+			// the matched substrings backgrounded (same trade as the cursor
+			// line: position clarity over syntax color)
+			styledLine = m.highlightMatches(line, q)
+		} else if !isSelected && !isFocused && !inRange {
 			styledLine = m.styleDocLine(line, lineNum)
 		}
 		if isSelected || isFocused {

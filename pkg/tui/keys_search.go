@@ -134,6 +134,41 @@ func (m Model) handleSearchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// activeSearchQuery is the query to highlight while the prompt is open:
+// what is being typed, falling back to the last accepted query (cycling an
+// empty prompt still shows where the hops go). "" outside search mode.
+func (m *Model) activeSearchQuery() string {
+	if m.mode != ModeSearch {
+		return ""
+	}
+	if q := strings.TrimSpace(m.searchInput.Value()); q != "" {
+		return q
+	}
+	return m.searchQuery
+}
+
+// highlightMatches renders a line raw except its match substrings, which get
+// the search-hit background — hlsearch during incsearch. Style-only: the
+// ANSI-stripped result is byte-identical to the input.
+func (m *Model) highlightMatches(line, query string) string {
+	lower := strings.ToLower(line)
+	q := strings.ToLower(query)
+	var b strings.Builder
+	last := 0
+	for {
+		i := strings.Index(lower[last:], q)
+		if i < 0 {
+			break
+		}
+		start := last + i
+		b.WriteString(line[last:start])
+		b.WriteString(m.styles.searchHit.Render(line[start : start+len(query)]))
+		last = start + len(query)
+	}
+	b.WriteString(line[last:])
+	return b.String()
+}
+
 // viewSearch renders the live view with a one-line search prompt at the
 // bottom, showing the match state.
 func (m Model) viewSearch() string {

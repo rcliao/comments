@@ -73,6 +73,7 @@ type styleSet struct {
 	boldSpan   lipgloss.Style
 	italicSpan lipgloss.Style
 	strikeSpan lipgloss.Style
+	searchHit  lipgloss.Style
 
 	// Inline code span content
 	codeSpan lipgloss.Style
@@ -178,6 +179,7 @@ func newStyleSet(t Theme) *styleSet {
 		boldSpan:   lipgloss.NewStyle().Bold(true),
 		italicSpan: lipgloss.NewStyle().Italic(true),
 		strikeSpan: lipgloss.NewStyle().Strikethrough(true).Foreground(t.DimSyntax.Color()),
+		searchHit:  lipgloss.NewStyle().Background(t.Warning.Color()).Foreground(lipgloss.Color("#000000")),
 
 		codeSpan: lipgloss.NewStyle().
 			Foreground(t.Code.Color()),
