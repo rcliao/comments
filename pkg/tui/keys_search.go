@@ -8,6 +8,7 @@ package tui
 // last accepted query, wrapping.
 
 import (
+	"fmt"
 	"strings"
 
 	"charm.land/bubbles/v2/textarea"
@@ -35,18 +36,42 @@ func (m Model) openSearch() (tea.Model, tea.Cmd) {
 // findMatch returns the first document line containing query (case-insensitive)
 // at or after `from`, wrapping past the end; 0 when nothing matches.
 func (m *Model) findMatch(query string, from int) int {
+	return m.findMatchDir(query, from, +1)
+}
+
+func (m *Model) findMatchDir(query string, from, dir int) int {
 	if strings.TrimSpace(query) == "" || m.doc == nil {
 		return 0
 	}
 	lines := strings.Split(m.doc.Content, "\n")
 	q := strings.ToLower(query)
-	for i := 0; i < len(lines); i++ {
-		idx := (from - 1 + i) % len(lines)
+	n := len(lines)
+	for i := 0; i < n; i++ {
+		idx := ((from-1+dir*i)%n + n) % n
 		if strings.Contains(strings.ToLower(lines[idx]), q) {
 			return idx + 1
 		}
 	}
 	return 0
+}
+
+// matchStats reports which match the cursor sits on and how many exist, so
+// the prompt can say "2/5" — a cursor that legitimately does not move (the
+// query matches the current line) stops reading as "search is broken".
+func (m *Model) matchStats(query string) (cur, total int) {
+	if strings.TrimSpace(query) == "" || m.doc == nil {
+		return 0, 0
+	}
+	q := strings.ToLower(query)
+	for i, line := range strings.Split(m.doc.Content, "\n") {
+		if strings.Contains(strings.ToLower(line), q) {
+			total++
+			if i+1 <= m.selectedLine {
+				cur = total
+			}
+		}
+	}
+	return cur, total
 }
 
 func (m Model) handleSearchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -57,6 +82,30 @@ func (m Model) handleSearchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = m.searchReturnMode
 		m.searchInput.Blur()
 		m.refreshCursorView()
+		return m, nil
+
+	case "tab", "ctrl+n", "down":
+		// Next match while the prompt is open — the answer to "it didn't
+		// move": hop onward without leaving the search
+		q := strings.TrimSpace(m.searchInput.Value())
+		if q == "" {
+			q = m.searchQuery
+		}
+		if line := m.findMatchDir(q, m.selectedLine+1, +1); line > 0 {
+			m.selectedLine = line
+			m.refreshCursorView()
+		}
+		return m, nil
+
+	case "shift+tab", "ctrl+p", "up":
+		q := strings.TrimSpace(m.searchInput.Value())
+		if q == "" {
+			q = m.searchQuery
+		}
+		if line := m.findMatchDir(q, m.selectedLine-1, -1); line > 0 {
+			m.selectedLine = line
+			m.refreshCursorView()
+		}
 		return m, nil
 
 	case "enter":
@@ -90,8 +139,10 @@ func (m Model) handleSearchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) viewSearch() string {
 	state := ""
 	if q := strings.TrimSpace(m.searchInput.Value()); q != "" {
-		if m.findMatch(q, m.searchOrigin) == 0 {
+		if cur, total := m.matchStats(q); total == 0 {
 			state = m.styles.help.Render("  no match")
+		} else {
+			state = m.styles.help.Render(fmt.Sprintf("  %d/%d · tab: next", cur, total))
 		}
 	}
 	prompt := m.styles.title.Render("/") + m.searchInput.View() + state

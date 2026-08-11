@@ -746,3 +746,37 @@ func TestSlashSearch(t *testing.T) {
 		t.Errorf("browse / should search into line-select, got %v -> %v", brm.mode, brm.searchReturnMode)
 	}
 }
+
+// Search cycling inside the prompt: tab hops to the next match past the
+// cursor (the fix for "the highlight didn't move" when the query matches
+// the current line), shift+tab goes back, and the prompt shows n/total.
+func TestSlashSearchCycling(t *testing.T) {
+	m := testModel(nil) // "Beta" on lines 7 and 9
+	m.width, m.height = 100, 40
+	m.handleResize()
+	m.mode = ModeLineSelect
+	m.selectedLine = 7 // already ON a matching line
+
+	next, _ := m.handleLineSelectKeys(keyMsg("/"))
+	sm := next.(Model)
+	for _, ch := range "beta" {
+		n, _ := sm.handleSearchKeys(keyMsg(string(ch)))
+		sm = n.(Model)
+	}
+	if sm.selectedLine != 7 {
+		t.Fatalf("query matching the origin stays put, got %d", sm.selectedLine)
+	}
+	n2, _ := sm.handleSearchKeys(keyMsg("tab"))
+	sm = n2.(Model)
+	if sm.selectedLine != 9 {
+		t.Fatalf("tab should hop to the next match (9), got %d", sm.selectedLine)
+	}
+	n3, _ := sm.handleSearchKeys(keyMsg("shift+tab"))
+	sm = n3.(Model)
+	if sm.selectedLine != 7 {
+		t.Fatalf("shift+tab should hop back to 7, got %d", sm.selectedLine)
+	}
+	if out := stripANSI(sm.viewSearch()); !strings.Contains(out, "1/2") {
+		t.Errorf("prompt should show the match counter:\n%s", out)
+	}
+}
