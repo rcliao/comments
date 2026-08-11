@@ -293,6 +293,14 @@ that are genuinely theirs.
 
 ## Conventions
 
+- **Semantic line breaks in every doc you write or edit:** break lines at
+  sentence boundaries, never at column width.
+  Renderers join them invisibly, but the tool is line-addressed:
+  one sentence per line means comments anchor to a sentence,
+  an edit touches exactly its own line with no reflow below it
+  (no anchor displacement, less reanchor churn),
+  and diffs read as sentence-level track changes.
+  A long sentence may break after a clause; never mid-phrase.
 - **Comments are ≤50 words, one point each.** Lead with the actionable claim;
   evidence is a file:line, not a paragraph. If you need two sentences of
   context, the second is usually the comment. Split multi-point comments into
