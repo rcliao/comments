@@ -83,6 +83,7 @@ type Model struct {
 	// Fence rendering cache: per-line fence state + chroma output, rebuilt on
 	// content change (docs/plan-markdown-render.md Phase 1)
 	fenceCache map[int]fenceLine
+	tableCache map[int]string // aligned table rows (display-only padding)
 
 	// / search state: incremental over document lines (vim-adjacent; n/N
 	// stay on NEW-activity nav per review — repeat = / then empty Enter)
@@ -220,6 +221,8 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 		// Detect and resolve file references once; rendering and peek only read this
 		m.refsByLine = buildRefMap(doc.Content, filename)
 		m.fenceCache = m.buildFenceCache()
+		m.tableCache = m.buildTableCache()
+		m.tableCache = m.buildTableCache()
 	}
 
 	// Resume the previous review position, if one was persisted
@@ -449,6 +452,7 @@ func (m Model) loadFile(path string) (tea.Model, tea.Cmd) {
 	// Detect and resolve file references once; rendering and peek only read this
 	m.refsByLine = buildRefMap(m.doc.Content, path)
 	m.fenceCache = m.buildFenceCache()
+	m.tableCache = m.buildTableCache()
 
 	// If we have dimensions, initialize viewports now
 	if m.width > 0 && m.height > 0 {
@@ -515,6 +519,7 @@ func (m *Model) refreshDocFromDisk() {
 		m.documentSections = markdown.ParseDocument(fresh.Content)
 		m.refsByLine = buildRefMap(fresh.Content, m.filename)
 		m.fenceCache = m.buildFenceCache()
+		m.tableCache = m.buildTableCache()
 		m.refreshDocumentPane()
 	}
 	m.clampSelectedComment(len(m.visibleComments()))

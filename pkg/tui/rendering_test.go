@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/rcliao/comments/pkg/comment"
 )
@@ -530,26 +531,39 @@ func TestTyporaSpansAndGlyphs(t *testing.T) {
 	}
 }
 
-// Table rows style in place: pipes dim, header row bold, separator dim —
-// bytes identical ANSI-stripped (no alignment padding; copy fidelity holds).
+// Table rows render ALIGNED to the block's column widths (the renderer's one
+// deliberate byte divergence — decided in live review: ragged pipes made
+// tables unreviewable), one source line per row, pipes dim, header bold.
 func TestTableRowStyling(t *testing.T) {
-	content := "# T\n\n| Col A | Col B |\n|---|---|\n| a | **b** |\n"
+	content := "# T\n\n| Col A | Col B |\n|---|---|\n| a | a much longer cell |\n"
 	doc := &comment.DocumentWithComments{Content: content, Threads: []*comment.Comment{}}
 	m := NewModelWithFile(doc, "/tmp/nonexistent-t.md")
 	m.width, m.height = 100, 40
 	m.handleResize()
 
-	for i, raw := range []string{"| Col A | Col B |", "|---|---|", "| a | **b** |"} {
-		styled := m.styleDocLine(raw, 3+i)
-		if got := stripANSI(styled); got != raw {
-			t.Errorf("table styling changed bytes: %q -> %q", raw, got)
+	w := -1
+	for ln := 3; ln <= 5; ln++ {
+		aligned, ok := m.tableCache[ln]
+		if !ok {
+			t.Fatalf("line %d missing from table cache", ln)
+		}
+		if w == -1 {
+			w = lipgloss.Width(aligned)
+		} else if lipgloss.Width(aligned) != w {
+			t.Errorf("row %d width %d, want %d (columns must align)", ln, lipgloss.Width(aligned), w)
+		}
+		if strings.Contains(aligned, "\n") {
+			t.Errorf("aligned row %d must stay a single line", ln)
 		}
 	}
-	// Header cells bold; separator fully dim
+	if !strings.Contains(stripANSI(m.styleDocLine("| a | a much longer cell |", 5)), "a much longer cell") {
+		t.Error("cell content must survive alignment")
+	}
 	if !strings.Contains(m.styleDocLine("| Col A | Col B |", 3), m.styles.boldSpan.Render(" Col A ")) {
 		t.Error("header cells should render bold")
 	}
-	if m.styleDocLine("|---|---|", 4) != m.styles.syntaxGlyph.Render("|---|---|") {
-		t.Error("separator row should dim whole-line")
+	sep := stripANSI(m.styleDocLine("|---|---|", 4))
+	if !strings.HasPrefix(sep, "|---") || strings.Count(sep, "|") != 3 {
+		t.Errorf("separator should be dashed with aligned pipes: %q", sep)
 	}
 }

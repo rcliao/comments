@@ -218,8 +218,13 @@ func (m *Model) styleTableRow(line string, lineNum int) string {
 }
 
 func (m *Model) styleDocLine(line string, lineNum int) string {
-	// Table rows: pipes recede, headers bold, separators dim (style-only)
+	// Table rows: aligned to the block's column widths (the one deliberate
+	// byte divergence — review beat copy-fidelity here), pipes receding,
+	// headers bold, separators dim
 	if t := strings.TrimSpace(line); strings.HasPrefix(t, "|") {
+		if aligned, ok := m.tableCache[lineNum]; ok {
+			return m.styleTableRow(aligned, lineNum)
+		}
 		return m.styleTableRow(line, lineNum)
 	}
 	// Fence lines: suppressed prose styling, chroma-highlighted code, and a

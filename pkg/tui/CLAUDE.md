@@ -132,6 +132,16 @@ The screen still reads as browse, so keys split three ways
   first). If you add a fall-through key, it must behave exactly as it does in
   browse and must close or preserve the panel deliberately.
 
+## The one byte divergence: aligned tables
+
+The renderer's contract is style-only — ANSI-stripped output byte-identical
+to source — with ONE deliberate exception, decided in live review: table
+rows render aligned to their block's column widths (ragged pipes made tables
+unreviewable). Rows stay one source line each; only padding bytes differ.
+Consequence: `suggest --original` against a table row copied FROM THE
+TERMINAL will not match source — use the raw file text. Everything else
+(spans, fences, glyphs, search highlight) keeps the byte-identity rule.
+
 ## Verdict and signoff parity
 
 `q` opens the verdict dialog; `a`/`c`/`r` apply the queued suggestion decisions
