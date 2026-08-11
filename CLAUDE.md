@@ -69,6 +69,22 @@ Command surface: run `./comments` with no args for full usage. The core review-l
 
 `--text @file.txt` reads text content from a file (also `--original`/`--proposed` on `suggest`) — useful for multi-line content.
 
+### After merging a plugin-affecting change (skill, MCP, templates, version bump)
+
+The installed Claude plugin does NOT track this repo — it is built from a
+separate marketplace clone that never auto-pulls
+(it once sat five days stale while every agent read an obsolete skill).
+After any merge that touches `skills/`, `pkg/mcp/`, templates, or bumps
+`.claude-plugin/plugin.json`, run:
+
+```bash
+claude plugin update comments@comments   # pulls the marketplace clone AND rebuilds the cache
+```
+
+Then restart running Claude sessions to pick it up. `comments doctor` verifies
+the install but does not detect a stale plugin version — the update command is
+the check.
+
 ### Doc Templates (Review Guardrails)
 
 Templates constrain what an agent writes so humans can review it well. A template (YAML, built-in or in `.comments/templates/`) declares:
