@@ -64,6 +64,9 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.refreshDocumentPane()
 		return m, nil
 
+	case "/":
+		return m.openSearch()
+
 	case "g":
 		// vim: first thread
 		if len(m.visibleComments()) > 0 {

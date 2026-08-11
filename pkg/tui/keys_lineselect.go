@@ -75,6 +75,9 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case "/":
+		return m.openSearch()
+
 	case "ctrl+d":
 		// Page down (half page)
 		pageSize := m.documentViewport.Height() / 2

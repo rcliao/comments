@@ -29,6 +29,7 @@ func helpGroups() []helpGroup {
 			{"g / G", "first / last line"},
 			{"] / [", "next / previous open comment"},
 			{"n / N", "next / previous NEW activity (since last signoff)"},
+			{"/", "search document; Enter accepts, / + empty Enter = next match"},
 			{"t", "table of contents (jump to section)"},
 			{"f", "follow citation on line (peek; Enter opens $EDITOR)"},
 			{"#", "toggle line numbers"},

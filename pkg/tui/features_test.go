@@ -678,3 +678,71 @@ func TestCondensedRowContentFirst(t *testing.T) {
 		}
 	}
 }
+
+// / search (keybind review): incremental jump, empty-Enter repeat of the
+// last query with wrap, Esc restoring the origin; n/N stay NEW-nav.
+func TestSlashSearch(t *testing.T) {
+	m := testModel(nil) // tuiTestDoc: Alpha at 5, Beta at 9
+	m.width, m.height = 100, 40
+	m.handleResize()
+	m.mode = ModeLineSelect
+	m.selectedLine = 1
+
+	// / opens the prompt; typing jumps incrementally
+	next, _ := m.handleLineSelectKeys(keyMsg("/"))
+	sm := next.(Model)
+	if sm.mode != ModeSearch {
+		t.Fatalf("/ should open search, got %v", sm.mode)
+	}
+	for _, ch := range "beta" {
+		n, _ := sm.handleSearchKeys(keyMsg(string(ch)))
+		sm = n.(Model)
+	}
+	if sm.selectedLine != 7 && sm.selectedLine != 9 {
+		t.Fatalf("incremental search should jump to a Beta line, got %d", sm.selectedLine)
+	}
+	betaLine := sm.selectedLine
+
+	// Enter accepts and remembers the query
+	n2, _ := sm.handleSearchKeys(keyMsg("enter"))
+	am := n2.(Model)
+	if am.mode != ModeLineSelect || am.searchQuery != "beta" {
+		t.Fatalf("enter should accept, got mode=%v query=%q", am.mode, am.searchQuery)
+	}
+
+	// / + empty Enter = next match (wraps back to the same line when unique-ish)
+	n3, _ := am.handleLineSelectKeys(keyMsg("/"))
+	rm := n3.(Model)
+	n4, _ := rm.handleSearchKeys(keyMsg("enter"))
+	rm = n4.(Model)
+	if rm.selectedLine == 0 || rm.searchQuery != "beta" {
+		t.Fatalf("empty enter should repeat the search, got line=%d", rm.selectedLine)
+	}
+
+	// Esc restores the origin
+	n5, _ := rm.handleLineSelectKeys(keyMsg("/"))
+	em := n5.(Model)
+	for _, ch := range "alpha" {
+		n, _ := em.handleSearchKeys(keyMsg(string(ch)))
+		em = n.(Model)
+	}
+	if em.selectedLine == betaLine {
+		t.Fatal("typing alpha should have moved the cursor")
+	}
+	n6, _ := em.handleSearchKeys(keyMsg("esc"))
+	fm := n6.(Model)
+	if fm.selectedLine != rm.selectedLine {
+		t.Errorf("esc should restore the pre-search cursor %d, got %d", rm.selectedLine, fm.selectedLine)
+	}
+
+	// Browse / lands in line-select at the match
+	bm := testModel(nil)
+	bm.width, bm.height = 100, 40
+	bm.handleResize()
+	bm.mode = ModeBrowse
+	n7, _ := bm.handleBrowseKeys(keyMsg("/"))
+	brm := n7.(Model)
+	if brm.mode != ModeSearch || brm.searchReturnMode != ModeLineSelect {
+		t.Errorf("browse / should search into line-select, got %v -> %v", brm.mode, brm.searchReturnMode)
+	}
+}

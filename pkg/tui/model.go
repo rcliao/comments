@@ -84,6 +84,13 @@ type Model struct {
 	// content change (docs/plan-markdown-render.md Phase 1)
 	fenceCache map[int]fenceLine
 
+	// / search state: incremental over document lines (vim-adjacent; n/N
+	// stay on NEW-activity nav per review — repeat = / then empty Enter)
+	searchInput      textarea.Model
+	searchQuery      string   // last accepted query
+	searchReturnMode ViewMode // mode to restore on Esc
+	searchOrigin     int      // cursor line to restore on cancel
+
 	// Review pack state
 	suggestionQueue   map[string]bool // suggestion ID -> accept(true)/reject(false); applied at verdict
 	sidebarDensity    int             // densityFull / densityCondensed / densityHidden (S cycles)
@@ -128,6 +135,11 @@ func NewModel() Model {
 
 	replyTA := newReplyTextarea()
 
+	searchTA := textarea.New()
+	searchTA.Placeholder = "search…"
+	searchTA.SetHeight(1)
+	searchTA.ShowLineNumbers = false
+
 	// Get author from environment or use default
 	author := os.Getenv("USER")
 	if author == "" {
@@ -142,6 +154,7 @@ func NewModel() Model {
 		proposedTextInput: proposedTA,
 		verdictNote:       noteTA,
 		replyInput:        replyTA,
+		searchInput:       searchTA,
 		author:            author,
 		priority:          "medium",
 		commentType:       "",
@@ -171,6 +184,11 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 
 	replyTA := newReplyTextarea()
 
+	searchTA := textarea.New()
+	searchTA.Placeholder = "search…"
+	searchTA.SetHeight(1)
+	searchTA.ShowLineNumbers = false
+
 	// Get author from environment or use default
 	author := os.Getenv("USER")
 	if author == "" {
@@ -186,6 +204,7 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 		proposedTextInput: proposedTA,
 		verdictNote:       noteTA,
 		replyInput:        replyTA,
+		searchInput:       searchTA,
 		author:            author,
 		priority:          "medium",
 		commentType:       "",
@@ -269,6 +288,7 @@ func (m *Model) handleResize() {
 	// The verdict note sits inside the verdict box, which is sized by its
 	// content rather than the screen — keep it comfortably narrower
 	m.verdictNote.SetWidth(min(max(m.width-24, 40), 72))
+	m.searchInput.SetWidth(min(max(m.width-24, 30), 50))
 
 	if !m.ready {
 		m.documentViewport = newViewport(docWidth, m.height-2)

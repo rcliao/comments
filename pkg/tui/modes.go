@@ -52,6 +52,9 @@ const (
 
 	// ModeRefPeek shows a read-only excerpt of a cited file (f on a citation)
 	ModeRefPeek
+
+	// ModeSearch is the / incremental document search prompt
+	ModeSearch
 )
 
 // String returns the string representation of the view mode
@@ -89,6 +92,8 @@ func (m ViewMode) String() string {
 		return "TOC"
 	case ModeRefPeek:
 		return "REF_PEEK"
+	case ModeSearch:
+		return "SEARCH"
 	default:
 		return "UNKNOWN"
 	}

@@ -94,6 +94,11 @@ var modeRegistry = map[ViewMode]modeDescriptor{
 		handleKeys: Model.handleTOCKeys,
 		view:       Model.viewTOC,
 	},
+	ModeSearch: {
+		handleKeys:     Model.handleSearchKeys,
+		view:           Model.viewSearch,
+		updateViewport: updateSearchInput,
+	},
 	ModeRefPeek: {
 		handleKeys: Model.handleRefPeekKeys,
 		view:       Model.viewRefPeek,
@@ -136,6 +141,13 @@ func updateReplyInput(m *Model, msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	m.replyInput, cmd = m.replyInput.Update(msg)
 	m.syncComposerLayout()
+	return cmd
+}
+
+// updateSearchInput forwards non-key messages (blink) to the search prompt
+func updateSearchInput(m *Model, msg tea.Msg) tea.Cmd {
+	var cmd tea.Cmd
+	m.searchInput, cmd = m.searchInput.Update(msg)
 	return cmd
 }
 
