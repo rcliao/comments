@@ -196,6 +196,22 @@ So when you address a comment:
 - **Deleting is a valid response to feedback.** If a comment reveals a passage
   is unnecessary, cut it and say so in the reply. A shorter doc after a review
   round is a good outcome, not a suspicious one.
+- **Declare what you evicted.** A section at its cap behaves like a cache:
+  seating new material silently drops something older, and the reviewer who
+  asked for the addition never learns what it cost (measured in
+  scripts/eval/logs/cap-pilot-2026-08-11.json — an overloaded section shed
+  established detail to seat the newest comment, every run, announcing
+  nothing). So when answering a comment forces content out, say so in the
+  reply: "dropped X to seat this — raise the cap or accept". Never mistake
+  the trade for a private editorial decision; the reviewer may value X more
+  than their own comment. Losing detail you cannot name means you rewrote
+  blind — re-read the section before replying.
+- **A section pinned at its cap round after round is a template signal**, not
+  a writing problem: propose raising the cap or splitting the section rather
+  than compressing a third time. Compression at the margin is where meaning
+  breaks — the same eval found qualifiers silently dropped ("fails on any
+  unresolved thread" losing "or pending suggestion") while the prose stayed
+  fluent.
 
 Re-run `comments validate <doc> --template <name>` after processing feedback.
 Treat any `subsection_over_length` or `max_subsections` violation as a rewrite
@@ -270,7 +286,9 @@ interview, run question → research → plan WITHOUT a mid-chain human gate:
 - Minimize markers in autonomous research: decide and record assumptions.
   Human questions that survive CARRY FORWARD as priority-high threads on the
   PLAN — answered in the one review sitting, costing at most a revision round
-  if an assumption was wrong.
+  if an assumption was wrong. Carried threads ask SCOPE and PRIORITY
+  questions (is this worth doing now, is the fence right) — implementation
+  details are yours to decide, not to delegate upward.
 - **Pause-on-shape**: a question whose answer would change the plan's SCOPE
   or direction (not its details) stops the chain — request review early with
   what exists. Use the interview ranking: scope > security > UX > technical.
@@ -303,11 +321,17 @@ it.
 1. **Research** (`comments template show research` is your brief): produce a
    documentarian findings doc — discrete findings (F1, F2, ...) each carrying
    file:line evidence, a Code References section a plan can cite, and every
-   open question in Open Questions (zone: human). Then the reviewer pass
-   (below). In the DEFAULT autonomous chain, proceed straight to the plan
-   once the reviewer converges; in gated mode, wait on the signoff, don't
-   poll: `comments watch <doc> --until signoff` blocks until the review
-   lands (run it in the background in harnesses that support it).
+   open question in Open Questions (zone: human). Open questions are
+   DISPOSITION questions — act, park, or redirect — never facts you could
+   verify yourself; one must ask whether the findings justify the next phase
+   at all, and "no action" is a legitimate answer that ENDS the chain at
+   research. Then the reviewer pass (below). In the DEFAULT autonomous
+   chain, proceed straight to the plan once the reviewer converges — unless
+   your own findings answer the disposition question with "nothing worth
+   doing": then stop and hand the research to the human instead of
+   manufacturing a plan. In gated mode, wait on the signoff, don't poll:
+   `comments watch <doc> --until signoff` blocks until the review lands
+   (run it in the background in harnesses that support it).
 2. **Plan** (`comments template show plan`): decisions only — the marker cap
    is 1 because open questions belong to the research phase. Cite the research
    doc by `file:line` (e.g. `research-foo.md:23`) for every Current State and

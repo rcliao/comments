@@ -91,7 +91,7 @@ update command when they drift.
 
 Templates constrain what an agent writes so humans can review it well. A template (YAML, built-in or in `.comments/templates/`) declares:
 
-- **Sections**: required headings (matched by title or path suffix), order, `max_words` caps (attacks LLM padding), `min_subsections` (e.g. "Options Considered" needs >= 2 alternatives).
+- **Sections**: required headings (matched by title or path suffix), order, `max_words` caps (attacks LLM padding), `min_subsections` (e.g. "Options Considered" needs >= 2 alternatives). **Citation tokens (`file.go:12`, `thread:c1abc`) do not count toward any word cap** — one counter, `countWords`, strips them via `markdown.StripCitations`, so evidence never competes with content (measured cost before the exemption: ~12% of a section's budget, `scripts/eval/`).
 - **`zone: human`**: human-decision sections. Threads anchored there cannot be resolved by agents over MCP — the agent gets an error telling it to reply instead; only the human resolves (CLI/TUI).
 - **`review_criteria`**: per-section self-review prompts for the *agent* — the skill requires the agent to judge its draft against each criterion and post doc-specific callouts (weakest reasoning, assumptions, invented facts) at exact lines, instead of forwarding generic questions. `comments seed` without flags still materializes criteria as generic blocking threads (useful for human-only workflows); agent flows use `seed --markers-only`.
 - **Markers**: every `[NEEDS CLARIFICATION: ...]` occurrence is a validation violation and seeds a blocking Q thread at that line — agents must flag ambiguity instead of guessing (Spec Kit convention).

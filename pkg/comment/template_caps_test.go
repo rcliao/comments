@@ -134,3 +134,38 @@ func TestEvidenceTemplatesEnforceTheirPromises(t *testing.T) {
 		}
 	}
 }
+
+// Citations are exempt from word caps: measured at ~12% of a section's budget
+// (scripts/eval/logs/cap-pilot-2026-08-11.json), the cite-every-claim rule was
+// costing a fact per section. Evidence must never compete with content.
+func TestWordCapsExemptCitations(t *testing.T) {
+	tpl := &Template{
+		Name:     "t",
+		Doc:      TemplateDocRules{MaxWords: 12},
+		Sections: []TemplateSection{{Heading: "Design", Required: true, MaxWords: 7}},
+	}
+	// Seven real words in the section, every claim cited — ten, and over cap,
+	// only if the three citation tokens are counted.
+	content := "# Doc\n\n## Design\n\nThe gate exits ten (pkg/comment/gate.go:59)\n" +
+		"when blocking `cmd/comments/gate.go:114-116` remain thread:c1abc\n"
+
+	for _, v := range ValidateTemplate(content, tpl) {
+		if v.Rule == "over_length" || v.Rule == "doc_over_length" {
+			t.Errorf("citations must not count toward caps, got %s: %s", v.Rule, v.Message)
+		}
+	}
+
+	report := SectionWordReport(content, tpl)
+	var design *SectionWordCount
+	for i := range report {
+		if report[i].Section == "Design" {
+			design = &report[i]
+		}
+	}
+	if design == nil {
+		t.Fatal("Design missing from word report")
+	}
+	if design.Words != 7 {
+		t.Errorf("Design counts %d words, want 7 (citations exempt)", design.Words)
+	}
+}

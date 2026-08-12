@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/rcliao/comments/pkg/markdown"
 	"gopkg.in/yaml.v3"
@@ -270,11 +271,31 @@ func findTemplateSection(structure *markdown.DocumentStructure, heading string) 
 // the doc total caught the overage (external field report, reproduced in
 // TestSectionCapCountsSubsections).
 func countSectionWords(lines []string, section *markdown.Section) int {
-	words := 0
-	for i := section.StartLine; i < section.EndLine && i < len(lines); i++ { // skip heading line itself
-		words += len(strings.Fields(lines[i]))
+	end := min(section.EndLine, len(lines))
+	if section.StartLine >= end { // skip heading line itself
+		return 0
 	}
-	return words
+	return countWords(strings.Join(lines[section.StartLine:end], "\n"))
+}
+
+// countWords is the ONE word counter behind every cap: citation tokens are
+// exempt (see markdown.StripCitations), so citing evidence never competes with
+// content for a section's budget.
+//
+// A word must carry a letter or digit. Stripping a citation orphans whatever
+// punctuation hugged it — `(gate.go:59).` leaves a lone `.` — and counting
+// that would hand the budget straight back. The same rule drops standalone
+// typography (an em-dash between clauses), which was never a word either.
+func countWords(text string) int {
+	n := 0
+	for _, field := range strings.Fields(markdown.StripCitations(text)) {
+		if strings.IndexFunc(field, func(r rune) bool {
+			return unicode.IsLetter(r) || unicode.IsDigit(r)
+		}) >= 0 {
+			n++
+		}
+	}
+	return n
 }
 
 // SectionWordCount is one row of the per-section word report: every template
@@ -292,7 +313,7 @@ type SectionWordCount struct {
 func SectionWordReport(content string, t *Template) []SectionWordCount {
 	structure := markdown.ParseDocument(content)
 	lines := strings.Split(content, "\n")
-	report := []SectionWordCount{{Section: "(document)", Words: len(strings.Fields(content)), Max: t.Doc.MaxWords}}
+	report := []SectionWordCount{{Section: "(document)", Words: countWords(content), Max: t.Doc.MaxWords}}
 	for _, ts := range t.Sections {
 		if section := findTemplateSection(structure, ts.Heading); section != nil {
 			report = append(report, SectionWordCount{
@@ -314,7 +335,7 @@ func ValidateTemplate(content string, t *Template) []Violation {
 
 	// Whole-doc word cap
 	if t.Doc.MaxWords > 0 {
-		total := len(strings.Fields(content))
+		total := countWords(content)
 		if total > t.Doc.MaxWords {
 			violations = append(violations, Violation{
 				Rule:    "doc_over_length",
