@@ -196,6 +196,22 @@ So when you address a comment:
 - **Deleting is a valid response to feedback.** If a comment reveals a passage
   is unnecessary, cut it and say so in the reply. A shorter doc after a review
   round is a good outcome, not a suspicious one.
+- **Declare what you evicted.** A section at its cap behaves like a cache:
+  seating new material silently drops something older, and the reviewer who
+  asked for the addition never learns what it cost (measured in
+  scripts/eval/logs/cap-pilot-2026-08-11.json — an overloaded section shed
+  established detail to seat the newest comment, every run, announcing
+  nothing). So when answering a comment forces content out, say so in the
+  reply: "dropped X to seat this — raise the cap or accept". Never mistake
+  the trade for a private editorial decision; the reviewer may value X more
+  than their own comment. Losing detail you cannot name means you rewrote
+  blind — re-read the section before replying.
+- **A section pinned at its cap round after round is a template signal**, not
+  a writing problem: propose raising the cap or splitting the section rather
+  than compressing a third time. Compression at the margin is where meaning
+  breaks — the same eval found qualifiers silently dropped ("fails on any
+  unresolved thread" losing "or pending suggestion") while the prose stayed
+  fluent.
 
 Re-run `comments validate <doc> --template <name>` after processing feedback.
 Treat any `subsection_over_length` or `max_subsections` violation as a rewrite

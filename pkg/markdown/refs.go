@@ -170,6 +170,56 @@ func parseLineReferences(line string, lineNum int) []Reference {
 	return refs
 }
 
+// StripCitations blanks bare `file.go:12` and `thread:c1abc` citation tokens,
+// preserving line structure and byte length, so word counters can exempt them.
+// Measured cost of the plan template's cite-every-claim rule was ~12% of a
+// section's budget (scripts/eval/logs/cap-pilot-2026-08-11.json) — a doc should
+// never lose a fact to pay for its evidence.
+//
+// Markdown links keep their text: `[the plan](docs/plan.md)` is prose the
+// author wrote, not a citation token. Surrounding backticks or parens go with
+// the token: emptied wrapper characters would otherwise still count as a
+// word. A range suffix goes too, so gate.go:11-44 costs nothing.
+func StripCitations(content string) string {
+	byLine := map[int][]Reference{}
+	for _, r := range ParseReferences(content) {
+		if r.Line == 0 && r.ThreadID == "" {
+			continue // markdown link, not a citation token
+		}
+		byLine[r.LineNum] = append(byLine[r.LineNum], r)
+	}
+	if len(byLine) == 0 {
+		return content
+	}
+
+	lines := strings.Split(content, "\n")
+	for num, refs := range byLine {
+		if num < 1 || num > len(lines) {
+			continue
+		}
+		b := []byte(lines[num-1])
+		// Blanking is length-preserving, so every ref's original offsets stay
+		// valid however many share the line.
+		for _, r := range refs {
+			s, e := r.StartCol, r.EndCol
+			if e < len(b) && b[e] == '-' {
+				for j := e + 1; j < len(b) && b[j] >= '0' && b[j] <= '9'; j++ {
+					e = j + 1
+				}
+			}
+			if s > 0 && e < len(b) &&
+				((b[s-1] == '`' && b[e] == '`') || (b[s-1] == '(' && b[e] == ')')) {
+				s, e = s-1, e+1
+			}
+			for j := s; j < e && j < len(b); j++ {
+				b[j] = ' '
+			}
+		}
+		lines[num-1] = string(b)
+	}
+	return strings.Join(lines, "\n")
+}
+
 // ResolveReference turns a reference path into an absolute path on disk.
 // Tries docDir-relative first, then walks parent directories up to the
 // filesystem root (mirrors template discovery). Returns ok=false when no

@@ -3,6 +3,7 @@ package markdown
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -182,5 +183,44 @@ func TestParseThreadReferences(t *testing.T) {
 	}
 	if refs[2].ThreadID != "c9real" || refs[2].LineNum != 4 {
 		t.Errorf("fence comment-trail form: %+v", refs[2])
+	}
+}
+
+// StripCitations exempts citation tokens from word counting: the token, its
+// wrapping backticks or parens, and any range suffix all go, while markdown
+// link text (prose the author wrote) and byte length stay put.
+func TestStripCitations(t *testing.T) {
+	cases := []struct {
+		name, in  string
+		wantWords int
+	}{
+		{"bare", "See gate.go:59 for this.", 3},
+		{"backticked", "See `gate.go:59` now.", 2},
+		{"parenthesized", "It fails (gate.go:59) here.", 3},
+		{"range", "Rule at gate.go:11-44 applies.", 3},
+		{"thread", "Vetoed in thread:cz1xk today.", 3},
+		{"cross-doc thread", "Decided in `thread:research.md#c6mv7` earlier.", 3},
+		{"link text kept", "Read [the plan](docs/plan.md) first.", 4},
+		{"no citations", "Plain prose only.", 3},
+	}
+	for _, c := range cases {
+		got := StripCitations(c.in)
+		if n := len(strings.Fields(got)); n != c.wantWords {
+			t.Errorf("%s: %q -> %q counts %d words, want %d", c.name, c.in, got, n, c.wantWords)
+		}
+		if len(got) != len(c.in) {
+			t.Errorf("%s: length changed %d -> %d (offsets must survive)", c.name, len(c.in), len(got))
+		}
+	}
+}
+
+func TestStripCitationsMultiplePerLine(t *testing.T) {
+	in := "Both gate.go:59 and `cmd/gate.go:114` decide it."
+	got := StripCitations(in)
+	if strings.Contains(got, "gate.go") {
+		t.Errorf("both citations should be blanked, got %q", got)
+	}
+	if len(strings.Fields(got)) != 4 { // Both, and, decide, it.
+		t.Errorf("want 4 remaining words, got %d in %q", len(strings.Fields(got)), got)
 	}
 }
