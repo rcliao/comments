@@ -115,7 +115,7 @@ func checkMCP(ctx context.Context, opts DoctorOptions) Check {
 // PluginVersion is the plugin bundle version this binary was built with.
 // It MUST match .claude-plugin/plugin.json — TestPluginVersionMatchesManifest
 // fails the build otherwise, so a release bumping one cannot forget the other.
-const PluginVersion = "2.4.0"
+const PluginVersion = "2.5.0"
 
 // pluginStateFile is the Claude Code install record. It belongs to another
 // tool and is undocumented, so every unexpected shape degrades to a warning
