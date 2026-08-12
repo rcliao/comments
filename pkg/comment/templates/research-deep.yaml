@@ -47,6 +47,9 @@ sections:
     required: true
     max_words: 120
     zone: human
+    review_criteria:
+      - "Is every open question a DISPOSITION question — asking the human to act, park, or redirect — rather than a fact the agent could verify itself? A fact-question here is unfinished research."
+      - "Does at least one question ask whether the findings justify the next phase AT ALL, with no-action offered as a legitimate answer? Research that presupposes a plan has skipped the human's one call."
 markers:
   needs_clarification: "[NEEDS CLARIFICATION:"
   max: 3

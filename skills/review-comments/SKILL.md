@@ -270,7 +270,9 @@ interview, run question → research → plan WITHOUT a mid-chain human gate:
 - Minimize markers in autonomous research: decide and record assumptions.
   Human questions that survive CARRY FORWARD as priority-high threads on the
   PLAN — answered in the one review sitting, costing at most a revision round
-  if an assumption was wrong.
+  if an assumption was wrong. Carried threads ask SCOPE and PRIORITY
+  questions (is this worth doing now, is the fence right) — implementation
+  details are yours to decide, not to delegate upward.
 - **Pause-on-shape**: a question whose answer would change the plan's SCOPE
   or direction (not its details) stops the chain — request review early with
   what exists. Use the interview ranking: scope > security > UX > technical.
@@ -303,11 +305,17 @@ it.
 1. **Research** (`comments template show research` is your brief): produce a
    documentarian findings doc — discrete findings (F1, F2, ...) each carrying
    file:line evidence, a Code References section a plan can cite, and every
-   open question in Open Questions (zone: human). Then the reviewer pass
-   (below). In the DEFAULT autonomous chain, proceed straight to the plan
-   once the reviewer converges; in gated mode, wait on the signoff, don't
-   poll: `comments watch <doc> --until signoff` blocks until the review
-   lands (run it in the background in harnesses that support it).
+   open question in Open Questions (zone: human). Open questions are
+   DISPOSITION questions — act, park, or redirect — never facts you could
+   verify yourself; one must ask whether the findings justify the next phase
+   at all, and "no action" is a legitimate answer that ENDS the chain at
+   research. Then the reviewer pass (below). In the DEFAULT autonomous
+   chain, proceed straight to the plan once the reviewer converges — unless
+   your own findings answer the disposition question with "nothing worth
+   doing": then stop and hand the research to the human instead of
+   manufacturing a plan. In gated mode, wait on the signoff, don't poll:
+   `comments watch <doc> --until signoff` blocks until the review lands
+   (run it in the background in harnesses that support it).
 2. **Plan** (`comments template show plan`): decisions only — the marker cap
    is 1 because open questions belong to the research phase. Cite the research
    doc by `file:line` (e.g. `research-foo.md:23`) for every Current State and

@@ -110,6 +110,7 @@ sections:
     zone: human
     review_criteria:
       - "Is each question marked blocking (must be decided before approval) or non-blocking (can be settled during implementation)?"
+      - "Is each question a SHAPE or TRADE-OFF call — which alternative, what the data model commits us to, what is hard to reverse — not an implementation detail the agent should decide itself?"
 markers:
   needs_clarification: "[NEEDS CLARIFICATION:"
   max: 3
