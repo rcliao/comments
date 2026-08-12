@@ -1,0 +1,113 @@
+{
+  "eval": "template-cap-pilot",
+  "date": "2026-08-11",
+  "question": "Do word caps cause distillation (facts kept, words cut) or truncation (facts lost/mangled)?",
+  "method": "One fixed task (document `comments gate` exit-code logic from pkg/comment/gate.go). Golden list of 10 facts extracted from source. Three writer conditions, capped writers produce draft1 + one quality-rewrite iteration. Fresh-context judge scores each fact covered/absent/mangled per draft.",
+  "fixture": {
+    "task": "How does `comments gate` decide its exit code?",
+    "source": "pkg/comment/gate.go",
+    "golden_facts": 10
+  },
+  "results": [
+    {"condition": "cap-40w", "draft": 1, "words": 42, "covered": 7, "absent": 3, "mangled": 0},
+    {"condition": "cap-40w", "draft": "iterated", "words": 42, "covered": 7, "absent": 3, "mangled": 0},
+    {"condition": "cap-120w", "draft": 1, "words": 109, "covered": 10, "absent": 0, "mangled": 0},
+    {"condition": "cap-120w", "draft": "iterated", "words": 104, "covered": 10, "absent": 0, "mangled": 0},
+    {"condition": "uncapped", "draft": 1, "words": 633, "covered": 10, "absent": 0, "mangled": 0}
+  ],
+  "findings": [
+    "Zero truncation artifacts in any condition: under-cap omission was editorial (peripheral facts dropped whole), never mid-fact chopping.",
+    "A cap near the content's true information load (120w for 10 facts) reached full coverage at ~1/6 the uncapped length.",
+    "An over-tight cap (40w) cost coverage (7/10) but degraded gracefully: core decision logic kept, peripheral facts cleanly omitted.",
+    "Self-rewrite iteration polished wording but never recovered omitted facts (7->7, 10->10); only an external reviewer naming omissions can.",
+    "Uncapped baseline earned nothing over cap-120w on fact coverage; its extra 500 words were additive detail a reviewer must read anyway."
+  ],
+  "rubric_judging": {
+    "method": "Two independent fresh-context judges, NO fact checklist: each reads gate.go itself, scores accuracy/completeness/clarity/review-efficiency 1-5, ranks drafts for the purpose 'docs a human will review'. Draft order shuffled between judges.",
+    "rankings": {
+      "judge1": ["cap120-iterated", "uncapped", "cap120-draft1", "cap40-iterated", "cap40-draft1"],
+      "judge2": ["cap120-draft1", "cap120-iterated", "uncapped", "cap40-iterated", "cap40-draft1"]
+    },
+    "agreement": "Identical tiering: both judges place the two cap-120 drafts and uncapped in the top 3 and both cap-40 drafts last (iterated above draft1). Disagreement only on ordering within the top tier.",
+    "accuracy": "All five drafts scored 5/5 accuracy by both judges; zero factual errors found.",
+    "judge_discoveries_beyond_golden_list": [
+      "Template structural violations ALSO flip the gate to exit 10 at the CLI layer (cmd/comments/gate.go:89-101) — missed by the 10-fact golden list; no draft mentions it.",
+      "A suggestion marked Blocking never blocks in normal mode (gate.go:43 continue diverts it to pending-suggestions before the Blocking check).",
+      "Only the uncapped draft states that recorded signoffs play no role in the gate computation — judge1 called this a real reader trap in the shorter drafts."
+    ],
+    "review_efficiency": "Both judges scored uncapped LOWEST on value-per-minute (3/5); cap-120 drafts highest."
+  },
+  "cap_sweep": {
+    "method": "Same fixture, caps forced far below the ~96-word information load: 25/15/8/3 words, two independent writers per cap, single-shot (no iteration), checklist-judged.",
+    "results": [
+      {"cap": 25, "runs": [{"words": 25, "covered": 7, "mangled": 0}, {"words": 23, "covered": 6, "mangled": 0}]},
+      {"cap": 15, "runs": [{"words": 15, "covered": 5, "mangled": 1}, {"words": 15, "covered": 3, "mangled": 1}]},
+      {"cap": 8,  "runs": [{"words": 8, "covered": 2, "mangled": 1}, {"words": 8, "covered": 1, "mangled": 1}]},
+      {"cap": 3,  "runs": [{"words": 3, "covered": 1, "mangled": 0}, {"words": 3, "covered": 1, "mangled": 0}]}
+    ],
+    "survival_order": "F3 (blocking->exit10) survives to 3 words in BOTH independent runs; then F2 (pass condition) to 15; F4/F6/F7 via qualifier entailment to 8-15; F5 (strict scope) degrades rather than dies — mangled at 15 and 8; F1 labels die below 25; F8-F10 absent at every cap in this sweep.",
+    "findings": [
+      "Prioritization is consistent, not random: both 3-word runs independently kept the same fact, and it is the right one (the core failure trigger).",
+      "Truncation artifacts exist and were finally observed — but their form is DROPPED QUALIFIERS that silently narrow scope (strict mode losing its pending-suggestion arm), not visible fragments. The output stays fluent while becoming wrong-ish.",
+      "The danger zone is the MIDDLE: caps at roughly 1/6 to 1/12 of the information load (15w, 8w here) produced confident ambiguity; absurd caps (3w) degraded gracefully back to a single true fact.",
+      "Template implication: a cap at or above the section's information load is free (main pilot); a cap slightly below breeds fluent semantic corruption a reviewer may not catch; if forced to choose, far-too-tight is safer than slightly-too-tight."
+    ]
+  },
+  "multi_round_edit": {
+    "method": "Round 1: the 104w/10-fact doc (cap 120). Round 2: three NEW facts injected as reviewer comments (the rubric judges' discoveries: template-violation gating, blocking-suggestion diversion, signoffs-ignored); golden list grows to 13 (~125w load vs 120w cap). Two paths, two runs each: EDIT the existing doc vs FRESH rewrite from source with same scope. Round 3: edited docs compacted to 80w. All judged against the 13-fact list.",
+    "results": [
+      {"path": "edit-120w", "runs": [{"words": 113, "covered": 13, "mangled": 0}, {"words": 111, "covered": 13, "mangled": 0}]},
+      {"path": "fresh-120w", "runs": [{"words": 125, "covered": 10, "mangled": 1}, {"words": 117, "covered": 10, "mangled": 1}]},
+      {"path": "edit-compact-80w", "runs": [{"words": 72, "covered": 12, "mangled": 0}, {"words": 71, "covered": 12, "mangled": 0}]}
+    ],
+    "findings": [
+      "EDIT beat FRESH decisively: both edits absorbed all 3 new facts while keeping all 10 originals (13/13); both fresh rewrites lost originals 8-10, MANGLED fact 10 into its opposite (missing sidecar rendered as an error), and one busted the cap.",
+      "Mechanism: the existing capped doc is compressed memory of prior editorial decisions; editing preserves that state, rewriting from source re-rolls prioritization and spends budget on ungoldened material (exit codes 1/2).",
+      "This refines rewrite-not-expand: REWRITE THE PROSE, KEEP THE DOC — restructure within the artifact; never regenerate from source once an artifact has survived review.",
+      "80w compaction of the curated doc: 12/13, zero mangles — far gentler than the sweep's fresh-writes at similar load ratios. Compacting distilled text degrades more gracefully than generating fresh at a tight cap; qualifier erosion (dropped 'structural', dropped attribution) is the leading edge of loss.",
+      "The one fact sacrificed by both compactions was the same (F8, commented-is-reply-pass) — prioritization under pressure stayed consistent across runs, as in the sweep."
+    ]
+  },
+  "saturation": {
+    "method": "Cap held at 80w while facts injected across rounds: round 4 adds facts 14-16 (load ~150w, 1.9x cap), round 5 adds 17-19 (load ~180w, 2.25x cap). Two independent edit chains continuing from the round-3 compacted docs. Judged against the 19-fact list tagged by injection round.",
+    "results": [
+      {"round": 4, "chains": [{"words": 80, "covered": "15/16", "mangled": 0}, {"words": 79, "covered": "14/16", "mangled": 1}]},
+      {"round": 5, "chains": [{"words": 78, "covered": "16/19", "mangled": 0}, {"words": 77, "covered": "17/19", "mangled": 0}]}
+    ],
+    "survival_by_injection_round_at_R5": {"round1_originals": "9/10 both chains", "round2": "1/3 and 2/3 (the eviction victims)", "round4": "3/3", "round5": "3/3"},
+    "findings": [
+      "No collapse at 2.25x overload: 16-17/19 facts held in ~78 words with zero mangles at round 5 — the doc behaves like an importance-ranked cache, not a corrupting buffer.",
+      "Eviction is IMPORTANCE-based, not recency-based — with one bias: the newest injection always arrives intact (reviewer comments are salient), so the squeeze falls on MID-AGE NUANCE. Both chains evicted round-2 subtleties (blocking-suggestion diversion; one chain also signoff-irrelevance) to seat round-5 facts.",
+      "Evictions are SILENT: nothing in the edit output announces that a previously-covered fact fell out; only a fact-list diff catches it. In the real loop no reviewer would notice.",
+      "Continued editing can REPAIR degradation: chain B's round-4 mangle of fact 11 (enforcement locus ambiguity) came back clean in round 5.",
+      "Workflow implication (the eval's actionable output): when a capped doc saturates, require the agent to DECLARE evictions in its reply ('dropped X to seat Y') — turning silent cache eviction into a reviewable decision. Candidate skill/template rule."
+    ]
+  },
+  "citation_overhead": {
+    "method": "Cap 120w, fresh writes covering all 19 facts' scope; CIT condition requires a file:line citation per claim (citations count toward cap), UNCIT has no citation requirement. Two runs each, judged against the 19-fact list.",
+    "results": [
+      {"condition": "cited", "runs": [{"words": 117, "citation_words": 14, "covered": 13, "mangled": 1}, {"words": 111, "citation_words": 13, "covered": 12, "mangled": 1}]},
+      {"condition": "uncited", "runs": [{"words": 123, "citation_words": 0, "covered": 15, "mangled": 0}, {"words": 118, "citation_words": 0, "covered": 12, "mangled": 0}]}
+    ],
+    "findings": [
+      "Citations consumed 11-12% of the budget (~13-14 words) and cost about ONE fact at this cap (CIT avg 12.5 vs UNCIT 13.5) — real but modest. Caveat: the best uncited run was also 3 words over cap.",
+      "The shared fact-18 mangle (check_citations conditionality flattened to always-on) appeared identically in citation-free drafts — a compression failure mode, not a citation cost.",
+      "Template action: exclude citation tokens (file:line refs) from word-cap counting in validate, so citing is never taxed against content — aligns the incentive with the plan template's cite-everything rule."
+    ]
+  },
+  "sentence_caps": {
+    "method": "Cap 80w (overloaded: 19-fact scope), SHORT condition adds 'every sentence <=15 words', FREE has no sentence limit. Two runs each, judged with attention to compound-qualifier facts (5, 11, 18).",
+    "results": [
+      {"condition": "short-15w", "runs": [{"words": 80, "covered": 10, "mangled": 0}, {"words": 82, "covered": 11, "mangled": 0}]},
+      {"condition": "free", "runs": [{"words": 80, "covered": 9, "mangled": 1}, {"words": 75, "covered": 10, "mangled": 1}]}
+    ],
+    "findings": [
+      "The sentence cap did NOT hurt coverage (slightly helped) and produced ZERO mangles vs two in free-sentence runs.",
+      "Failure-mode asymmetry: short sentences OMIT tight qualifiers wholesale (absent — visible, safer); free sentences squeeze qualifiers in and BREAK them (mangled — invisible, misleads). Absence beats corruption for review purposes.",
+      "One split-but-survived case: a dropped qualifier in one bullet was repaired by the adjacent bullet — short-sentence redundancy self-corrects.",
+      "Template action: KEEP the max_sentence_words style rule; no relaxation needed for invariant-heavy sections — the rule is protective, not just cosmetic."
+    ]
+  },
+  "caveats": "Single task, single run per condition in the main pilot (two per cap in the sweep and multi-round), writer and judges share a model family. Checklist judge flagged fact 7's 'tracked separately' clause as the softest scoring call. One rubric-judge run lost to an API disconnect and rerun.",
+  "artifacts": "golden facts + drafts in session scratchpad cap-eval/ (ephemeral); this log is the durable record"
+}
