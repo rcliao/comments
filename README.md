@@ -80,9 +80,10 @@ Comments live in `doc.md.comments.json` sidecars: markdown stays clean, collabor
 
 ## Documentation
 
+- [docs/README.md](docs/README.md) — documentation status, active proposals, and retained design records
 - [CLAUDE.md](CLAUDE.md) — command reference, architecture, agent workflow
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system design and data model
-- [USAGE.md](USAGE.md) — complete command reference
+- [USAGE.md](USAGE.md) — current CLI and TUI workflow guide
 - [skills/review-comments/SKILL.md](skills/review-comments/SKILL.md) — the agent skill (bundled by the plugin)
 
 ## License

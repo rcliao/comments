@@ -1,7 +1,7 @@
 package tui
 
-// Fence-aware rendering (docs/plan-markdown-render.md Phase 1): inside a
-// fenced code block, prose styling is suppressed and chroma highlights the
+// Fence-aware rendering (docs/design-markdown-render.md): inside a fenced
+// code block, prose styling is suppressed and chroma highlights the
 // code — whole block at a time (multi-line constructs color correctly), split
 // back to lines, verified count-preserving. Each fence line splits at its
 // comment marker: code goes to chroma, the trail keeps the existing citation

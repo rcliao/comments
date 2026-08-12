@@ -144,7 +144,7 @@ func AddReplyToThread(threads []*Comment, threadID, author, text string) error {
 // FindThreadContaining resolves ANY known comment ID — a thread root or a
 // reply nested at any depth — to its thread ROOT. The read surface hands out
 // reply IDs; the write surface must accept them instead of failing "thread
-// not found" (docs/plan-agent-surface.md Phase 2).
+// not found" (docs/research-agent-surface.md).
 func FindThreadContaining(threads []*Comment, id string) *Comment {
 	for _, root := range threads {
 		if root.ID == id || containsID(root.Replies, id) {

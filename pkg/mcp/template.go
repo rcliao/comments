@@ -68,7 +68,7 @@ func (s *Server) handleSeed(ctx context.Context, req *mcp.CallToolRequest, args 
 			// Leads the response: recording the template is a distinct act
 			// from seeding threads — an empty seeded list does NOT mean
 			// nothing happened; the gate now enforces this template's
-			// structure (docs/plan-agent-surface.md Phase 4)
+			// structure.
 			"template_recorded": t.Name,
 			"gate_enforces":     "document structure now validates against this template on every gate",
 			"seeded_count":      len(added),

@@ -690,7 +690,8 @@ func suggestCommand(filename string, args []string) error {
 	}
 
 	const suggestUsage = "Usage: comments suggest <file> --start-line N --end-line M --author \"name\" --text \"desc\" --proposed \"new text\"\n" +
-		"   or: comments suggest <file> --section \"Section Path\" --author \"name\" --text \"desc\" --proposed \"new text\""
+		"   or: comments suggest <file> --section \"Section Path\" --author \"name\" --text \"desc\" --proposed \"new text\"\n" +
+		"   or: comments suggest <file> --anchor \"quoted first line\" --author \"name\" --text \"desc\" --original \"old\" --proposed \"new\""
 
 	// Validate required flags
 	if *author == "" {
@@ -914,7 +915,7 @@ Commands:
                               the signoff — a approve / c request changes / r reply-pass)
   list <file> [flags]         List all comments in a file
   get <file> [flags]          Get detailed comment with context
-  add <file> [flags]          Add a comment to a specific line
+  add <file> [flags]          Add a comment by quoted anchor, section or line
   batch-add <file> [flags]    Add multiple comments from JSON
   reply <file> [flags]        Reply to a comment thread
   batch-reply <file> [flags]  Reply to multiple threads from JSON
@@ -961,11 +962,13 @@ List Command Flags:
 
 Get Command Flags:
   --thread <id>               Thread ID to retrieve (required)
+  --from <file>               Citing document for resolving a thread: citation
   --with-replies              Include replies in output (default: true)
 
 Add Command Flags:
-  --line <number>             Line number (use either --line or --section)
-  --section <path>            Section path (use either --line or --section)
+  --line <number>             Line number (use one of --line, --section or --anchor)
+  --section <path>            Section path (use one of --line, --section or --anchor)
+  --anchor <text>             Quote the target line or a unique substring (preferred for agents)
   --text <text>               Comment text (required, supports @filename)
   --author <name>             Author name (required)
   --type <type>               Comment type: Q, S, B, T, E (auto-prefixes text)
@@ -1023,6 +1026,7 @@ Suggest Command Flags:
   --original <text>           Original text being replaced (optional verification, supports @filename)
   --proposed <text>           Proposed replacement text (required, supports @filename)
   --section <path>            Target a section instead of a line range
+  --anchor <text>             Quote the first target line; --original sets range length
 
 Accept Command Flags:
   --suggestion <id>           Suggestion ID (required)

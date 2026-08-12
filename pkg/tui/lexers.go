@@ -1,8 +1,8 @@
 package tui
 
-// In-repo chroma lexers for the fence languages our docs actually carry
-// (docs/plan-markdown-render.md Phase 1): DBML — the data-model notation the
-// design templates mandate — and a deliberately minimal mermaid (keywords,
+// In-repo chroma lexers for the fence languages our docs actually carry:
+// DBML — the data-model notation the design templates mandate — and a
+// deliberately minimal mermaid (keywords,
 // arrows, node ids; a readable fence, not a grammar).
 
 import (

@@ -1,8 +1,8 @@
 package comment
 
-// Anchor-by-text comment creation (docs/plan-agent-surface.md Phase 1):
-// agents locate their target by quoting the line rather than shipping a
-// grepped — and often stale — line number. Resolution reuses the same
+// Anchor-by-text comment creation (docs/research-agent-surface.md): agents
+// locate their target by quoting the line rather than shipping a grepped —
+// and often stale — line number. Resolution reuses the same
 // exact-then-normalized matching the re-anchor cascade trusts (anchor.go),
 // but NOT its auto-pick: at creation time an ambiguous anchor is an error
 // listing the candidates, never a guess.

@@ -1,579 +1,271 @@
-# Architecture Documentation
+# Architecture
 
-**Version:** 2.0
-**Last Updated:** 2025-11-03
-**Status:** Current
+**Status:** Current · **Last reviewed:** 2026-08-12 · **Sidecar format:** 2.0 ·
+**Anchor behavior:** v2.1 design
 
-## Overview
+`comments` is a local-first review system for markdown. The markdown remains
+the content artifact; a neighboring JSON sidecar carries threads, suggestions,
+template identity, hashes, and review records. Humans work primarily in the
+TUI, while scripts and agents use the CLI or MCP server over the same core
+logic.
 
-`comments` is a CLI tool for collaborative markdown document editing with inline comments and suggestions, designed for seamless LLM integration. Instead of having LLMs rewrite entire documents, you can add contextual comments at specific lines or markdown sections to guide iteration and discussion, or propose multi-line edits as suggestions with preview and accept/reject workflow.
+## System shape
 
-**Key Philosophy:** Clean separation of content and collaboration metadata through JSON sidecar storage.
+```text
+                         ┌─────────────────────┐
+                         │    markdown file    │
+                         │       doc.md        │
+                         └──────────┬──────────┘
+                                    │
+       ┌─────────────┐       ┌──────▼──────┐       ┌─────────────┐
+human ─► TUI adapter ├───────►             ◄───────┤ CLI adapter ◄─ scripts
+       │  pkg/tui    │       │ pkg/comment │       │ cmd/comments│
+       └─────────────┘       │ core logic  │       └─────────────┘
+                             │             │
+       ┌─────────────┐       └──────┬──────┘
+agent ─► MCP adapter ├──────────────┘
+       │   pkg/mcp   │              │
+       └─────────────┘       ┌──────▼──────────────┐
+                             │ doc.md.comments.json│
+                             └─────────────────────┘
+```
 
-## Storage Architecture (v2.0)
+The dependency direction is intentional:
 
-### Sidecar JSON Storage
+- `pkg/comment` owns storage, threads, suggestions, anchors, templates, gates,
+  citations, review records, inboxes, and watch snapshots.
+- `pkg/markdown` parses headings and local references without depending on a
+  user interface.
+- `pkg/tui`, `pkg/mcp`, and `cmd/comments` translate input and output. Shared
+  behavior does not live in an adapter.
 
-Comments and suggestions are stored in `.md.comments.json` sidecar files alongside markdown documents:
+This rule prevents an MCP-only capability or guard. New behavior starts in
+`pkg/comment`, then both public adapters expose it.
 
-**Benefits:**
-- Markdown files remain clean and readable
-- Structured metadata storage with efficient querying
-- Independent version control of content vs. comments
-- Document staleness detection via SHA-256 hashing
+## Storage model
 
-**Storage Format v2.0:**
+For `doc.md`, collaboration state is stored at `doc.md.comments.json`:
+
 ```json
 {
   "version": "2.0",
-  "documentHash": "sha256_hash_of_markdown_content",
-  "lastValidated": "2025-11-03T17:39:51Z",
-  "threads": [
+  "documentHash": "sha256...",
+  "lastValidated": "2026-08-12T18:30:00Z",
+  "template": "design-doc",
+  "reviews": [
     {
-      "ID": "c123",
-      "Author": "alice",
-      "Timestamp": "2025-11-03T10:30:00Z",
-      "Text": "[Q] What about edge cases?",
-      "Type": "Q",
-      "Line": 10,
-      "SectionID": "s2",
-      "SectionPath": "Introduction > Overview",
-      "Resolved": false,
-      "Replies": [
-        {
-          "ID": "c124",
-          "Author": "bob",
-          "Timestamp": "2025-11-03T11:00:00Z",
-          "Text": "Good question, let me add tests",
-          "Line": 10,
-          "Replies": []
-        }
-      ],
-      "IsSuggestion": false
-    },
-    {
-      "ID": "s456",
-      "Author": "claude",
-      "Text": "Improve clarity",
-      "Line": 15,
-      "IsSuggestion": true,
-      "StartLine": 15,
-      "EndLine": 17,
-      "OriginalText": "old multi-line text",
-      "ProposedText": "new improved text",
-      "Accepted": null,
-      "Replies": []
+      "author": "eric",
+      "timestamp": "2026-08-12T18:30:00Z",
+      "decision": "approved",
+      "note": "Cache contract settled"
     }
-  ]
+  ],
+  "threads": []
 }
 ```
 
-### Key v2.0 Changes
+`pkg/comment.StorageFormat` is the wire envelope. `DocumentWithComments` is the
+in-memory form and also carries the markdown content. Public JSON responses use
+the canonical snake-case `CommentView` and `DocumentView` types rather than the
+sidecar's historical field casing.
 
-**Nested Thread Structure:**
-- Comments are stored as trees with `Replies` arrays
-- Removed flat array with `ThreadID`/`ParentID` linking
-- Simplified thread operations (no BuildThreads() needed)
+### Comment and thread model
 
-**Document Hashing:**
-- SHA-256 hash of markdown content stored in sidecar
-- Automatic staleness detection on load
-- Stale sidecars archived to `.backup.TIMESTAMP` files
+A root `Comment` contains:
 
-**Simplified Position Tracking:**
-- Line-only tracking (removed `Column` and `ByteOffset`)
-- Positions stored directly in Comment struct (removed separate map)
-- Recalculation only when accepting suggestions
+- identity: short random base36 `ID`, author, timestamp;
+- content: text and optional `Q`, `S`, `B`, `T`, or `E` type;
+- location: line, computed section path, and a content anchor;
+- state: resolved, blocking, lifecycle status, priority, orphan details;
+- nested `Replies`;
+- optional suggestion fields: start/end line, original/proposed text, and
+  nullable accepted state.
 
-**Simplified Suggestions:**
-- Multi-line only (removed line, char-range, diff-hunk types)
-- Boolean acceptance state: `*bool` pointer (nil=pending, true=accepted, false=rejected)
-- @filename support for reading text from external files
+Replies nest recursively; there is no separate thread or parent table. Root
+IDs are the normal write address. Read views include `parent_thread_id` on
+nested replies so flattened consumers can route back to the root.
 
-**Helper Functions:**
-- `AddReplyToThread()` - Add reply to existing thread
-- `ResolveThread()` - Mark thread as resolved
-- `AcceptSuggestion()` - Apply suggestion and update document
-- `RejectSuggestion()` - Reject suggestion
-- Removed `BuildThreads()` - no longer needed with nested structure
+`Accepted == nil` means a pending suggestion, `true` accepted, and `false`
+rejected. Suggestions are line-range replacements; a single-line edit is a
+range whose start and end match.
 
-## Data Model
+### Review records and templates
 
-### Core Types
+`ReviewRecord` stores an author, timestamp, decision, and optional note.
+Decisions are:
 
-#### Comment (pkg/comment/types.go)
+- `approved`;
+- `changes_requested`;
+- `commented`, a reply-only pass that hands the turn back without changing the
+  gate outcome.
 
-```go
-type Comment struct {
-    // Identity
-    ID        string    // Unique timestamp-based ID
-    Author    string    // Author name
-    Timestamp time.Time // Creation timestamp
+The recorded template name makes structural validation durable. Once `seed`
+records a template, later `validate` and `gate` calls can load it without a
+flag. Built-ins are embedded from `pkg/comment/templates/`; project-specific
+templates are discovered by walking upward for `.comments/templates/`.
 
-    // Content
-    Text      string    // Comment text
-    Type      string    // Q, S, B, T, E (optional categorization)
+## Read and write invariants
 
-    // Position
-    Line      int       // Line number in document
+The split between markdown and sidecar writes prevents lost updates:
 
-    // Section metadata (computed from markdown structure)
-    SectionID   string  // Section identifier (e.g., "s1", "s2")
-    SectionPath string  // Hierarchical path (e.g., "Intro > Overview")
+1. `LoadFromSidecar` reads the markdown and sidecar, migrates in memory, runs
+   anchor validation, and returns a `LoadReport`. It does not write.
+2. `LoadDocument` is the shared surface prelude. If validation changed anchor
+   state, it persists only the revalidated sidecar.
+3. `SaveToSidecar` atomically writes only JSON. A reply, resolve, signoff, or
+   anchor migration must never rewrite markdown from a stale session.
+4. `SaveDocumentContent` writes markdown atomically and is called only by
+   content-changing paths such as accepting a suggestion.
 
-    // State
-    Resolved bool      // Resolution status
+A hash mismatch is a staleness signal, not a reason to delete or archive the
+sidecar. The loader revalidates anchors and preserves unresolved history.
 
-    // Threading (v2.0 nested structure)
-    Replies []*Comment // Nested replies (empty for leaf comments)
+## Anchoring and edit behavior
 
-    // Suggestion fields (optional)
-    IsSuggestion bool    // True if this is an edit suggestion
-    StartLine    int     // Start line for multi-line suggestion
-    EndLine      int     // End line for multi-line suggestion
-    OriginalText string  // Text being replaced
-    ProposedText string  // Proposed replacement
-    Accepted     *bool   // nil=pending, true=accepted, false=rejected
-}
+Comments retain a line for display and a content `Anchor` for recovery. On a
+document change, the re-anchor cascade is:
+
+1. exact content at the stored position;
+2. exact selected-text search;
+3. normalized whitespace/case search, labeled `fuzzy`;
+4. section-path fallback, labeled `section-level`;
+5. orphan with the original line and reason preserved.
+
+Agents that know how their edit moved content call `reanchor` with explicit
+comment-to-line or comment-to-section moves. A declared move is ground truth:
+it captures a new anchor and clears orphan state. The automatic cascade is a
+safety net, not a substitute for known edit mappings.
+
+Accepting a suggestion updates affected positions in the same transaction.
+`OriginalText`, when present, protects against applying a range to content that
+has changed underneath it.
+
+## Markdown and reference model
+
+`pkg/markdown` builds an ATX-heading tree with stable section paths and line
+ranges. Fenced code blocks do not create headings. Section addressing supports
+the full `Parent > Child` path and descendant-aware filters.
+
+The reference parser recognizes:
+
+- `path/to/file.go:42` and line ranges;
+- local markdown links such as `[design](design.md#decision)`;
+- `thread:c7f3k` and `thread:path.md#c7f3k`.
+
+Code fences are skipped except for comment trails, where schema examples place
+evidence such as `// pkg/comment/types.go:140`. Citation validation reports
+missing files, out-of-range lines, and ambiguous bare filenames. The TUI uses
+the same references for `f` peek and `$EDITOR` handoff.
+
+## Templates, gates, and authority
+
+Templates are writing and review guardrails, not prose generators. They can
+enforce required section order, word caps, minimum subsections, ambiguity
+markers, prose-shape rules, citations, per-section review criteria, and
+`zone: human` ownership.
+
+The gate remains intentionally mechanical:
+
+- unresolved blocking root threads fail;
+- template violations fail when a template is selected or recorded;
+- strict mode additionally fails on unresolved non-blocking threads and
+  pending suggestions;
+- semantic correctness stays with human/reviewer threads rather than an
+  opaque model score.
+
+Human zones are enforced by actor, not by surface. `COMMENTS_ACTOR` is the
+explicit override; otherwise a real terminal means human and redirected output
+means agent. CLI and MCP both call `GuardZoneResolve`, so an agent cannot bypass
+the rule by switching interfaces. The TUI is a human surface by construction.
+
+## TUI architecture
+
+The TUI uses Bubbletea v2 and Lipgloss v2 with an Elm-style `Model`, pure views,
+and mode-specific key handlers. `pkg/tui/registry.go` is the single mapping from
+each mode to its key handler, view, and optional component update route.
+
+The document remains visible during review:
+
+- the comment list occupies the right sidebar;
+- opening a thread replaces that sidebar with a thread panel;
+- the reply composer docks inside the thread panel;
+- dialogs and reference peeks composite over the live document;
+- only the file picker legitimately owns the full screen.
+
+Rendering preserves source-line identity so anchors and the gutter remain
+truthful. Markdown markers are styled in place; fenced code uses Chroma; custom
+DBML and minimal Mermaid lexers live in-repo. ANSI-stripped content is normally
+byte-identical to source. Aligned markdown tables are the documented exception:
+display-only padding changes bytes while preserving one source line per row.
+
+View state under `.comments/` is local, ignored runtime state and must not be
+committed.
+
+## CLI and MCP surfaces
+
+The CLI router is `cmd/comments/main.go`; `comments help` is its current command
+catalog. The MCP server registers 20 tools and two resources from
+`pkg/mcp/server.go`. It covers thread reads/writes, batch operations,
+suggestions, templates, gate/review coordination, inbox/status, and explicit
+re-anchoring.
+
+The MCP document and thread resources are read views. Long waits use
+`comments_request_review`; durable non-blocking waits return a timestamp handle
+consumed by `comments_check_review`. Without MCP, `comments watch --until
+signoff` observes the same sidecar review record.
+
+## Concurrency and consistency
+
+There is no central server or lock manager. The sidecar is the shared event
+bus, and writes use temporary-file-plus-rename replacement. Before every TUI
+mutation, the model refreshes from disk so an open session does not overwrite
+agent changes with an old in-memory copy. Suggestion decisions queue in the TUI
+and apply together at verdict.
+
+This is last-writer-wins per action, not real-time multi-user collaboration.
+Network sync, comment edit history, and cross-machine conflict resolution are
+outside the current architecture.
+
+## Testing and development boundaries
+
+The repository tests pure logic heavily and pins adapter parity with CLI/MCP
+tests. TUI coverage includes render tests, mode dispatch, compositor behavior,
+thread panels, reference peeks, and Bubbletea integration tests. The required
+gate is `./scripts/ci.sh`, which runs formatting, build, vet, race tests, lint,
+and the end-to-end review-flow smoke test.
+
+Key locations:
+
+```text
+cmd/comments/              CLI routing and formatting
+pkg/comment/               Core domain, storage, templates, gates, anchors
+pkg/comment/templates/     Embedded template YAML
+pkg/markdown/              Heading and reference parsing
+pkg/mcp/                   MCP adapters and resources
+pkg/tui/                   Bubbletea review UI
+skills/review-comments/    Agent workflow
+scripts/eval/              Template/eval harness and logs
+docs/examples/             Maintained template examples
 ```
 
-**Comment Types:**
-- `Q` ❓ Question: Requests clarification
-- `S` 💡 Suggestion: Proposes a change
-- `B` 🐛 Bug: Identifies an issue
-- `T` 📌 TODO: Marks something to be done
-- `E` ✨ Enhancement: Suggests a feature
-
-The type is stored as a leading `[X]` marker inside the comment text, not as a
-separate wire field. `comment.DecorateType` prefixes the emoji at display time
-on every surface, leaving the stored text (and therefore `--type` filters and
-existing sidecars) untouched. Decoration is idempotent: the emoji displaces the
-bracket, so a second pass is a no-op.
-
-#### DocumentWithComments (pkg/comment/types.go)
-
-```go
-type DocumentWithComments struct {
-    Content   string     // Raw markdown content
-    Threads   []*Comment // Root comments with nested replies
-    Hash      string     // SHA-256 hash for staleness detection
-}
-```
-
-#### Section (pkg/markdown/types.go)
-
-```go
-type Section struct {
-    ID        string     // Unique identifier (e.g., "s1")
-    Level     int        // Heading level (1-6)
-    Title     string     // Heading text
-    StartLine int        // Line number of heading
-    EndLine   int        // Line before next same/higher level heading
-    ParentID  string     // Parent section ID
-    Children  []*Section // Nested sub-sections
-}
-```
-
-## System Architecture
-
-### High-Level Component Diagram
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        CLI Layer                             │
-│              (cmd/comments/main.go)                          │
-│                                                              │
-│  Commands: view, add, reply, suggest, accept, reject,       │
-│            list, resolve, batch-add, batch-reply            │
-└────────────────────┬────────────────────────────────────────┘
-                     │
-                     │ Calls
-                     ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Business Logic Layer                       │
-│                                                              │
-│  ┌──────────────────┐  ┌────────────────┐  ┌──────────────┐│
-│  │ Comment System   │  │ Markdown Parser│  │ TUI Engine   ││
-│  │ (pkg/comment/)   │  │ (pkg/markdown/)│  │ (pkg/tui/)   ││
-│  │                  │  │                │  │              ││
-│  │ • Storage        │  │ • Section tree │  │ • Bubbletea  ││
-│  │ • Threads        │  │ • Path resolve │  │ • Viewports  ││
-│  │ • Suggestions    │  │ • Line mapping │  │ • Modes      ││
-│  │ • Positions      │  │                │  │              ││
-│  └──────────────────┘  └────────────────┘  └──────────────┘│
-└────────────────────┬────────────────────────────────────────┘
-                     │
-                     │ File I/O
-                     ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      File System                             │
-│                                                              │
-│  doc.md                    doc.md.comments.json             │
-│  ┌────────────────┐        ┌─────────────────────────┐     │
-│  │ # Introduction │        │ {                       │     │
-│  │                │        │   "version": "2.0",     │     │
-│  │ This is...     │        │   "threads": [...],     │     │
-│  │                │        │   "hash": "sha256..."   │     │
-│  │ ## Background  │        │ }                       │     │
-│  └────────────────┘        └─────────────────────────┘     │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Data Flow: Adding a Comment
-
-```
-1. User runs: ./comments add doc.md --line 10 --author "alice" --text "Review this"
-
-2. CLI handler parses flags
-   ↓
-3. Load markdown content from doc.md
-   ↓
-4. Load existing comments from doc.md.comments.json (verify hash)
-   ↓
-5. Parse markdown to extract section structure
-   ↓
-6. Create new Comment object with unique ID
-   ↓
-7. Compute section metadata (SectionID, SectionPath) for line 10
-   ↓
-8. Append Comment to threads array
-   ↓
-9. Compute document hash (SHA-256)
-   ↓
-10. Save updated sidecar to doc.md.comments.json
-    ↓
-11. Output success message with comment ID
-```
-
-### Data Flow: Accepting a Suggestion
-
-```
-1. User runs: ./comments accept doc.md --suggestion s456
-
-2. Load document and comments (verify hash)
-   ↓
-3. Find suggestion by ID
-   ↓
-4. Validate suggestion is pending (Accepted == nil)
-   ↓
-5. Apply multi-line replacement:
-   - Split content into lines
-   - Replace lines[StartLine:EndLine] with ProposedText
-   - Join back to string
-   ↓
-6. Update markdown content in doc.md
-   ↓
-7. Mark suggestion.Accepted = true
-   ↓
-8. Recalculate positions for affected comments
-   ↓
-9. Compute new document hash
-   ↓
-10. Save updated sidecar with new hash
-    ↓
-11. Output success message
-```
-
-## Component Details
-
-### Comment System (pkg/comment/)
-
-**Responsibilities:**
-- Load/save comments from JSON sidecar files
-- Manage thread operations (add reply, resolve)
-- Apply suggestions to markdown content
-- Track comment positions
-- Compute section metadata
-
-**Key Files:**
-- `types.go` - Core data structures
-- `storage.go` - JSON serialization and hash validation
-- `threads.go` - Thread helper functions
-- `applier.go` - Suggestion application engine
-- `positions.go` - Position recalculation after edits
-- `sections.go` - Section metadata computation
-
-**Helper Functions:**
-```go
-AddReplyToThread(threads []*Comment, threadID, author, text string) error
-ResolveThread(threads []*Comment, threadID string) error
-AcceptSuggestion(content string, suggestion *Comment) (string, error)
-RejectSuggestion(threads []*Comment, suggestionID string) error
-RecalculateCommentLines(comments []*Comment, editStartLine, editEndLine, newLineCount int)
-```
-
-### Markdown Parser (pkg/markdown/)
-
-**Responsibilities:**
-- Parse ATX-style markdown headings (# through ######)
-- Build hierarchical section tree
-- Map line numbers to section paths
-- Resolve section paths to line ranges
-
-**Key Files:**
-- `types.go` - Section data structures
-- `parser.go` - Document structure parser
-
-**Key Functions:**
-```go
-ParseDocument(content string) (*DocumentStructure, error)
-ResolveSectionPath(structure *DocumentStructure, path string) (*Section, error)
-GetSectionAtLine(structure *DocumentStructure, line int) *Section
-```
-
-### TUI Engine (pkg/tui/)
-
-**Responsibilities:**
-- Interactive terminal UI with Bubbletea
-- Split-pane layout (document + comments)
-- Mode-based state machine
-- Keyboard navigation and input handling
-
-**Key Files:**
-- `model.go` - Application state and update logic
-- `modes.go` - View mode state machine
-- `rendering.go` - Pure rendering functions
-- `styles.go` - Lipgloss styling
-
-**View Modes:**
-- `FilePicker` - Select markdown file
-- `Browse` - View document and comment list
-- `LineSelect` - Select line for new comment
-- `AddComment` - Input new comment text
-- `ThreadView` - Expanded thread view
-- `Reply` - Reply to thread
-- `Resolve` - Confirm thread resolution
-- `ReviewSuggestion` - Preview and accept/reject suggestion
-
-## Key Design Decisions
-
-### 1. Nested Thread Storage (v2.0)
-**Decision:** Store threads as nested structures with `Replies` arrays
-**Rationale:** Simpler data model, no need for dynamic thread building
-**Trade-off:** Slightly more complex serialization, but better performance
-
-### 2. Document Hashing (v2.0)
-**Decision:** Store SHA-256 hash of markdown content
-**Rationale:** Automatic staleness detection prevents data corruption
-**Trade-off:** Extra computation on save, but worth it for safety
-
-### 3. Line-Only Position Tracking (v2.0)
-**Decision:** Track line numbers only, removed column and byte offset
-**Rationale:** Simpler implementation, sufficient for line-based suggestions
-**Trade-off:** Less precise positioning, but adequate for use case
-
-### 4. Multi-Line Only Suggestions (v2.0)
-**Decision:** Support only multi-line suggestions (removed other 3 types)
-**Rationale:** Simpler implementation, covers 90% of use cases
-**Trade-off:** Less granular edits, but clearer UX
-
-### 5. JSON Sidecar Storage
-**Decision:** Store comments separately from markdown
-**Rationale:** Clean markdown, structured metadata, independent versioning
-**Trade-off:** Two files to manage, but better separation of concerns
-
-### 6. Section-Based Addressing
-**Decision:** Support both line numbers and section paths
-**Rationale:** Natural for hierarchical documents
-**Trade-off:** Must recompute when headings change
-
-### 7. @filename Syntax (v2.0)
-**Decision:** Support reading text from files with @filename syntax
-**Rationale:** Better for long comments/suggestions, esp. for LLM agents
-**Trade-off:** Extra file I/O, but improves usability
-
-### 8. Surface Parity: logic lives in pkg/comment
-**Decision:** Every behavior is implemented in `pkg/comment` and called by the
-CLI, the TUI and the MCP server. Adapters (`cmd/comments/`, `pkg/mcp/`) only
-translate arguments and format output — they never hold logic.
-
-**Rationale:** `reanchor`, `inbox` and the `zone: human` guard were originally
-written inside `pkg/mcp`. The CLI structurally could not reach them, so three
-capabilities existed over MCP and silently did not exist on the CLI — while
-`SKILL.md` told agents the two surfaces were equivalent. Worse, the zone guard
-keyed on the *surface* (MCP meant agent, CLI meant human), so an agent driving
-the CLI walked straight around a guardrail.
-
-**Trade-off:** Adapter code gets thinner but a little more repetitive; adding a
-feature means touching `pkg/comment` plus both adapters. That cost is the point
-— it makes an MCP-only feature a deliberate act rather than an accident.
-
-**Rule of thumb:** if a function in `pkg/mcp/` or `cmd/comments/` does anything
-beyond parsing input and printing output, it is in the wrong package.
-
-### 9. Actor Model for Human-Zone Enforcement
-**Decision:** `comment.ResolveActor` decides whether the caller is a human or
-an agent: `COMMENTS_ACTOR=human|agent` wins, otherwise a TTY means human and a
-piped stream means agent. `GuardZoneResolve` then refuses agent resolves of
-threads in `zone: human` sections, on every surface.
-
-**Rationale:** Zones reserve decisions for the human, so the guard has to know
-who is calling. Surface is a poor proxy now that agents drive the CLI.
-
-**Trade-off:** TTY detection is a heuristic — a human piping output is treated
-as an agent — so the env var exists as the explicit override. The TUI is always
-human by construction and never consults the heuristic.
-
-**Do not** implement the TTY test with `os.ModeCharDevice`: `/dev/null` is a
-character device, so `cmd >/dev/null` read as an interactive human and let an
-agent resolve human-zone threads by discarding output. Ask the terminal driver
-(`term.IsTerminal`) instead. Pinned by `TestStdoutIsTTYRejectsNonTerminals`.
-
-## CLI Commands
-
-### Core Commands
-
-- `view [file]` - Interactive TUI mode
-- `add <file>` - Add root comment (--line or --section)
-- `reply <file>` - Reply to thread (--thread)
-- `list <file>` - List comments with filters
-- `resolve <file>` - Mark thread resolved (--thread)
-
-### Suggestion Commands
-
-- `suggest <file>` - Create multi-line suggestion
-- `accept <file>` - Accept suggestion (--suggestion, optional --preview)
-- `reject <file>` - Reject suggestion (--suggestion)
-
-### Batch Commands (for LLM agents)
-
-- `batch-add <file>` - Bulk add comments from JSON (--json); target each comment
-  with one of `line`, `section` or `anchor`
-- `batch-reply <file>` - Bulk reply to threads from JSON (--json)
-- `batch-accept <file>` - Bulk accept suggestions (--json / --author / --type)
-
-### Review-State Commands
-
-- `status <file>` - Thread, suggestion and orphan counts
-- `inbox <file-or-dir>` - New replies plus unresolved blocking threads (--since)
-- `gate <file-or-dir>` - Review gate; exit 0 approved, 10 changes requested
-- `check-review <file>` - Non-blocking poll for a signoff after `--since`
-- `watch <file-or-dir>` - Blocking NDJSON event stream (`--until signoff`)
-- `signoff <file>` - Record a review pass non-interactively
-- `reanchor <file>` - Migrate anchors displaced by an edit
-
-### Diagnostics
-
-- `doctor [path]` - Install health: binary+version, MCP handshake (tool count and
-  negotiated protocol), Claude Code plugin state, sidecar staleness/orphans.
-  Exit 0 when nothing failed; warnings alone keep it 0 so CI can gate on it.
-  Check logic is in `pkg/comment/doctor.go`; the MCP probe is injected as a
-  `comment.MCPProbe` from `pkg/mcp` so the pure-logic package keeps its
-  direction of dependency (decision 8).
-
-Every command above has a matching MCP tool backed by the same `pkg/comment`
-function (see Design Decision 8).
-
-## Testing Strategy
-
-### Unit Tests
-
-**Focus Areas:**
-- Comment storage (load/save, hash validation, staleness detection)
-- Thread operations (add reply, resolve, find by ID)
-- Suggestion application (multi-line replacement)
-- Position recalculation (shift lines after edits)
-- Markdown parsing (section tree, path resolution)
-
-**Coverage:**
-- `pkg/comment/`: 61.5%
-- `pkg/markdown/`: 92.0%
-
-### Integration Tests
-
-**Tested Workflows:**
-- Add comment by line number
-- Add comment by section path
-- Create multi-line suggestion with @filename
-- Accept suggestion and verify document update
-- Batch operations (add, reply)
-- List with filters (author, section, type)
-
-## Performance Characteristics
-
-### Current Performance
-
-- **Document Loading:** O(n) where n = file size
-- **Section Parsing:** O(n) where n = number of lines
-- **Comment Storage:** O(m) where m = number of comments
-- **Thread Lookup:** O(m) linear search (acceptable for typical usage)
-- **Suggestion Application:** O(n) document rewrite
-
-### Scalability Considerations
-
-- Tested with documents up to 1000 lines
-- Comment count typically < 100 per document
-- Section parsing cached during single operation
-- TUI viewport rendering optimized with Bubbletea
-
-## Future Enhancements
-
-### Potential Improvements
-
-1. **Thread Search:** Indexed search across comment text
-2. **Edit History:** Track comment edits over time
-3. **Mentions:** @username notifications
-4. **Tags:** #topic-based organization
-5. **Export:** HTML output with inline comments
-6. **Sync:** Multi-user collaboration support
-
-### Architecture Evolution
-
-- Consider B-tree indexing for large comment counts
-- Add incremental markdown parsing
-- Implement suggestion conflict detection
-- Add undo/redo for comment operations
-
-## Project Structure
-
-```
-comments/
-├── cmd/
-│   └── comments/          # Main CLI application
-│       ├── main.go        # Command routing
-│       ├── batch_add.go   # Batch add handler
-│       └── batch_reply.go # Batch reply handler
-├── pkg/
-│   ├── comment/           # Comment system
-│   │   ├── types.go       # Data structures
-│   │   ├── storage.go     # JSON I/O + hashing
-│   │   ├── threads.go     # Thread helpers
-│   │   ├── applier.go     # Suggestion application
-│   │   ├── positions.go   # Position tracking
-│   │   └── sections.go    # Section computation
-│   ├── markdown/          # Markdown parser
-│   │   ├── types.go       # Section structures
-│   │   └── parser.go      # ATX heading parser
-│   └── tui/               # Terminal UI
-│       ├── model.go       # Bubbletea model
-│       ├── modes.go       # View modes
-│       ├── rendering.go   # Pure render functions
-│       └── styles.go      # Lipgloss styles
-├── examples/              # Test documents
-├── docs/                  # Architecture docs
-├── CLAUDE.md              # Development guide
-├── README.md              # User documentation
-├── USAGE.md               # Usage guide
-└── go.mod                 # Dependencies
-```
-
-## Dependencies
-
-**Core:**
-- Go 1.21+
-- Standard library (encoding/json, crypto/sha256, os, etc.)
-
-**TUI:**
-- `github.com/charmbracelet/bubbletea` - TUI framework
-- `github.com/charmbracelet/bubbles` - UI components
-- `github.com/charmbracelet/lipgloss` - Terminal styling
-
-**Future:**
-- LLM integration (Anthropic SDK or similar)
-
-## References
-
-- **Development Guide:** `/CLAUDE.md` - Detailed implementation notes
-- **User Documentation:** `/README.md` - Installation and quick start
-- **Usage Guide:** `/USAGE.md` - Complete command reference
-- **Test Suite:** `pkg/*/test.go` - Unit and integration tests
+The module currently targets Go 1.25 and uses `charm.land/bubbletea/v2`,
+`charm.land/lipgloss/v2`, the Model Context Protocol Go SDK, Chroma, and YAML
+v3. Exact versions live in `go.mod`.
+
+## Durable design constraints
+
+These constraints should survive refactors unless a new design record replaces
+them:
+
+- markdown and collaboration state stay separate;
+- sidecar-only actions never rewrite markdown;
+- anchors preserve history and degrade to orphan rather than silent deletion;
+- adapters share core behavior and guards;
+- the review gate blocks on explicit state, not unreviewable model judgment;
+- line identity remains truthful in the TUI;
+- a TUI verdict and non-interactive signoff produce the same review record.
+
+Historical rationale and active proposals are indexed in
+[docs/README.md](README.md). User workflows live in [USAGE.md](../USAGE.md),
+and implementation conventions live in [CLAUDE.md](../CLAUDE.md) and
+[pkg/tui/CLAUDE.md](../pkg/tui/CLAUDE.md).

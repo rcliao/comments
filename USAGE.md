@@ -1,423 +1,257 @@
-# Comments CLI - Usage Guide (v2.0)
+# Comments CLI usage
 
-A terminal-based collaborative document commenting tool designed for seamless LLM integration.
+This guide covers the current human and agent workflows. `comments help` is the
+canonical flag reference shipped with the binary; use it when a flag here and
+your installed version differ.
 
-## Features
-
-### ✅ Core Functionality
-- **Interactive TUI** - Browse, create, and manage comments in a split-pane interface
-- **Threading** - Reply to comments to form conversation threads (nested structure)
-- **Resolution** - Mark comment threads as resolved
-- **Section-Based Addressing** - Add comments by markdown section paths
-- **Suggestions** - Propose multi-line edits with preview and accept/reject workflow
-- **Batch Operations** - Efficient JSON-based bulk operations for LLM agents
-- **@filename Support** - Read text content from external files
-- **Document Staleness Detection** - Automatic hash-based validation
-
-## Commands
-
-### 1. View Mode (Interactive TUI)
+## Quick start
 
 ```bash
-# Open file picker to select a file
-./comments view
-
-# Open a specific file directly
-./comments view document.md
+comments view doc.md
+comments add doc.md --anchor "sentence under review" --author eric --text "Tighten this" --blocking
+comments gate doc.md
 ```
 
-**Keyboard Shortcuts:**
+`comments view` is the human review surface. Press `q` to open the verdict and
+then `a` to approve, `c` to request changes, or `r` to submit a reply-only pass.
+All three choices record a review in the sidecar. Do not run `comments signoff`
+after submitting a TUI verdict; `signoff` is the non-interactive alternative.
 
-#### Browse Mode
-- `j/k` or `↓/↑` - Navigate through comments
-- `c` - Enter line selection mode to add a comment
-- `Enter` - Expand selected comment to view full thread
-- `R` - Toggle showing/hiding resolved comments
-- `q` - Return to file picker
-- `Ctrl+C` - Quit application
+## Command map
 
-#### Line Selection Mode
-- `j/k` or `↓/↑` - Move cursor to select line
-- `c` or `Enter` - Open comment input modal
-- `Esc` - Cancel and return to browse mode
+| Area | Commands |
+|---|---|
+| Human review | `view` |
+| Read threads | `list`, `get`, `status`, `inbox` |
+| Write threads | `add`, `batch-add`, `reply`, `batch-reply`, `resolve` |
+| Suggestions | `suggest`, `accept`, `batch-accept`, `reject` |
+| Review coordination | `gate`, `signoff`, `check-review`, `watch` |
+| Templates | `template list`, `template show`, `validate`, `seed` |
+| Anchor maintenance | `reanchor` |
+| Diagnostics and integration | `doctor`, `serve-mcp` |
 
-#### Add Comment Mode
-- Type your comment in the textarea
-- `Ctrl+S` - Save comment
-- `Esc` - Cancel
+Run `comments help` for the complete flag list and examples.
 
-#### Thread View Mode
-- `r` - Reply to the thread
-- `x` - Resolve the thread
-- `Esc` - Return to browse mode
-- `q` - Return to file picker
+## Targeting document content
 
-#### Reply Mode
-- Type your reply in the textarea
-- `Ctrl+S` - Save reply
-- `Esc` - Cancel
-
-#### Resolve Mode
-- `y` or `Enter` - Confirm resolution
-- `n` or `Esc` - Cancel
-
-### 2. Add Command
-
-Add a comment to a document:
+Comments accept exactly one target:
 
 ```bash
-# Add by line number
-./comments add document.md --line 10 --author "alice" --text "Review this" --type Q
+# Preferred for agents: quote a unique line or substring.
+comments add doc.md --anchor "The cache is process-local" \
+  --author claude --text "What invalidates it?" --type Q
 
-# Add by section path
-./comments add document.md --section "Introduction > Overview" --author "bob" --text "Expand this"
+# Stable for named sections.
+comments add doc.md --section "Design > Cache" \
+  --author claude --text "Add the failure path" --blocking
 
-# Read text from file
-./comments add document.md --line 25 --author "claude" --text @comment.txt
+# Useful when a human already knows the line.
+comments add doc.md --line 42 \
+  --author eric --text "This is the decision" --priority high
 ```
 
-**Flags:**
-- `--line <N>` - Line number (mutually exclusive with --section)
-- `--section <path>` - Section path like "Title > Subtitle" (mutually exclusive with --line)
-- `--author <name>` - Author name (required)
-- `--text <text|@file>` - Comment text or @filename to read from file (required)
-- `--type <Q|S|B|T|E>` - Comment type: Question, Suggestion, Bug, TODO, Enhancement (optional)
+`--line`, `--section`, and `--anchor` are mutually exclusive. Section paths use
+the full heading hierarchy with ` > ` separators. Anchor text must identify one
+line uniquely; ambiguity is reported instead of choosing silently.
 
-### 3. Reply Command
+`--type Q|S|B|T|E` records a question, suggestion, bug, TODO, or enhancement.
+`--priority low|medium|high` controls walkthrough order. `--blocking` keeps the
+review gate closed until the root thread is resolved.
 
-Reply to an existing thread:
+Long text flags support `@filename` input:
 
 ```bash
-./comments reply document.md --thread c123 --author "alice" --text "I agree"
-
-# Use @filename for long replies
-./comments reply document.md --thread c456 --author "bob" --text @reply.txt
+comments reply doc.md --thread c7f3k --author claude --text @reply.txt
 ```
 
-### 4. Suggest Command
-
-Create a multi-line edit suggestion:
+## Reading and replying to threads
 
 ```bash
-# Inline text
-./comments suggest document.md --start-line 15 --end-line 17 \
-  --author "claude" --text "Improve clarity" \
-  --original "old text" --proposed "new text"
+comments list doc.md
+comments list doc.md --resolved --priority high --format table
+comments list doc.md --section "Design" --with-context
+comments list doc.md --status orphaned --format json
 
-# Use @filename for long text blocks
-./comments suggest document.md --start-line 20 --end-line 25 \
-  --author "claude" --text "Refactor section" \
-  --original @original.txt --proposed @proposed.txt
+comments get doc.md --thread c7f3k
+comments get 'thread:research.md#c7f3k' --from plan.md
+
+comments reply doc.md --thread c7f3k --author claude --text "Applied in the draft"
+comments resolve doc.md --thread c7f3k
 ```
 
-**Flags:**
-- `--start-line <N>` - Start line (required)
-- `--end-line <N>` - End line (required)
-- `--author <name>` - Author name (required)
-- `--text <text|@file>` - Description of change (required)
-- `--original <text|@file>` - Original text being replaced (required)
-- `--proposed <text|@file>` - Proposed replacement text (required)
+`list` hides resolved roots by default. Its useful filters are `--type`,
+`--author`, `--search`, `--line-range`, `--section`, `--status`, `--priority`,
+and `--sort`; output can be `text`, `table`, or `json`.
 
-### 5. Accept/Reject Suggestions
+`get` accepts either a document plus `--thread`, or a thread citation copied
+directly from prose. `thread:c7f3k` means the citing document; use `--from` so
+same-document and relative-path citations resolve correctly.
 
-Review and accept or reject suggestions:
+### Batch writes
 
-```bash
-# Preview changes
-./comments accept document.md --suggestion s123 --preview
+`batch-add` validates the whole input before writing. Each item needs `author`,
+`text`, and exactly one of `anchor`, `section`, or `line`.
 
-# Accept and apply
-./comments accept document.md --suggestion s123
-
-# Reject
-./comments reject document.md --suggestion s456
-```
-
-### 6. List Command
-
-List all comments with optional filters:
-
-```bash
-# List all unresolved comments
-./comments list document.md
-
-# Filter by author
-./comments list document.md --author alice
-
-# Filter by section (includes nested sections)
-./comments list document.md --section "Implementation"
-
-# Filter by type
-./comments list document.md --type Q
-
-# Search text
-./comments list document.md --search "TODO"
-
-# Line range
-./comments list document.md --lines 10-30
-
-# Show resolved comments
-./comments list document.md --resolved true
-
-# JSON output (includes full metadata)
-./comments list document.md --format json
-
-# Combine filters
-./comments list document.md --section "Intro" --author alice --type Q
-```
-
-**Output Format:**
-- Table format (default): Shows root comments only with summary
-- JSON format: Full metadata including all replies
-
-### 7. Batch Operations
-
-Efficient bulk operations for LLM agents using JSON input:
-
-#### Batch Add
-
-```bash
-# Create JSON file
-cat > comments.json << 'EOF'
+```json
 [
   {
-    "line": 10,
+    "anchor": "The cache is process-local",
     "author": "claude",
-    "text": "Consider edge cases",
-    "type": "Q"
+    "text": "State the invalidation rule",
+    "type": "Q",
+    "priority": "high",
+    "blocking": true
   },
   {
-    "section": "Implementation > Architecture",
+    "section": "Risks",
     "author": "claude",
-    "text": "Add diagram",
+    "text": "Add the rollback risk",
     "type": "S"
   }
 ]
-EOF
-
-./comments batch-add document.md --json comments.json
-
-# Or use stdin for single-command workflow
-echo '[{"line":10,"author":"claude","text":"Good point","type":"Q"}]' | \
-  ./comments batch-add document.md --json -
 ```
-
-**JSON Fields:**
-- `line` OR `section` (mutually exclusive, required)
-- `author` (required)
-- `text` (required)
-- `type` (optional: Q, S, B, T, E)
-
-#### Batch Reply
 
 ```bash
-# Create JSON file
-cat > replies.json << 'EOF'
-[
-  {
-    "thread": "c123",
-    "author": "claude",
-    "text": "Good point about scalability"
-  },
-  {
-    "thread": "c456",
-    "author": "claude",
-    "text": "I agree with this approach"
-  }
-]
-EOF
-
-./comments batch-reply document.md --json replies.json
-
-# Or use stdin
-echo '[{"thread":"c123","author":"claude","text":"LGTM"}]' | \
-  ./comments batch-reply document.md --json -
+comments batch-add doc.md --json comments.json
+comments batch-reply doc.md --json replies.json
 ```
 
-**JSON Fields:**
-- `thread` (thread ID, required)
-- `author` (required)
-- `text` (required)
+Batch replies use objects shaped like
+`{"thread":"c7f3k","author":"claude","text":"Applied"}`.
+Pass `--json -` to either command to read from standard input.
 
-## Storage Format (v2.0)
+## Edit suggestions
 
-Comments are stored in JSON sidecar files (`.md.comments.json`) alongside your markdown documents.
-
-### Example Sidecar File
-
-```json
-{
-  "version": "2.0",
-  "documentHash": "sha256_hash_of_markdown",
-  "lastValidated": "2025-11-03T17:39:51Z",
-  "threads": [
-    {
-      "ID": "c123",
-      "Author": "alice",
-      "Timestamp": "2025-11-03T10:30:00Z",
-      "Text": "[Q] What about edge cases?",
-      "Type": "Q",
-      "Line": 10,
-      "SectionID": "s2",
-      "SectionPath": "Introduction > Overview",
-      "Resolved": false,
-      "Replies": [
-        {
-          "ID": "c124",
-          "Author": "bob",
-          "Timestamp": "2025-11-03T11:00:00Z",
-          "Text": "Good question, let me add tests",
-          "Line": 10,
-          "Replies": []
-        }
-      ],
-      "IsSuggestion": false
-    },
-    {
-      "ID": "s456",
-      "Author": "claude",
-      "Text": "Improve clarity",
-      "Line": 15,
-      "IsSuggestion": true,
-      "StartLine": 15,
-      "EndLine": 17,
-      "OriginalText": "old text",
-      "ProposedText": "new improved text",
-      "Accepted": null,
-      "Replies": []
-    }
-  ]
-}
-```
-
-### Threading Model (v2.0)
-
-Comments use a **nested structure** with `Replies` arrays:
-- Root comments have `Replies` containing direct child comments
-- Each reply can have its own `Replies` array for nested conversations
-- No separate `ThreadID`/`ParentID` fields needed (simplified from v1.x)
-
-## Workflow Examples
-
-### Example 1: Adding Comments During Review
-
-1. Start the TUI: `./comments view document.md`
-2. Press `c` to enter line selection mode
-3. Navigate with `j/k` to line you want to comment on
-4. Press `c` to open comment modal
-5. Type your comment
-6. Press `Ctrl+S` to save
-7. Comment appears in the right panel
-8. File is automatically saved
-
-### Example 2: Threading a Discussion
-
-1. In browse mode, navigate to a comment with `j/k`
-2. Press `Enter` to expand the thread
-3. Press `r` to reply
-4. Type your response
-5. Press `Ctrl+S` to save
-6. Reply appears in thread view
-7. Press `Esc` to return to browse mode
-
-### Example 3: Resolving Comments
-
-1. Expand a comment thread with `Enter`
-2. Press `x` to resolve
-3. Confirmation dialog appears
-4. Press `y` or `Enter` to confirm
-5. Thread is marked as resolved
-6. Returns to browse mode
-7. Toggle resolved comments with `R`
-
-### Example 4: LLM-Assisted Writing
+Suggestions target a line range, a whole section, or an anchor. With
+`--anchor`, the number of lines in `--original` determines the range.
 
 ```bash
-# Get suggestions for a specific section
-./comments ask draft.md \\
-  --prompt "Suggest improvements for clarity" \\
-  --start 10 --end 20 \\
-  --line 10
+comments suggest doc.md --anchor "The old first line" \
+  --author claude --text "Clarify the contract" \
+  --original @old.txt --proposed @new.txt
 
-# Ask for expansion ideas
-./comments ask draft.md \\
-  --prompt "What topics should I cover next?" \\
-  --line 25
-
-# Open in TUI to review LLM comments
-./comments view draft.md
+comments accept doc.md --suggestion c91ab --preview
+comments accept doc.md --suggestion c91ab
+comments reject doc.md --suggestion c82de
 ```
 
-## UI Layout
+`accept` is the content-writing path: it updates the markdown, marks the
+suggestion accepted, shifts affected positions, and refreshes the sidecar.
+`batch-accept` accepts pending suggestions by a JSON array of IDs, `--author`,
+or `--type`.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ 📄 document.md - Mode: Browse                                   │
-├──────────────────────────────────┬──────────────────────────────┤
-│ Document Content (60%)           │ Comments Panel (40%)         │
-│                                  │                              │
-│  1    # Title                    │ Comments (3 unresolved)      │
-│  2                               │                              │
-│  3    Introduction text...       │ Line 5 • @user               │
-│  4                               │ 2025-01-15 10:30             │
-│  5 💬1 ## Section 1              │ Should we add...             │
-│  6    Content here...            │ └─ 2 replies                 │
-│  7                               │                              │
-│  8                               │ Line 12 • @claude            │
-│  9 💬2 ## Section 2              │ 2025-01-15 11:00             │
-│ 10    More content...            │ Consider using...            │
-│                                  │ └─ 0 replies                 │
-│                                  │                              │
-└──────────────────────────────────┴──────────────────────────────┘
-│ j/k: navigate • c: comment • Enter: expand • R: toggle resolved │
-└─────────────────────────────────────────────────────────────────┘
+In the TUI, `a` and `x` queue accept/reject decisions. The queue is applied
+atomically when a verdict is submitted and is discarded by `Ctrl+C`.
+
+## Templates and review gates
+
+Built-ins are `design-doc`, `mini`, `research`, `research-deep`, `plan`, `adr`,
+`rfc`, and `as-built`.
+
+```bash
+comments template list
+comments template show design-doc
+comments validate draft.md --template design-doc
+comments seed draft.md --template design-doc --markers-only
+comments gate draft.md --json
 ```
 
-## Environment Variables
+Templates define required sections, ordering, word caps, minimum alternatives,
+review criteria, citation checks, and human-owned zones. `seed` records the
+template in the sidecar so later `validate` and `gate` calls can omit
+`--template`. Agent workflows normally use `--markers-only` and post their own
+specific self-review callouts; human-only workflows may seed all generic
+criteria.
 
-- `USER` - Used as default author name for comments in TUI mode
+Gate results:
 
-## Tips
+- exit `0`: approved;
+- exit `10`: changes requested;
+- exit `1`: command or input error.
 
-1. **Keyboard-First**: All operations can be done without a mouse
-2. **Quick Navigation**: Use `j/k` for vi-like navigation
-3. **Section Paths**: Use full hierarchical paths like "Introduction > Overview > Background"
-4. **@filename Syntax**: Great for long comments or when text is already in a file
-5. **Batch Operations**: More efficient than multiple individual commands for bulk operations
-6. **Resolved Toggle**: Press `R` in browse mode to see all comments
-7. **Preview Suggestions**: Always use `--preview` before accepting to see what will change
-8. **File Auto-Save**: Changes are saved immediately when you create/reply/resolve
+The normal gate fails on unresolved blocking threads and template violations.
+`--strict` also fails on any unresolved thread or pending suggestion. A gate on
+a directory scans markdown files that have sidecars.
 
-## Troubleshooting
+## Signoff and waiting
 
-**Q: Comments not showing up?**
-A: Press `R` to toggle resolved comments visibility
+```bash
+# Non-interactive review record; decision derives from the gate.
+comments signoff doc.md --author eric --note "Ready after the cache fix"
 
-**Q: Can't add comments?**
-A: Make sure you're in line selection mode (press `c` from browse mode)
+# Wait for either a TUI verdict or a signoff command.
+comments watch doc.md --until signoff
 
-**Q: LLM not working?**
-A: Check that `ANTHROPIC_API_KEY` is set correctly
+# Durable non-blocking polling handle.
+comments check-review doc.md --since 2026-08-12T18:30:00Z --json
 
-**Q: File not saving?**
-A: Check file permissions and that the file path is correct
+# Agent attention view: new replies plus unresolved blockers.
+comments inbox docs/ --since 2026-08-12T18:30:00Z --json
+```
 
-## Technical Details
+`watch` emits NDJSON events including `comment_added`, `reply_added`,
+`thread_resolved`, `suggestion_accepted`, `signoff`, and `gate_changed`.
+`--until` accepts a comma-separated event list.
 
-- **Storage Format**: JSON sidecar files (`.md.comments.json`)
-- **Threading Model**: Nested structure with `Replies` arrays (v2.0)
-- **Position Tracking**: Line-based (simplified in v2.0)
-- **Suggestions**: Multi-line only (v2.0)
-- **Staleness Detection**: SHA-256 hash validation prevents data corruption
-- **File Format**: UTF-8 markdown (clean) + JSON metadata (sidecar)
+## TUI reference
 
-## Document Staleness Detection
+Press `?` inside `comments view` for the authoritative key list.
 
-When you load a document, the system:
-1. Computes SHA-256 hash of markdown content
-2. Compares with hash stored in sidecar file
-3. If hashes don't match, the sidecar is considered stale
-4. Stale sidecars are archived to `.backup.TIMESTAMP` files
-5. You can choose to start fresh or restore from backup
+| Activity | Keys |
+|---|---|
+| Move | `j/k`, `Ctrl+D/U`, `g/G`, `]/[`, `n/N` |
+| Find | `/` search, `t` table of contents, `f` peek citation, `#` line numbers |
+| Threads | `Enter` expand, `r` reply/dive, `Tab` cycle stacked threads, `R` resolved toggle, `P` priority order, `x` resolve |
+| Compose | `c` comment, `s` suggest, `Ctrl+S` save, `Ctrl+P/T` priority/type, `Esc` cancel |
+| Review | `a/x` queue suggestion decision, `S` sidebar density, `L` line summaries |
+| Exit | `q` verdict, `n` add verdict note, `Ctrl+C` quit without verdict |
 
-This prevents data corruption when markdown content changes outside the tool.
+The citation peek understands `path:line`, local markdown links, and
+`thread:` citations. `Enter` from the peek opens `$EDITOR` at the target.
+
+## Anchors and document changes
+
+Sidecars store a SHA-256 hash of the markdown. On a mismatch, loading runs the
+re-anchor cascade: exact position, exact text, normalized text, section
+fallback, then orphan. It does not archive or discard the sidecar.
+
+After an agent edits a document with comments, explicitly migrate anchors it
+knows it displaced:
+
+```bash
+comments reanchor doc.md --comment c7f3k --line 58
+comments reanchor doc.md --json moves.json --json-out
+```
+
+Each batch move is
+`{"comment_id":"c7f3k","line":58}` or
+`{"comment_id":"c7f3k","section":"Design > Cache"}`.
+The load-time cascade remains the safety net for edits without a declared map.
+
+## Storage and environment
+
+Collaboration data lives in `doc.md.comments.json`; the markdown stays clean.
+The format version is `2.0`, while content-anchor behavior is the v2.1 design.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the schema and write
+invariants.
+
+Environment variables:
+
+- `USER`: default reviewer/TUI author;
+- `EDITOR`: target editor for citation peek;
+- `COMMENTS_THEME`: `nord`, `dracula`, `gruvbox`, or `ansi`;
+- `COMMENTS_ACTOR`: explicit `human` or `agent` override for human-zone guards.
+
+## Diagnostics
+
+```bash
+comments doctor
+comments doctor --json
+comments doctor --skip-mcp
+```
+
+`doctor` checks the binary/version, MCP handshake, installed plugin version,
+and sidecar health. Failures exit `1`; warnings alone keep exit `0`.
+
+For development and troubleshooting, see [CLAUDE.md](CLAUDE.md). For the
+documentation status and retention policy, see [docs/README.md](docs/README.md).

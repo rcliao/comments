@@ -69,8 +69,9 @@ func (s *Server) handleListComments(ctx context.Context, req *mcp.CallToolReques
 	return withDoc(args.FilePath, func(absPath string, doc *comment.DocumentWithComments, _ *comment.LoadReport) (any, error) {
 		// List returns thread ROOTS with replies nested (the CLI JSON shape;
 		// flattening roots and replies into one list handed out reply IDs the
-		// write path rejected and buried reply text — docs/plan-agent-surface.md
-		// Phase 2). Filters match the root OR any of its replies; the ROOT is
+		// write path rejected and buried reply text; see
+		// docs/research-agent-surface.md. Filters match the root OR any of its
+		// replies; the ROOT is
 		// what gets returned either way.
 		var roots []*comment.Comment
 		if args.Section != "" {

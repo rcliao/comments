@@ -10,7 +10,7 @@ and re-reviewing a doc shows which lines changed since the reviewer's last recor
 
 ## Current State
 
-skills/review-comments/SKILL.md is one 372-line file agents load whole (docs/research-landscape-2026-08.md:44-46).
+skills/review-comments/SKILL.md is one roughly 400-line file agents load whole (docs/research-landscape-2026-08.md:44-46).
 Review-round memory is thread-level only: NEW badges via thread activity,
 nothing marks changed document lines (docs/research-landscape-2026-08.md:52-56).
 Both signoff writers record review passes through AddReviewRecord (pkg/comment/gate.go:112),
