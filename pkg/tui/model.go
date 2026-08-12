@@ -81,7 +81,7 @@ type Model struct {
 	refPeekThread     *comment.Comment      // thread citation target (thread:c1abc), nil for file peeks
 
 	// Fence rendering cache: per-line fence state + chroma output, rebuilt on
-	// content change (docs/plan-markdown-render.md Phase 1)
+	// content change.
 	fenceCache map[int]fenceLine
 	tableCache map[int]string // aligned table rows (display-only padding)
 

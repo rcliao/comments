@@ -1,7 +1,7 @@
 package comment
 
-// Phase 3 of docs/plan-agent-surface.md: reproduction of the external field
-// report — a section over its cap only via its subsections must violate.
+// Regression for the external field report in docs/research-agent-surface.md:
+// a section over its cap only via its subsections must violate.
 
 import (
 	"fmt"

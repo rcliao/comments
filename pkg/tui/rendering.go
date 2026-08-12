@@ -153,7 +153,7 @@ func (st *styleSet) styleLinePrefix(line string) (string, string) {
 // colored. The ANSI-stripped result always equals the input — line widths
 // and anchors are untouched.
 func (st *styleSet) styleMarkdownLine(line string) string {
-	// Horizontal rule: the whole line dims (Phase 3, plan-markdown-render)
+	// Horizontal rule: the whole line dims.
 	if t := strings.TrimSpace(line); t == "---" || t == "***" || t == "___" {
 		return st.syntaxGlyph.Render(line)
 	}
@@ -228,7 +228,7 @@ func (m *Model) styleDocLine(line string, lineNum int) string {
 		return m.styleTableRow(line, lineNum)
 	}
 	// Fence lines: suppressed prose styling, chroma-highlighted code, and a
-	// citation-styled comment trail (docs/plan-markdown-render.md Phase 1)
+	// citation-styled comment trail (docs/design-markdown-render.md).
 	if fl, ok := m.fenceCache[lineNum]; ok {
 		if fl.delimiter {
 			return m.styles.syntaxGlyph.Render(line)

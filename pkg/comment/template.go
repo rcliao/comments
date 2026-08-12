@@ -301,7 +301,7 @@ func countWords(text string) int {
 // SectionWordCount is one row of the per-section word report: every template
 // section's current count against its cap (0 = uncapped), plus the doc total
 // as a synthetic row. Reported on success AND failure so trimming is
-// informed, not blind (docs/plan-agent-surface.md Phase 3).
+// informed, not blind (docs/research-agent-surface.md).
 type SectionWordCount struct {
 	Section string `json:"section"`
 	Words   int    `json:"words"`

@@ -31,7 +31,7 @@ Nothing checks whether a resolvable citation *supports* its sentence, or whether
 
 ### F2 — The reviewer is the only content instrument, and its yield is discarded [Q1] [Q2]
 
-Fresh-context reviewer passes caught real defects in every RPI round this week — fabricated citation, half-adopted source, false negative-claim — recorded as `reviewer`-authored threads in docs/plan-rpi-loop-strength.md.comments.json, docs/research-agent-surface.md.comments.json and docs/plan-agent-surface.md.comments.json.
+Fresh-context reviewer passes caught real defects in every RPI round this week — fabricated citation, half-adopted source, false negative-claim — recorded as `reviewer`-authored threads in docs/plan-rpi-loop-strength.md.comments.json and docs/research-agent-surface.md.comments.json; the resulting agent-surface fixes are pinned by pkg/mcp/agentsurface_test.go and pkg/comment/anchortext_test.go.
 No prompt, allowlist, or pass-count learns from that record; each reviewer starts from the same skill prose regardless of what past reviewers caught or missed.
 
 ### F3 — The probe layer is designed, exampled, and unbuilt [Q3]

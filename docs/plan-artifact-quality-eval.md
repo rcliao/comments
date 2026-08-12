@@ -12,10 +12,10 @@ template word budgets, not to grade.
 
 ## Current State
 
-- Citation parsing/resolution exists but is TUI-locked: `ParseReferences`
-  extracts refs with positions (research-artifact-quality-eval.md:43-44),
-  `buildRefMap` resolves them at load (research-artifact-quality-eval.md:45);
-  nothing runs this outside the TUI (research-artifact-quality-eval.md:47).
+- Citation resolvability now runs outside the TUI through
+  `comment.ValidateCitations`, invoked by `validate`/`gate` for templates that
+  enable citation checks. It does not share `ParseReferences`, judge whether a
+  citation supports its claim, or compare coverage between plan and research.
 - The sidecar records process, not artifact quality
   (research-artifact-quality-eval.md:31-39).
 - Probe-based doc eval has direct precedent (QAGS) and a named axis split:
@@ -51,12 +51,12 @@ and the log holds runs for at least three docs.
 ### Phase 1: `comments analyze` — mechanical layer
 
 New command: `comments analyze <doc.md> [--against <research.md>] [--json]`.
-Lift resolution out of the TUI: move the `buildRefMap` pattern into
-`pkg/markdown` or a new `pkg/analyze` so CLI and TUI share it
-(research-artifact-quality-eval.md:102-103). Report: unresolved citations
-(target missing/stale line), Current-State/design claims with no citation, and
-with `--against`: research findings never cited by the plan + plan citations
-pointing at nothing load-bearing (two-way coverage,
+Consolidate the TUI's `ParseReferences`/resolution path with
+`comment.ValidateCitations` so the new command reuses the existing
+resolvability checks rather than creating a third parser. Add the missing
+reports: Current-State/design claims with no citation and, with `--against`,
+research findings never cited by the plan plus plan citations pointing at
+nothing load-bearing (two-way coverage,
 research-artifact-quality-eval.md:47-49). Exit 0 always (never a gate).
 
 **Success Criteria**

@@ -143,8 +143,8 @@ For feature-sized work the AUTONOMOUS CHAIN is the default: interview once, then
 ## Recommended Review Flow (the tool's core loop)
 
 1. **Agent produces doc** under a template: read the brief (`comments_get_template`), draft, `comments validate` until structure is clean.
-2. **Seed** review threads: `comments seed` (template criteria + NEEDS CLARIFICATION markers become blocking threads; template recorded in sidecar).
-3. **Human reviews** in the TUI: `comments view <doc>` — walk threads, reply/resolve, add comments (`--blocking` for must-fix), then `comments signoff`.
+2. **Seed and self-review**: agents run `comments seed --markers-only`, then post specific anchored callouts from the template criteria; the template is recorded in the sidecar and ambiguity markers become blocking threads.
+3. **Human reviews** in the TUI: `comments view <doc>` — walk threads, reply/resolve, add comments (`--blocking` for must-fix), then submit the TUI verdict, which records the signoff.
 4. **Agent processes feedback** one comment at a time (see `skills/review-comments/SKILL.md`): reply/resolve/suggest, `comments_reanchor` after edits, re-request review.
 5. **Iterate until the gate unblocks**: `comments gate <doc>` exit 0 → implement.
 

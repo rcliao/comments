@@ -28,8 +28,8 @@ func (c ThemeColor) Color() color.Color { return lipgloss.Color(string(c)) }
 // Theme maps every color role the TUI uses to a concrete color.
 // Roles, not widgets: several widgets may share one role.
 type Theme struct {
-	// Chroma is the chroma style name used for fence syntax highlighting
-	// (docs/plan-markdown-render.md Phase 1); "" falls back to a neutral one.
+	// Chroma is the chroma style name used for fence syntax highlighting;
+	// "" falls back to a neutral one.
 	Chroma string
 
 	// Markdown headings (whole-line, by level; Heading4 covers H4-H6)

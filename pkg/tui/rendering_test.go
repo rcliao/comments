@@ -471,8 +471,8 @@ func TestSidebarSummaryTruncationIsRuneSafe(t *testing.T) {
 	}
 }
 
-// Phase 1 of docs/plan-markdown-render.md: fence interiors carry no prose
-// styling, chroma highlights code line-preservingly, and comment-trail
+// Fence interiors carry no prose styling, chroma highlights code
+// line-preservingly, and comment-trail
 // citations inside fences stay link-styled (peekable).
 func TestFenceRenderingHighlightsAndPreservesCitations(t *testing.T) {
 	content := "# T\n\n```dbml\nTable eval {\n  doc string [pk] // pkg/comment/types.go:140 key\n}\n```\n- a **bold** bullet\n"
@@ -505,9 +505,8 @@ func TestFenceRenderingHighlightsAndPreservesCitations(t *testing.T) {
 	}
 }
 
-// Phases 2-3 of docs/plan-markdown-render.md: strikethrough + links styled
-// with dimmed markers; heading hashes dim; hrule dims whole-line — all
-// byte-identical ignoring ANSI.
+// Strikethrough and links are styled with dimmed markers; heading hashes dim;
+// hrules dim whole-line — all byte-identical ignoring ANSI.
 func TestTyporaSpansAndGlyphs(t *testing.T) {
 	st := testStyles()
 	for _, line := range []string{

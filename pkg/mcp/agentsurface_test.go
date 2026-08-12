@@ -1,9 +1,9 @@
 package mcp
 
-// Phase 2 of docs/plan-agent-surface.md: list returns thread roots with
-// replies nested (no flattened reply items), and the write path accepts any
-// ID it ever handed out — the external agent's failing sequence
-// (list -> reply to a reply ID -> "thread not found") must succeed.
+// Agent-surface regression: list returns thread roots with replies nested (no
+// flattened reply items), and the write path accepts any ID it handed out.
+// The original failing sequence (list -> reply to a reply ID -> "thread not
+// found") must succeed; see docs/research-agent-surface.md.
 
 import (
 	"os"

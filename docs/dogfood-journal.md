@@ -2,7 +2,7 @@
 
 Running notes from using `comments` on its own development. Each entry: what we did, what worked, what hurt, and what it taught us. Friction observed here feeds the backlog — this file is the tool's own user-research log.
 
-Convention: newest entry first. Tag friction items `[friction]`, validated wins `[win]`, ideas born here `[idea]`.
+Convention: entries preserve session chronology. Tag friction items `[friction]`, validated wins `[win]`, ideas born here `[idea]`.
 
 ---
 
