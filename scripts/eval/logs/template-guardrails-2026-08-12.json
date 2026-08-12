@@ -1,0 +1,43 @@
+{
+  "eval": "template-guardrails-real-template",
+  "date": "2026-08-12",
+  "question": "Do the guardrails we set by intuition — per-subsection caps and per-section format prescription — hold up on REAL template sections and narrative content?",
+  "method": "Second fixture (scripts/eval/fixtures/golden-facts-anchoring.md, 19 facts) chosen as a contrast to the gate fixture: mechanism narrative (a five-step algorithm with tie-breaks) rather than enumerable rules. Writers are fresh-context subagents reading only pkg/comment/anchor.go; judges are fresh-context and read the fact list, never the writers' prompts.",
+  "experiments": {
+    "pooled_vs_per_subsection_caps": {
+      "conditions": "Findings section, 600-word section cap. POOLED = section cap only. PERSUB = section cap + 150 words per finding. Two runs each, 4-6 findings required.",
+      "results": [
+        {"condition": "pooled", "runs": [{"words": 513, "per_finding": [106, 96, 102, 74, 130], "spread": 56, "covered": 14, "mangled": 0}, {"words": 575, "per_finding": [99, 102, 135, 109, 125], "spread": 36, "covered": 14, "mangled": 1}]},
+        {"condition": "per-subsection", "runs": [{"words": 545, "per_finding": [114, 101, 106, 113, 106], "spread": 13, "covered": 17, "mangled": 0}, {"words": 495, "per_finding": [114, 103, 96, 82, 95], "spread": 32, "covered": 15, "mangled": 0}]}
+      ],
+      "verdict": "NULL RESULT, honestly reported — the per-finding cap never bound (largest finding 135 vs the 150 cap), so the cannibalization it exists to prevent never occurred. Pooled drafts self-balanced.",
+      "findings": [
+        "No cannibalization at this pressure: every smallest finding carried real content, not padding (the thinnest, 74 words, carried a full fact plus its rationale and an actionable warning).",
+        "Facts-per-word did not track finding size; the LARGEST findings were consequence-heavy, not fact-hoarding.",
+        "Per-subsection drafts covered +2 facts on average with the only mangle appearing in a pooled draft — but with n=2 and one flat outlier, that is direction, not evidence. Plausible mechanism is completeness pressure per finding, NOT length flattening.",
+        "Design fix for a rerun: the section cap must be tight enough (or the subject rich enough) that findings actually compete — at 495-575 words against a 600 cap they never did."
+      ]
+    },
+    "format_prescription": {
+      "conditions": "Same subject and 250-word cap, format prescribed: bullets / semantic-line-break prose / markdown table. One run each, coverage + rubric judged.",
+      "results": [
+        {"format": "bullets", "words": 237, "covered": 17, "mangled": 0, "rubric": {"accuracy": 5, "clarity": 4, "review_efficiency": 4, "navigability": 4}},
+        {"format": "prose", "words": 243, "covered": 16, "mangled": 0, "rubric": {"accuracy": 4, "clarity": 5, "review_efficiency": 3, "navigability": 2}},
+        {"format": "table", "words": 224, "covered": 15, "mangled": 0, "rubric": {"accuracy": 4, "clarity": 3, "review_efficiency": 5, "navigability": 5}}
+      ],
+      "findings": [
+        "LOOKUP and NARRATIVE select DIFFERENT formats — the eval's main result. Table wins navigability 5 vs prose 2 (row+column addressing gives every rule a two-key address); prose is the only format that stated forward-looking invariants ('preserve that separation or context will stop winning'), which neither other format carried.",
+        "Bullets carried the most golden facts per word (0.072 vs 0.067 table, 0.066 prose) and scored highest on accuracy — the safe default when a section is neither pure lookup nor pure rationale.",
+        "Each format loses the content class its shape has no slot for, and the losses are DISJOINT: the table dropped definitional setup (what an Anchor even is — no Step row key for it), bullets dropped failure branches of rules already stated (the bullet's slot was full), prose dropped enumerable constants (nil returns, the 60-char truncation, the exact error string).",
+        "Format-specific mangling is real: the table's step-5 cell reads as unconditional ('nothing matched -> orphan') because a cell must be short, but the code silently keeps an anchorless in-bounds comment. The exception had nowhere to go in the grid. Prose committed the analogous sin with an unconditional 'mutates ... setting AnchorConfidence' (untouched on the orphan path).",
+        "A rationale COLUMN rescues the table: the 'Gotcha when changing' column carried change-consequences prose lacked entirely. Prescribing a table without such a column is what would lose rationale."
+      ]
+    }
+  },
+  "template_implications": [
+    "Do NOT prescribe one format per section blindly. Prescribe by section PURPOSE: lookup-shaped sections (Interfaces, step tables, config) earn a table WITH a consequences column; rationale-shaped sections (Data Flow, Decisions, Risks) must stay prose or they lose the invariants; mixed sections default to bullets.",
+    "A table in a template should require a 'why / what breaks' column, and definitional setup must live outside the grid — a table cannot define its own subject.",
+    "Keep max_subsection_words, but this run did not justify it; its value remains unmeasured at realistic pressure. Do not cite this eval as evidence for the current 200-word setting."
+  ],
+  "caveats": "One run per format; two per cap condition. The cap experiment is underpowered by construction (cap never bound). Writers and judges share a model family. Fixture is technical mechanism content — user-facing or decision narrative may differ again."
+}
