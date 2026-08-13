@@ -662,3 +662,51 @@ func TestScrollToLineKeepsCursorVisible(t *testing.T) {
 		t.Fatalf("fixture too short: %d rendered rows, viewport bottom %d", rows, bottom)
 	}
 }
+
+// TestBrowseSidebarFollowsSelection drives the second reported symptom: in
+// browse mode with more threads than the sidebar can show, j must scroll the
+// sidebar so the selected thread stays inside the viewport (it used to
+// re-render without scrolling, walking the highlight off the bottom).
+func TestBrowseSidebarFollowsSelection(t *testing.T) {
+	var content strings.Builder
+	var threads []*comment.Comment
+	for i := 1; i <= 30; i++ {
+		fmt.Fprintf(&content, "line %d\n", i)
+		threads = append(threads, &comment.Comment{
+			ID: fmt.Sprintf("c%d", i), Line: i, Author: "rcliao",
+			Text: fmt.Sprintf("thread %d", i),
+		})
+	}
+	doc := &comment.DocumentWithComments{Content: content.String(), Threads: threads}
+	m := NewModelWithFile(doc, filepath.Join(t.TempDir(), "doc.md"))
+	m.width, m.height = 100, 20 // sidebar viewport height 18 << 30 threads
+	m.handleResize()
+
+	assertVisible := func(step string) {
+		t.Helper()
+		_, selStart, selEnd := m.renderCommentsAnchored()
+		top := m.commentViewport.YOffset()
+		bottom := top + m.commentViewport.Height() - 1
+		if selStart < top || selEnd-1 > bottom {
+			t.Fatalf("%s: selection rows [%d,%d) outside sidebar viewport [%d,%d]",
+				step, selStart, selEnd, top, bottom)
+		}
+	}
+
+	for i := 0; i < len(threads)-1; i++ {
+		next, _ := m.handleBrowseKeys(keyMsg("j"))
+		m = next.(Model)
+		assertVisible(fmt.Sprintf("j #%d (selected %d)", i+1, m.selectedComment))
+	}
+	next, _ := m.handleBrowseKeys(keyMsg("g"))
+	m = next.(Model)
+	assertVisible("g (first)")
+	next, _ = m.handleBrowseKeys(keyMsg("G"))
+	m = next.(Model)
+	assertVisible("G (last)")
+	for i := 0; i < len(threads)-1; i++ {
+		next, _ := m.handleBrowseKeys(keyMsg("k"))
+		m = next.(Model)
+		assertVisible(fmt.Sprintf("k #%d (selected %d)", i+1, m.selectedComment))
+	}
+}
