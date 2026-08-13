@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 // Style caps shape prose for scanning rather than reading start-to-finish.
@@ -51,17 +52,6 @@ func splitSentences(body string) []string {
 	return out
 }
 
-// codeSpan matches an inline `code` span.
-var codeSpan = regexp.MustCompile("`[^`]+`")
-
-// readableWords counts what a reader parses, collapsing each inline code span
-// to a single token. A trial agent reported the raw count "penalizes precision":
-// `pkg/comment/gate.go:39` is one thing to a reader but three words to Fields,
-// so naming the exact symbol cost more budget than writing vaguely.
-func readableWords(s string) int {
-	return len(strings.Fields(codeSpan.ReplaceAllString(s, "CODE")))
-}
-
 // TemplateStyle bounds prose shape. Zero values disable a check.
 type TemplateStyle struct {
 	MaxSentenceWords  int `yaml:"max_sentence_words"`
@@ -71,7 +61,7 @@ type TemplateStyle struct {
 // proseBlocks returns the blank-line-separated prose blocks of a document,
 // with their starting line numbers. Headings, list items, tables and fenced
 // code are excluded: their shape is deliberate and not prose to be split.
-func proseBlocks(lines []string) (starts []int, bodies []string) {
+func proseBlocks(lines []string) (starts []int, bodies []string, raw [][]string) {
 	var cur []string
 	curStart := 0
 	inFence := false
@@ -81,12 +71,14 @@ func proseBlocks(lines []string) (starts []int, bodies []string) {
 			return
 		}
 		first := strings.TrimSpace(cur[0])
-		isList := strings.HasPrefix(first, "-") || strings.HasPrefix(first, "*") ||
-			strings.HasPrefix(first, "+") || strings.HasPrefix(first, ">") ||
-			strings.HasPrefix(first, "|") || listNumber.MatchString(first)
+		// A bullet needs its space: "**Bold lead-in:**" starts with * but is
+		// prose. Matching the bare marker exempted every bold-led paragraph
+		// from every style check.
+		isList := listMarker.MatchString(first) || strings.HasPrefix(first, "|")
 		if !strings.HasPrefix(first, "#") && !isList {
 			starts = append(starts, curStart)
 			bodies = append(bodies, strings.Join(cur, " "))
+			raw = append(raw, append([]string(nil), cur...))
 		}
 		cur = nil
 	}
@@ -110,10 +102,12 @@ func proseBlocks(lines []string) (starts []int, bodies []string) {
 		cur = append(cur, strings.TrimSpace(line))
 	}
 	flush()
-	return starts, bodies
+	return starts, bodies, raw
 }
 
-var listNumber = regexp.MustCompile(`^\d+[.)]\s`)
+// listMarker matches a real list bullet or blockquote: the marker plus the
+// space that makes it one.
+var listMarker = regexp.MustCompile(`^([-*+>]\s|\d+[.)]\s)`)
 
 // validateStyle reports prose that is too dense to scan.
 func validateStyle(lines []string, style TemplateStyle) []Violation {
@@ -121,7 +115,7 @@ func validateStyle(lines []string, style TemplateStyle) []Violation {
 		return nil
 	}
 	var violations []Violation
-	starts, bodies := proseBlocks(lines)
+	starts, bodies, raw := proseBlocks(lines)
 
 	for i, body := range bodies {
 		line := starts[i]
@@ -132,7 +126,7 @@ func validateStyle(lines []string, style TemplateStyle) []Violation {
 		}
 
 		if style.MaxParagraphWords > 0 {
-			if n := readableWords(body); n > style.MaxParagraphWords {
+			if n := countWords(body); n > style.MaxParagraphWords {
 				violations = append(violations, Violation{
 					Rule:    "long_paragraph",
 					Line:    line,
@@ -143,7 +137,7 @@ func validateStyle(lines []string, style TemplateStyle) []Violation {
 
 		if style.MaxSentenceWords > 0 {
 			for _, s := range splitSentences(body) {
-				n := readableWords(s)
+				n := countWords(s)
 				if n <= style.MaxSentenceWords {
 					continue
 				}
@@ -153,6 +147,46 @@ func validateStyle(lines []string, style TemplateStyle) []Violation {
 					Message: fmt.Sprintf("line %d: %d-word sentence (max %d) starting %q", line, n, style.MaxSentenceWords, opening(s)),
 				})
 			}
+		}
+	}
+	violations = append(violations, validateWrapping(starts, raw)...)
+	return violations
+}
+
+// hardWrapWidth is the shortest line we will call a column wrap. Measured
+// across this repo's docs: every one breaks semantically and has zero prose
+// lines at or above this width ending mid-phrase, while a hard-wrapped doc
+// from another project had 64 of 134. Short lines that simply end without
+// punctuation are therefore not mistaken for wrapping.
+const hardWrapWidth = 64
+
+// validateWrapping reports prose lines broken mid-phrase at a column boundary.
+// A semantic break lands after a sentence or a clause, so it ends in
+// punctuation; a column wrap ends on a word because the width ran out.
+//
+// Line-addressed tooling is the reason this matters: one sentence per line
+// means a comment anchors to a sentence, and an edit touches its own line
+// without reflowing everything below it.
+func validateWrapping(starts []int, raw [][]string) []Violation {
+	var violations []Violation
+	for b, block := range raw {
+		for i, line := range block {
+			if i == len(block)-1 {
+				continue // the block's last line ends the thought
+			}
+			if len([]rune(line)) < hardWrapWidth {
+				continue
+			}
+			last := []rune(line)[len([]rune(line))-1]
+			if !unicode.IsLetter(last) && !unicode.IsDigit(last) {
+				continue // ended on punctuation: a sentence or clause break
+			}
+			violations = append(violations, Violation{
+				Rule: "hard_wrapped_line",
+				Line: starts[b] + i,
+				Message: fmt.Sprintf("line %d: broken mid-phrase at %d characters — break at sentence or clause boundaries, never at column width",
+					starts[b]+i, len([]rune(line))),
+			})
 		}
 	}
 	return violations
