@@ -356,17 +356,34 @@ func (m *Model) calculateDisplayRow(targetLineNum int) int {
 
 	displayRow := 0
 	for i := 0; i < len(lines) && i < targetLineNum; i++ {
-		line := lines[i]
-		// Count how many rows this line takes when wrapped
-		wrappedLines := strings.Split(wordwrap.String(line, availableWidth), "\n")
-		displayRow += len(wrappedLines)
+		displayRow += m.renderedRowCount(lines[i], i+1, availableWidth)
 	}
 
 	return displayRow
 }
 
+// renderedRowCount returns how many display rows one source line occupies,
+// wrapping the same text the renderer wraps. Table rows count at their
+// aligned width (tables.go) — the renderer's one width divergence from
+// source — except when a search highlight renders the row raw. Cursor and
+// range lines also render raw, but they sit at or below the scroll target,
+// never above it, so the count can ignore that exception
+// (TestCalculateDisplayRowMatchesRender pins the parity).
+func (m *Model) renderedRowCount(line string, lineNum, width int) int {
+	if aligned, ok := m.tableCache[lineNum]; ok {
+		q := m.activeSearchQuery()
+		if q == "" || !strings.Contains(strings.ToLower(line), strings.ToLower(q)) {
+			line = aligned
+		}
+	}
+	return len(strings.Split(wordwrap.String(line, width), "\n"))
+}
+
 // scrollToLine adjusts viewport to keep the specified line visible
 func (m *Model) scrollToLine(lineNum int) {
+	if m.doc == nil {
+		return
+	}
 	// Special case: if going to line 1, use GotoTop
 	if lineNum == 1 {
 		m.documentViewport.GotoTop()
@@ -376,6 +393,16 @@ func (m *Model) scrollToLine(lineNum int) {
 	// Calculate the actual display row for this line (accounting for wrapped lines)
 	displayRow := m.calculateDisplayRow(lineNum - 1) // -1 because we want the start of this line
 
+	// The whole line should land on screen, not just its first row — a
+	// wrapped cursor line at the bottom edge used to leave its tail hidden.
+	// Raw text here: the cursor line renders unstyled, so no aligned-table
+	// width applies.
+	lastRow := displayRow
+	if lines := strings.Split(m.doc.Content, "\n"); lineNum-1 < len(lines) {
+		wrapped := strings.Split(wordwrap.String(lines[lineNum-1], m.docWrapWidth()), "\n")
+		lastRow = displayRow + len(wrapped) - 1
+	}
+
 	// Calculate visible range
 	topRow := m.documentViewport.YOffset()
 	bottomRow := topRow + m.documentViewport.Height() - 1
@@ -384,10 +411,12 @@ func (m *Model) scrollToLine(lineNum int) {
 	if displayRow < topRow {
 		// Line is above visible area - scroll up
 		m.documentViewport.SetYOffset(displayRow)
-	} else if displayRow > bottomRow {
-		// Line is below visible area - scroll down
-		// Position it near the bottom of the viewport
-		m.documentViewport.SetYOffset(max(displayRow-m.documentViewport.Height()+5, 0))
+	} else if lastRow > bottomRow {
+		// Line is below visible area - scroll down, positioning it near the
+		// bottom with some look-ahead, but never past its first row (a line
+		// taller than the look-ahead allows keeps its start on screen)
+		offset := max(lastRow-m.documentViewport.Height()+5, 0)
+		m.documentViewport.SetYOffset(min(offset, displayRow))
 	}
 }
 
