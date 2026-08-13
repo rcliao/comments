@@ -37,9 +37,9 @@ func TestStyleSkipsListsHeadingsAndFences(t *testing.T) {
 	}
 }
 
-// Naming the exact symbol should not cost more budget than writing vaguely.
-func TestStyleCountsCodeSpanAsOneToken(t *testing.T) {
-	// Nine plain words plus one long citation: 10 readable tokens, at the cap.
+// Citations must not compete with content for the style budget either — style
+// caps share countWords with every other cap, so the exemption is uniform.
+func TestStyleExemptsCitations(t *testing.T) {
 	content := "# D\n\nThe gate reads state and stops here at `pkg/comment/gate.go:39-71`.\n"
 	if v := ValidateTemplate(content, styleTpl()); len(v) != 0 {
 		t.Errorf("inline code spans must count as one token: %v", styleRules(v))
@@ -61,6 +61,56 @@ func TestStyleOptOut(t *testing.T) {
 	for _, v := range ValidateTemplate(content, &Template{Name: "t"}) {
 		if strings.Contains(v.Rule, "long_") {
 			t.Errorf("unset style caps must not fire: %+v", v)
+		}
+	}
+}
+
+// A column wrap ends on a word because the width ran out; a semantic break
+// ends on punctuation because the thought did.
+func TestStyleFlagsHardWrappedLines(t *testing.T) {
+	tpl := &Template{Name: "t", Doc: TemplateDocRules{Style: TemplateStyle{MaxParagraphWords: 500}}}
+
+	wrapped := "# D\n\nThe review gate reads the recorded thread state and then decides whether\nthe document may proceed to the next phase of the flow.\n"
+	found := false
+	for _, v := range ValidateTemplate(wrapped, tpl) {
+		if v.Rule == "hard_wrapped_line" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("a line broken mid-phrase at column width must be reported")
+	}
+
+	// Same prose, broken after the clause: legal.
+	semantic := "# D\n\nThe review gate reads the recorded thread state,\nand then decides whether the document may proceed to the next phase.\n"
+	for _, v := range ValidateTemplate(semantic, tpl) {
+		if v.Rule == "hard_wrapped_line" {
+			t.Errorf("a clause-boundary break is not a column wrap: %+v", v)
+		}
+	}
+}
+
+// Regression: "**Bold lead-in:**" starts with * but is prose, not a bullet.
+// Matching the bare marker exempted every bold-led paragraph from every style
+// check, which hid real violations for as long as the checks existed.
+func TestStyleChecksBoldLedParagraphs(t *testing.T) {
+	tpl := &Template{Name: "t", Doc: TemplateDocRules{Style: TemplateStyle{MaxParagraphWords: 10}}}
+	content := "# D\n\n**Decision:** " + strings.Repeat("word ", 40) + "\n"
+	found := false
+	for _, v := range ValidateTemplate(content, tpl) {
+		if v.Rule == "long_paragraph" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("a bold-led paragraph is prose and must be checked")
+	}
+
+	// A real bullet still is one.
+	bullet := "# D\n\n- " + strings.Repeat("word ", 40) + "\n"
+	for _, v := range ValidateTemplate(bullet, tpl) {
+		if v.Rule == "long_paragraph" {
+			t.Errorf("a genuine list item must stay exempt: %+v", v)
 		}
 	}
 }

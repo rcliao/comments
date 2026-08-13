@@ -103,6 +103,9 @@ func templateCommand(args []string) error {
 			if st.MaxSentenceWords > 0 {
 				fmt.Printf("  Sentences: at most %d words. Lead with the claim.\n", st.MaxSentenceWords)
 			}
+			fmt.Println("  Line breaks: break at sentence or clause boundaries, never at column")
+			fmt.Println("  width. The tool is line-addressed, so one sentence per line means a")
+			fmt.Println("  comment anchors to a sentence and an edit does not reflow the lines below.")
 		}
 
 		// The marker budget is enforced by validate but was invisible here, so
