@@ -189,7 +189,8 @@ func TestIntegrationResizeReflowsLayout(t *testing.T) {
 	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
 
 	fm := tm.FinalModel(t).(Model)
-	if got := fm.documentViewport.Height(); got != 18 {
-		t.Errorf("resize should reach the viewports (height 20-2=18), got %d", got)
+	if want := 20 - chromeRows; fm.documentViewport.Height() != want {
+		t.Errorf("resize should reach the viewports (height 20-%d=%d), got %d",
+			chromeRows, want, fm.documentViewport.Height())
 	}
 }

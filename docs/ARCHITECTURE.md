@@ -192,6 +192,18 @@ The document remains visible during review:
 - dialogs and reference peeks composite over the live document;
 - only the file picker legitimately owns the full screen.
 
+Screen chrome is three rows: the title bar, the review rail, and the hint bar.
+`chromeRows` in `pkg/tui/model.go` is the single definition; `contentHeight()`
+and `contentTop()` derive every viewport and the thread panel from it.
+
+The review rail states what belongs to the document rather than to any one
+thread: the gate decision, thread counts, and anchor health. It derives from
+`comment.EvaluateGate`, so the rail and the verdict dialog cannot disagree
+about whether the document passes. `comment.DocumentAnchorHealth` counts the
+unresolved threads whose anchors re-located below exact confidence — reported
+once on the rail rather than per thread, where it competed with comment text
+for sidebar columns.
+
 Rendering preserves source-line identity so anchors and the gutter remain
 truthful. Markdown markers are styled in place; fenced code uses Chroma; custom
 DBML and minimal Mermaid lexers live in-repo. ANSI-stripped content is normally

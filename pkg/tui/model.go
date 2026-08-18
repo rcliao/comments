@@ -294,9 +294,9 @@ func (m *Model) handleResize() {
 	m.searchInput.SetWidth(min(max(m.width-24, 30), 50))
 
 	if !m.ready {
-		m.documentViewport = newViewport(docWidth, m.height-2)
-		m.commentViewport = newViewport(panelWidth, m.height-2)
-		m.threadViewport = newViewport(m.width-4, m.height-2)
+		m.documentViewport = newViewport(docWidth, m.contentHeight())
+		m.commentViewport = newViewport(panelWidth, m.contentHeight())
+		m.threadViewport = newViewport(m.width-4, m.contentHeight())
 
 		if m.doc != nil {
 			m.documentViewport.SetContent(m.renderDocument())
@@ -308,11 +308,11 @@ func (m *Model) handleResize() {
 		m.ready = true
 	} else {
 		m.documentViewport.SetWidth(docWidth)
-		m.documentViewport.SetHeight(m.height - 2)
+		m.documentViewport.SetHeight(m.contentHeight())
 		m.commentViewport.SetWidth(panelWidth)
-		m.commentViewport.SetHeight(m.height - 2)
+		m.commentViewport.SetHeight(m.contentHeight())
 		m.threadViewport.SetWidth(m.width - 4)
-		m.threadViewport.SetHeight(m.height - 2)
+		m.threadViewport.SetHeight(m.contentHeight())
 	}
 
 	// An open thread panel re-derives its geometry at the new size
@@ -344,6 +344,27 @@ const (
 	densityCondensed        // one line per thread, counts only
 	densityHidden           // sidebar gone; document takes the full width
 )
+
+// Vertical chrome rows outside the content panes, counted once here because
+// every viewport and the thread panel have to agree on them: the title bar,
+// the review rail, and the hint bar. They were nine separate `m.height-2`
+// literals before the rail existed, which is exactly the kind of duplicated
+// definition that goes stale in this repo.
+const (
+	titleRows  = 1
+	railRows   = 1
+	hintRows   = 1
+	chromeRows = titleRows + railRows + hintRows
+)
+
+// contentHeight is the row budget for the document/sidebar panes and the
+// thread panel — everything between the title bar and the hint bar.
+func (m *Model) contentHeight() int {
+	return max(m.height-chromeRows, 1)
+}
+
+// contentTop is the first content row, i.e. where the thread panel starts.
+func contentTop() int { return titleRows + railRows }
 
 // docPaneWidth returns the document pane width for the current sidebar density
 func (m *Model) docPaneWidth() int {

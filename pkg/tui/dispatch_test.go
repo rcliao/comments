@@ -142,8 +142,12 @@ func TestHandleResizeViewportDimensions(t *testing.T) {
 		if nm.documentViewport.Width() != nm.docPaneWidth() {
 			t.Errorf("%dx%d: document width = %d, want %d", s.w, s.h, nm.documentViewport.Width(), nm.docPaneWidth())
 		}
-		if nm.documentViewport.Height() != s.h-2 {
-			t.Errorf("%dx%d: document height = %d, want %d", s.w, s.h, nm.documentViewport.Height(), s.h-2)
+		// Panes get everything the chrome does not: title, review rail, hint
+		// bar. Asserted through chromeRows so the test cannot drift from the
+		// layout the way nine hard-coded height-2 literals did.
+		wantHeight := max(s.h-chromeRows, 1)
+		if nm.documentViewport.Height() != wantHeight {
+			t.Errorf("%dx%d: document height = %d, want %d", s.w, s.h, nm.documentViewport.Height(), wantHeight)
 		}
 		wantPanel := max(s.w-nm.docPaneWidth()-4, 0)
 		if nm.commentViewport.Width() != wantPanel {
@@ -161,11 +165,12 @@ func TestHandleResizeUpdatesExistingViewports(t *testing.T) {
 	second, _ := first.(Model).Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	nm := second.(Model)
 
-	if nm.documentViewport.Width() != nm.docPaneWidth() || nm.documentViewport.Height() != 18 {
+	wantHeight := 20 - chromeRows
+	if nm.documentViewport.Width() != nm.docPaneWidth() || nm.documentViewport.Height() != wantHeight {
 		t.Errorf("second resize should update dims in place, got %dx%d",
 			nm.documentViewport.Width(), nm.documentViewport.Height())
 	}
-	if nm.threadViewport.Width() != 76 || nm.threadViewport.Height() != 18 {
+	if nm.threadViewport.Width() != 76 || nm.threadViewport.Height() != wantHeight {
 		t.Errorf("thread viewport not resized, got %dx%d", nm.threadViewport.Width(), nm.threadViewport.Height())
 	}
 }

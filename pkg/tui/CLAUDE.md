@@ -37,6 +37,21 @@ An unregistered mode has dead keys and renders "Unknown mode";
 - `rendering.go` — pure render helpers (document, sidebar, thread, markdown spans)
 - `styles.go` / `theme.go` — styleSet construction and theme registry
 
+## Screen chrome and the review rail
+
+Three chrome rows bracket the panes: title bar, review rail, hint bar.
+`chromeRows` (model.go) is their ONE definition — `contentHeight()` sizes every
+viewport and `contentTop()` places the thread panel, so the panel can never
+drift from the viewports beside it. Nine hard-coded `m.height-2` literals is
+what this replaced; do not reintroduce one.
+
+`renderRail` (rail.go) draws document-level facts only: gate decision, counts,
+anchor health. It derives from `comment.EvaluateGate`, so it cannot disagree
+with the verdict dialog. Keep it to ONE row — it is chrome on every review
+screen, and chrome that grows eats the artifact. Anything that varies per
+thread belongs on the thread's row, not here; anything true of the document
+belongs here, not on every row.
+
 ## Dialog composition (popups over the live view)
 
 No dialog erases the document. Every dialog mode (add-comment, resolve,

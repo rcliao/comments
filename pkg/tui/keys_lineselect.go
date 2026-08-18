@@ -28,7 +28,7 @@ func (m Model) handleLineSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = ModeBrowse
 
 		// Reset the viewport to fix any scroll offset issues
-		m.documentViewport = newViewport(m.docPaneWidth(), m.height-2)
+		m.documentViewport = newViewport(m.docPaneWidth(), m.contentHeight())
 		m.documentViewport.SetContent(m.renderDocument())
 		m.documentViewport.SetYOffset(0)
 		return m, nil

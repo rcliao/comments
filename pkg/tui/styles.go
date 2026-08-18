@@ -84,6 +84,10 @@ type styleSet struct {
 	// Blockquote > bars
 	quoteBar lipgloss.Style
 
+	// Review rail: the approved verdict. Changes-requested reuses
+	// blockingMarker — one red for "this blocks you" everywhere.
+	railApproved lipgloss.Style
+
 	// Modal overlay
 	modalOverlay lipgloss.Style
 
@@ -190,6 +194,10 @@ func newStyleSet(t Theme) *styleSet {
 
 		quoteBar: lipgloss.NewStyle().
 			Foreground(t.Quote.Color()).
+			Bold(true),
+
+		railApproved: lipgloss.NewStyle().
+			Foreground(t.Resolved.Color()).
 			Bold(true),
 
 		modalOverlay: lipgloss.NewStyle().

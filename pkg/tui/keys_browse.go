@@ -38,7 +38,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.selectedLine = max(m.selectedLine, 1)
 
 		// Completely reset the viewport to fix scroll offset issues
-		m.documentViewport = newViewport(m.docPaneWidth(), m.height-2)
+		m.documentViewport = newViewport(m.docPaneWidth(), m.contentHeight())
 		m.refreshCursorView()
 		return m, nil
 
@@ -249,6 +249,7 @@ func (m Model) viewBrowse() string {
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		title,
+		m.renderRail(m.width),
 		content,
 		help,
 	)

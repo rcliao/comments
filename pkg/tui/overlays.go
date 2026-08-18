@@ -196,7 +196,7 @@ func (m Model) handleTOCKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		entry := m.tocEntries[m.tocSelected]
 		m.selectedLine = entry.line
 		m.mode = ModeLineSelect
-		m.documentViewport = newViewport(m.docPaneWidth(), m.height-2)
+		m.documentViewport = newViewport(m.docPaneWidth(), m.contentHeight())
 		m.refreshCursorView()
 		return m, nil
 
