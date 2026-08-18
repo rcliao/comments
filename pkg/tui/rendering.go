@@ -677,19 +677,27 @@ func (st *styleSet) renderReplies(b *strings.Builder, replies []*comment.Comment
 // renderComments renders the sidebar grouped by line: the focused line's group
 // auto-expands for glanceable review; other groups collapse to one line per thread
 func (m *Model) renderComments() string {
+	s, _, _ := m.renderCommentsAnchored()
+	return s
+}
+
+// renderCommentsAnchored is renderComments plus the selected thread's rendered
+// row span [selStart, selEnd) — what scrollSidebarToSelected needs to keep the
+// selection visible without re-deriving the sidebar layout.
+func (m *Model) renderCommentsAnchored() (content string, selStart, selEnd int) {
 	if m.doc == nil {
-		return "No comments"
+		return "No comments", 0, 0
 	}
 	if m.sidebarDensity == densityHidden {
-		return ""
+		return "", 0, 0
 	}
 
 	visible := m.visibleComments()
 	if len(visible) == 0 {
 		if m.showResolved {
-			return "No comments"
+			return "No comments", 0, 0
 		}
-		return "No unresolved comments\n\nPress R to show resolved"
+		return "No unresolved comments\n\nPress R to show resolved", 0, 0
 	}
 
 	statusText := "unresolved"
@@ -736,6 +744,9 @@ func (m *Model) renderComments() string {
 
 		for gi, c := range group {
 			idx := groupStart + gi
+			if idx == m.selectedComment {
+				selStart = strings.Count(rendered.String(), "\n")
+			}
 			style := lipgloss.NewStyle()
 			if idx == m.selectedComment {
 				style = m.styles.selectedComment
@@ -765,6 +776,9 @@ func (m *Model) renderComments() string {
 				rendered.WriteString("\n")
 				rootRound := roundNumber(c.Timestamp, m.doc.Reviews)
 				m.styles.renderReplies(&rendered, c.Replies, wrapWidth, 1, m.doc.Reviews, &rootRound)
+				if idx == m.selectedComment {
+					selEnd = strings.Count(rendered.String(), "\n")
+				}
 				continue
 			}
 
@@ -808,11 +822,14 @@ func (m *Model) renderComments() string {
 				rendered.WriteString(m.styles.help.Render(idTail))
 			}
 			rendered.WriteString("\n")
+			if idx == m.selectedComment {
+				selEnd = strings.Count(rendered.String(), "\n")
+			}
 		}
 		rendered.WriteString("\n")
 	}
 
-	return rendered.String()
+	return rendered.String(), selStart, selEnd
 }
 
 // renderThread renders the expanded thread at the full terminal width (the

@@ -222,7 +222,6 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 		m.refsByLine = buildRefMap(doc.Content, filename)
 		m.fenceCache = m.buildFenceCache()
 		m.tableCache = m.buildTableCache()
-		m.tableCache = m.buildTableCache()
 	}
 
 	// Resume the previous review position, if one was persisted

@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -572,6 +574,148 @@ func TestTableRowStyling(t *testing.T) {
 	sep := stripANSI(m.styleDocLine("|---|---|", 4))
 	if !strings.HasPrefix(sep, "|---") || strings.Count(sep, "|") != 3 {
 		t.Errorf("separator should be dashed with aligned pipes: %q", sep)
+	}
+}
+
+// --- Scroll math ↔ render parity --------------------------------------------
+
+// TestCalculateDisplayRowMatchesRender asserts that calculateDisplayRow's idea
+// of where a line starts equals the row where that line actually appears in
+// the rendered document. Any divergence makes scrollToLine/scrollToComment
+// stop following the cursor (live bug: aligned table rows wrap wider than
+// their raw source, so every wide table above the cursor made the scroll math
+// drift up and j walked the cursor below the viewport without a scroll).
+func TestCalculateDisplayRowMatchesRender(t *testing.T) {
+	content := `# Title
+
+Intro paragraph.
+
+| name | description |
+| --- | --- |
+| a | this is a fairly long description cell that pads the block wide |
+| b | x |
+
+A long paragraph that definitely wraps at the forty column document pane width because it keeps going and going and going.
+
+` + "```go\nfunc main() {\n\tfmt.Println(\"tabs and code\")\n}\n```" + `
+
+End.
+`
+	doc := &comment.DocumentWithComments{Content: content}
+	m := NewModelWithFile(doc, filepath.Join(t.TempDir(), "doc.md"))
+	m.width, m.height = 80, 24 // docWrapWidth = 40: aligned table rows wrap, raw ones don't
+	m.handleResize()
+
+	// Map each source line to the rendered row it starts on, by reading the
+	// line-number column back out of the render (first rows carry the number,
+	// continuation rows a blank gutter).
+	rows := strings.Split(stripANSI(m.renderDocument()), "\n")
+	numW := m.lineNumWidth()
+	firstRow := map[int]int{}
+	for i, row := range rows {
+		r := []rune(row)
+		if len(r) < 3+numW {
+			continue
+		}
+		if n, err := strconv.Atoi(strings.TrimSpace(string(r[3 : 3+numW]))); err == nil {
+			if _, seen := firstRow[n]; !seen {
+				firstRow[n] = i
+			}
+		}
+	}
+
+	lineCount := strings.Count(content, "\n") + 1
+	for n := 1; n <= lineCount; n++ {
+		want, ok := firstRow[n]
+		if !ok {
+			t.Fatalf("line %d never appeared in the render", n)
+		}
+		if got := m.calculateDisplayRow(n - 1); got != want {
+			t.Errorf("line %d: calculateDisplayRow=%d, rendered first row=%d", n, got, want)
+		}
+	}
+}
+
+// TestScrollToLineKeepsCursorVisible drives the reported symptom directly:
+// with a wide table above the cursor, scrolling to a line below the fold must
+// bring the whole cursor line into the viewport.
+func TestScrollToLineKeepsCursorVisible(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("| name | description |\n| --- | --- |\n")
+	for i := 0; i < 6; i++ {
+		b.WriteString("| a | this is a fairly long description cell that pads the block wide |\n| b | x |\n")
+	}
+	for i := 0; i < 20; i++ {
+		fmt.Fprintf(&b, "prose line %d\n", i)
+	}
+	content := strings.TrimSuffix(b.String(), "\n")
+
+	doc := &comment.DocumentWithComments{Content: content}
+	m := NewModelWithFile(doc, filepath.Join(t.TempDir(), "doc.md"))
+	m.width, m.height = 80, 20
+	m.handleResize()
+
+	last := strings.Count(content, "\n") + 1
+	m.scrollToLine(last)
+
+	displayRow := m.calculateDisplayRow(last - 1)
+	top := m.documentViewport.YOffset()
+	bottom := top + m.documentViewport.Height() - 1
+	if displayRow < top || displayRow > bottom {
+		t.Errorf("cursor line %d at display row %d not in viewport [%d, %d]", last, displayRow, top, bottom)
+	}
+	// And the render really has that many rows to scroll into (sanity: the
+	// viewport can honor the offset)
+	if rows := len(strings.Split(stripANSI(m.renderDocument()), "\n")); rows <= bottom {
+		t.Fatalf("fixture too short: %d rendered rows, viewport bottom %d", rows, bottom)
+	}
+}
+
+// TestBrowseSidebarFollowsSelection drives the second reported symptom: in
+// browse mode with more threads than the sidebar can show, j must scroll the
+// sidebar so the selected thread stays inside the viewport (it used to
+// re-render without scrolling, walking the highlight off the bottom).
+func TestBrowseSidebarFollowsSelection(t *testing.T) {
+	var content strings.Builder
+	var threads []*comment.Comment
+	for i := 1; i <= 30; i++ {
+		fmt.Fprintf(&content, "line %d\n", i)
+		threads = append(threads, &comment.Comment{
+			ID: fmt.Sprintf("c%d", i), Line: i, Author: "rcliao",
+			Text: fmt.Sprintf("thread %d", i),
+		})
+	}
+	doc := &comment.DocumentWithComments{Content: content.String(), Threads: threads}
+	m := NewModelWithFile(doc, filepath.Join(t.TempDir(), "doc.md"))
+	m.width, m.height = 100, 20 // sidebar viewport height 18 << 30 threads
+	m.handleResize()
+
+	assertVisible := func(step string) {
+		t.Helper()
+		_, selStart, selEnd := m.renderCommentsAnchored()
+		top := m.commentViewport.YOffset()
+		bottom := top + m.commentViewport.Height() - 1
+		if selStart < top || selEnd-1 > bottom {
+			t.Fatalf("%s: selection rows [%d,%d) outside sidebar viewport [%d,%d]",
+				step, selStart, selEnd, top, bottom)
+		}
+	}
+
+	for i := 0; i < len(threads)-1; i++ {
+		next, _ := m.handleBrowseKeys(keyMsg("j"))
+		m = next.(Model)
+		assertVisible(fmt.Sprintf("j #%d (selected %d)", i+1, m.selectedComment))
+	}
+	next, _ := m.handleBrowseKeys(keyMsg("g"))
+	m = next.(Model)
+	assertVisible("g (first)")
+	next, _ = m.handleBrowseKeys(keyMsg("G"))
+	m = next.(Model)
+	assertVisible("G (last)")
+	for i := 0; i < len(threads)-1; i++ {
+		next, _ := m.handleBrowseKeys(keyMsg("k"))
+		m = next.(Model)
+		assertVisible(fmt.Sprintf("k #%d (selected %d)", i+1, m.selectedComment))
 	}
 }
 

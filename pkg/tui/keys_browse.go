@@ -6,6 +6,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
@@ -71,7 +72,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// vim: first thread
 		if len(m.visibleComments()) > 0 {
 			m.selectedComment = 0
-			m.commentViewport.SetContent(m.renderComments())
+			m.scrollSidebarToSelected()
 			m.scrollToComment(m.visibleComments()[0])
 			m.refreshDocumentPane()
 		}
@@ -81,7 +82,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// vim: last thread
 		if vc := m.visibleComments(); len(vc) > 0 {
 			m.selectedComment = len(vc) - 1
-			m.commentViewport.SetContent(m.renderComments())
+			m.scrollSidebarToSelected()
 			m.scrollToComment(vc[m.selectedComment])
 			m.refreshDocumentPane()
 		}
@@ -103,7 +104,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.clampSelectedComment(len(visibleComments))
 		if m.selectedComment < len(visibleComments)-1 {
 			m.selectedComment++
-			m.commentViewport.SetContent(m.renderComments())
+			m.scrollSidebarToSelected()
 			// Scroll document to center the selected comment and move the
 			// focus-line highlight with it (sidebar->doc sync)
 			m.scrollToComment(visibleComments[m.selectedComment])
@@ -116,7 +117,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.clampSelectedComment(len(visibleComments))
 		if m.selectedComment > 0 {
 			m.selectedComment--
-			m.commentViewport.SetContent(m.renderComments())
+			m.scrollSidebarToSelected()
 			// Scroll document to center the selected comment and move the
 			// focus-line highlight with it (sidebar->doc sync)
 			m.scrollToComment(visibleComments[m.selectedComment])
@@ -148,7 +149,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// changed under it.
 		m.sortByPriority = !m.sortByPriority
 		m.selectedComment = 0
-		m.commentViewport.SetContent(m.renderComments())
+		m.scrollSidebarToSelected()
 		return m, nil
 
 	case "R":
@@ -158,7 +159,7 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// selection deep in a mostly-resolved doc, then k)
 		m.showResolved = !m.showResolved
 		m.clampSelectedComment(len(m.visibleComments()))
-		m.commentViewport.SetContent(m.renderComments())
+		m.scrollSidebarToSelected()
 		return m, nil
 	}
 
@@ -173,6 +174,27 @@ func (m *Model) clampSelectedComment(visible int) {
 	}
 	if m.selectedComment < 0 {
 		m.selectedComment = 0
+	}
+}
+
+// scrollSidebarToSelected re-renders the comment sidebar and scrolls just
+// enough to keep the selected thread visible — browse-mode selection moves
+// (j/k/g/G) used to re-render without scrolling, so the highlight walked off
+// the bottom of the sidebar once threads overflowed it. Works at any density
+// (row-based, not ▼-anchored like refreshSidebar's line-select scroll).
+func (m *Model) scrollSidebarToSelected() {
+	content, selStart, selEnd := m.renderCommentsAnchored()
+	m.commentViewport.SetContent(content)
+
+	top := m.commentViewport.YOffset()
+	height := m.commentViewport.Height()
+	maxOffset := max(strings.Count(content, "\n")+1-height, 0)
+	if selStart < top {
+		// One row of context above (the group header when first in group)
+		m.commentViewport.SetYOffset(max(selStart-1, 0))
+	} else if selEnd-1 > top+height-1 {
+		// Bring the block's end into view, but never push its start off
+		m.commentViewport.SetYOffset(min(min(max(selEnd-height, 0), selStart), maxOffset))
 	}
 }
 
