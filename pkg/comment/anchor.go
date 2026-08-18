@@ -183,3 +183,42 @@ func truncate(s string, n int) string {
 	}
 	return s[:n] + "…"
 }
+
+// AnchorHealth counts the unresolved threads whose anchors re-located below
+// exact confidence. It is a property of the DOCUMENT, not of any one thread:
+// a fuzzy anchor says the document moved under the comment, which is the same
+// news however many threads report it.
+//
+// The TUI used to spend row columns on this — " ~fuzzy" and " §section" rode
+// every sidebar row, up to 9 of the 48 columns a row has, competing with the
+// comment text for space it could not spare (see pkg/tui/CLAUDE.md, the row
+// contract). Reported once in the review rail, it costs nothing per thread.
+type AnchorHealth struct {
+	Fuzzy        int // re-found by normalized text search
+	SectionLevel int // only the section could be re-found, not the line
+}
+
+// Total is the number of threads whose anchor needs a human's eye.
+func (h AnchorHealth) Total() int { return h.Fuzzy + h.SectionLevel }
+
+// DocumentAnchorHealth counts degraded anchors across a document's unresolved
+// root threads. Resolved threads are excluded: their anchor no longer decides
+// anything, so re-checking it is work nobody needs done.
+func DocumentAnchorHealth(doc *DocumentWithComments) AnchorHealth {
+	var h AnchorHealth
+	if doc == nil {
+		return h
+	}
+	for _, t := range doc.Threads {
+		if t == nil || t.Resolved {
+			continue
+		}
+		switch t.AnchorConfidence {
+		case ConfidenceFuzzy:
+			h.Fuzzy++
+		case ConfidenceSectionLevel:
+			h.SectionLevel++
+		}
+	}
+	return h
+}

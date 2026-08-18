@@ -653,8 +653,9 @@ func TestPrioritySortWalkthroughOrder(t *testing.T) {
 	}
 }
 
-// Condensed rows are content-first: sigils + emoji + text fill the width,
-// @author · id trail dimmed — no word badges, no doubled type marker.
+// Condensed rows are content-first: an author chip, sigils, emoji and then as
+// much text as the row can hold — no word badges, no doubled type marker, and
+// no spelled-out author. The ID trails dimmed on the selected row only.
 func TestCondensedRowContentFirst(t *testing.T) {
 	m := testModel([]*comment.Comment{{
 		ID: "cma7o", Line: 3, Author: "claude", Priority: "high", Blocking: true,
@@ -663,19 +664,36 @@ func TestCondensedRowContentFirst(t *testing.T) {
 	m.width, m.height = 100, 40
 	m.handleResize()
 	m.sidebarDensity = densityCondensed
+	m.selectedComment = 0
 	out := stripANSI(m.renderComments())
-	for _, want := range []string{"↑", "⛔", "❓ Recording", "cma7o"} {
+	for _, want := range []string{"○", "↑", "⛔", "❓ Recording", "cma7o"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("condensed row missing %q:\n%s", want, out)
 		}
 	}
-	if !strings.Contains(out, "· @claude") {
-		t.Errorf("author should trail dimmed:\n%s", out)
-	}
-	for _, gone := range []string{"[HIGH]", "[BLOCKING]", "❓ [Q]"} {
+	for _, gone := range []string{"[HIGH]", "[BLOCKING]", "❓ [Q]", "@claude"} {
 		if strings.Contains(out, gone) {
 			t.Errorf("condensed row should not contain %q:\n%s", gone, out)
 		}
+	}
+}
+
+// The reclaimed columns have to reach the comment, not just leave the row.
+// At 100 columns the sidebar row is 34 wide; the old layout spent 6 on the ID
+// rail and 9 on " · @claude" before the text started.
+func TestRowBudgetReachesTheComment(t *testing.T) {
+	m := testModel([]*comment.Comment{{
+		ID: "cma7o", Line: 3, Author: "claude",
+		Text: "[Q] Recording your chat veto: mermaid-ER path rejected",
+	}})
+	m.width, m.height = 140, 40
+	m.handleResize()
+	m.sidebarDensity = densityCondensed
+	m.selectedComment = -1 // unselected: no ID tail either
+	out := stripANSI(m.renderComments())
+	// Under the old budget this truncated at "Recording your c…".
+	if !strings.Contains(out, "Recording your chat veto") {
+		t.Errorf("reclaimed columns should reach the comment text:\n%s", out)
 	}
 }
 

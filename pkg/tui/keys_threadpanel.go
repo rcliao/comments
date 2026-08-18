@@ -77,12 +77,13 @@ type panelLayout struct {
 
 // threadPanelLayout computes where the panel sits: the sidebar region (right
 // of the document pane), or the right 40% when the sidebar is hidden. The
-// screen rows are: title (row 0), content (rows 1..height-2), help (row
-// height-1); the panel keeps title and help visible.
+// screen rows are title, review rail, content, hint bar — contentTop and
+// contentHeight own that arithmetic, so the panel cannot drift from the
+// viewports beside it. The panel keeps title, rail and hint visible.
 func (m *Model) threadPanelLayout() panelLayout {
 	w := max(m.width-m.docPaneWidth(), m.width*2/5)
 	w = min(w, m.width)
-	return panelLayout{m.width - w, 1, w, max(m.height-2, 3)}
+	return panelLayout{m.width - w, contentTop(), w, max(m.contentHeight(), 3)}
 }
 
 // composerRows is the vertical space the docked reply composer takes inside

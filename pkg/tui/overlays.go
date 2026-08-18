@@ -39,7 +39,7 @@ func helpGroups() []helpGroup {
 			{"r", "reply / dive into thread at cursor"},
 			{"Tab", "cycle threads stacked on one line"},
 			{"R", "toggle resolved threads in sidebar"},
-			{"P", "walkthrough order: sort sidebar by priority (decisions first)"},
+			{"P", "walkthrough order: sort sidebar blocking first, then priority"},
 			{"x", "resolve thread (in thread view)"},
 		}},
 		{"Compose", [][2]string{
@@ -196,7 +196,7 @@ func (m Model) handleTOCKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		entry := m.tocEntries[m.tocSelected]
 		m.selectedLine = entry.line
 		m.mode = ModeLineSelect
-		m.documentViewport = newViewport(m.docPaneWidth(), m.height-2)
+		m.documentViewport = newViewport(m.docPaneWidth(), m.contentHeight())
 		m.refreshCursorView()
 		return m, nil
 

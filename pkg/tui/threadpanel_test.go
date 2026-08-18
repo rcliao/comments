@@ -577,20 +577,39 @@ func TestResolvedToggleClampsSelection(t *testing.T) {
 }
 
 // Agents refer humans to threads by ID ("answer c7q39") — the ID must be
-// findable in the TUI: panel header and sidebar rows.
-func TestThreadIDVisibleInPanelAndSidebar(t *testing.T) {
+// findable in the TUI. It is on the panel header always, and on the SELECTED
+// sidebar row: you need the ID when you are acting on a thread, not on all
+// forty rows, and a rail on every row cost six of forty-eight columns the
+// comment text could not spare.
+func TestThreadIDVisibleInPanelAndOnSelectedSidebarRow(t *testing.T) {
 	m := openThreadAtLine5(t, panelTestModel(t))
 	if got := frame(m); !strings.Contains(got, "c1 · Thread at") {
 		t.Errorf("panel header should lead with the thread ID:\n%s", got)
 	}
-	// Sidebar rows lead with the ID rail in both densities (dim column —
-	// agents refer humans to threads by ID), author in the tail
-	if got := stripANSI(m.renderComments()); !strings.Contains(got, "c1 ") {
-		t.Errorf("sidebar (full) should lead with the thread ID:\n%s", got)
-	}
 	m.sidebarDensity = densityCondensed
-	if got := stripANSI(m.renderComments()); !strings.Contains(got, "c1") || !strings.Contains(got, "· @rcliao") {
-		t.Errorf("sidebar (condensed) should lead with id and end with author:\n%s", got)
+	m.selectedComment = 0
+	if got := stripANSI(m.renderComments()); !strings.Contains(got, "c1") {
+		t.Errorf("selected sidebar row should carry the thread ID:\n%s", got)
+	}
+	// Unselected rows spend their columns on the comment instead.
+	m.selectedComment = -1
+	if got := stripANSI(m.renderComments()); strings.Contains(got, "c1") {
+		t.Errorf("unselected sidebar rows must not spend columns on the ID:\n%s", got)
+	}
+}
+
+// The author is one bit in a human-and-agent review, so the row spends two
+// cells on a chip rather than ten on " · @name". The name still appears where
+// there is room for it: the expanded thread and the panel.
+func TestSidebarRowUsesAuthorChipNotName(t *testing.T) {
+	m := openThreadAtLine5(t, panelTestModel(t))
+	m.sidebarDensity = densityCondensed
+	got := stripANSI(m.renderComments())
+	if strings.Contains(got, "@rcliao") {
+		t.Errorf("collapsed row should not spell out the author:\n%s", got)
+	}
+	if !strings.Contains(got, "○") && !strings.Contains(got, "●") {
+		t.Errorf("collapsed row should carry an author chip:\n%s", got)
 	}
 }
 

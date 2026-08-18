@@ -84,6 +84,10 @@ type styleSet struct {
 	// Blockquote > bars
 	quoteBar lipgloss.Style
 
+	// Review rail: the approved verdict. Changes-requested reuses
+	// blockingMarker — one red for "this blocks you" everywhere.
+	railApproved lipgloss.Style
+
 	// Modal overlay
 	modalOverlay lipgloss.Style
 
@@ -192,6 +196,10 @@ func newStyleSet(t Theme) *styleSet {
 			Foreground(t.Quote.Color()).
 			Bold(true),
 
+		railApproved: lipgloss.NewStyle().
+			Foreground(t.Resolved.Color()).
+			Bold(true),
+
 		modalOverlay: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(t.Title.Color()).
@@ -202,4 +210,16 @@ func newStyleSet(t Theme) *styleSet {
 		heading3: lipgloss.NewStyle().Bold(true).Foreground(t.Heading3.Color()),
 		heading4: lipgloss.NewStyle().Bold(true).Foreground(t.Heading4.Color()),
 	}
+}
+
+// authorChip renders the two-cell author column: a filled dot for the
+// reviewer at the keyboard, a hollow one for everyone else. Shape carries the
+// distinction and color reinforces it, so the row does not depend on color
+// alone. It replaced a " · @name" tail that cost ten of the row's forty-eight
+// columns to say one bit.
+func (st *styleSet) authorChip(isSelf bool) string {
+	if isSelf {
+		return lipgloss.NewStyle().Foreground(st.theme.Marker.Color()).Render("\u25cf ")
+	}
+	return lipgloss.NewStyle().Foreground(st.theme.GroupHeader.Color()).Render("\u25cb ")
 }

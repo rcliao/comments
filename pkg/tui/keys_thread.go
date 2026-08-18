@@ -43,7 +43,7 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.returnToLineSelect = false
 		m.mode = ModeLineSelect
 		m.selectedLine = max(m.selectedLine, 1)
-		m.documentViewport = newViewport(m.docPaneWidth(), m.height-2)
+		m.documentViewport = newViewport(m.docPaneWidth(), m.contentHeight())
 		m.refreshCursorView()
 		return m, nil
 
