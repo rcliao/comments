@@ -39,7 +39,7 @@ func helpGroups() []helpGroup {
 			{"r", "reply / dive into thread at cursor"},
 			{"Tab", "cycle threads stacked on one line"},
 			{"R", "toggle resolved threads in sidebar"},
-			{"P", "walkthrough order: sort sidebar by priority (decisions first)"},
+			{"P", "walkthrough order: sort sidebar blocking first, then priority"},
 			{"x", "resolve thread (in thread view)"},
 		}},
 		{"Compose", [][2]string{

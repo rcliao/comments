@@ -141,8 +141,9 @@ func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "P":
-		// Walkthrough order: sidebar sorts priority-high first (the agent's
-		// pivotal decisions/asks), back to document order on second press.
+		// Walkthrough order: sidebar sorts what stops you first — blocking
+		// threads, then priority-high (the agent's pivotal decisions/asks) —
+		// and back to document order on second press.
 		// Selection follows the same clamp rule as R: the visible ORDER
 		// changed under it.
 		m.sortByPriority = !m.sortByPriority

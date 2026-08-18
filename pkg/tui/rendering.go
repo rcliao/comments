@@ -565,11 +565,21 @@ func (m *Model) visibleComments() []*comment.Comment {
 	visible := comment.GetVisibleComments(m.doc.Threads, m.showResolved)
 	if m.sortByPriority {
 		// Walkthrough order: the threads ARE the presentation layer of a big
-		// artifact — priority-high decisions and asks first, the doc as
-		// backdrop behind each. Line order within a priority keeps ties
-		// stable and readable.
+		// artifact — what you must deal with first, the doc as backdrop
+		// behind each. Line order within a rank keeps ties stable.
+		//
+		// Blocking outranks priority, because they answer different
+		// questions: priority is someone's opinion about importance, but
+		// blocking is the gate's own verdict. An unprioritized blocking
+		// thread still fails `comments gate`; a high-priority non-blocking
+		// one does not. Ranking them the other way put threads that cannot
+		// stop you above the only ones that can.
 		rank := map[string]int{"high": 0, "medium": 1, "": 1, "low": 2}
+		blocks := func(c *comment.Comment) bool { return c.Blocking && !c.Resolved }
 		sort.SliceStable(visible, func(i, j int) bool {
+			if bi, bj := blocks(visible[i]), blocks(visible[j]); bi != bj {
+				return bi
+			}
 			ri, rj := rank[visible[i].Priority], rank[visible[j].Priority]
 			if ri != rj {
 				return ri < rj

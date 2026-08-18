@@ -574,3 +574,55 @@ func TestTableRowStyling(t *testing.T) {
 		t.Errorf("separator should be dashed with aligned pipes: %q", sep)
 	}
 }
+
+// Walkthrough order (P) ranks blocking above priority: priority is an opinion
+// about importance, blocking is the gate's verdict. An unprioritized blocking
+// thread fails `comments gate`; a high-priority non-blocking one does not.
+func TestWalkthroughOrderRanksBlockingAbovePriority(t *testing.T) {
+	m := testModel([]*comment.Comment{
+		{ID: "hi", Line: 3, Text: "important but not blocking", Priority: "high"},
+		{ID: "bl", Line: 9, Text: "fails the gate", Blocking: true},
+		{ID: "lo", Line: 5, Text: "nit", Priority: "low"},
+	})
+	m.sortByPriority = true
+	got := []string{}
+	for _, c := range m.visibleComments() {
+		got = append(got, c.ID)
+	}
+	want := []string{"bl", "hi", "lo"}
+	if len(got) != len(want) {
+		t.Fatalf("walkthrough order = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("walkthrough order = %v, want %v", got, want)
+		}
+	}
+}
+
+// A resolved thread no longer blocks anything, so it must not be pinned to the
+// top of the walkthrough by a stale Blocking flag.
+func TestWalkthroughOrderIgnoresResolvedBlocking(t *testing.T) {
+	m := testModel([]*comment.Comment{
+		{ID: "done", Line: 3, Text: "was blocking", Blocking: true, Resolved: true},
+		{ID: "hi", Line: 9, Text: "still matters", Priority: "high"},
+	})
+	m.showResolved = true
+	m.sortByPriority = true
+	if got := m.visibleComments(); got[0].ID != "hi" {
+		t.Errorf("resolved blocking thread should not lead the walkthrough, got %s", got[0].ID)
+	}
+}
+
+// The sidebar's default is document order, so it reads top-to-bottom with the
+// document (focus-follows-cursor). Blocking-first is the P mode, not the
+// default — reordering by default would break that pairing.
+func TestDefaultOrderStaysDocumentOrder(t *testing.T) {
+	m := testModel([]*comment.Comment{
+		{ID: "bl", Line: 9, Text: "fails the gate", Blocking: true},
+		{ID: "hi", Line: 3, Text: "important", Priority: "high"},
+	})
+	if got := m.visibleComments(); got[0].ID != "hi" {
+		t.Errorf("default order should be by line, got %s first", got[0].ID)
+	}
+}
