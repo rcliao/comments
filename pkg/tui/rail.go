@@ -79,7 +79,11 @@ func (m Model) renderRail(width int) string {
 	// Anchor health rides the rail instead of every sidebar row. It appears
 	// only when there is something to act on — a clean document says nothing.
 	if n := st.anchors.Total(); n > 0 {
-		counts = append(counts, s.newBadge.Render(fmt.Sprintf("%d anchor%s need re-check", n, plural(n))))
+		phrase := fmt.Sprintf("%d anchors need re-check", n)
+		if n == 1 {
+			phrase = "1 anchor needs re-check"
+		}
+		counts = append(counts, s.newBadge.Render(phrase))
 	}
 
 	left := " " + verdict + s.help.Render("   "+strings.Join(counts, s.help.Render(" · ")))

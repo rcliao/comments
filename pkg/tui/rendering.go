@@ -616,12 +616,11 @@ func threadMarkers(c *comment.Comment) string {
 			markers += " 📝✗"
 		}
 	}
-	switch c.AnchorConfidence {
-	case comment.ConfidenceFuzzy:
-		markers += " ~fuzzy"
-	case comment.ConfidenceSectionLevel:
-		markers += " §section"
-	}
+	// Anchor confidence deliberately does NOT appear here. " ~fuzzy" and
+	// " §section" cost up to 9 of a row's 48 columns to repeat one piece of
+	// DOCUMENT news on every affected thread; the review rail states it once
+	// (comment.DocumentAnchorHealth). Per-thread sigils are for what varies
+	// per thread.
 	return markers
 }
 
@@ -759,19 +758,45 @@ func (m *Model) renderComments() string {
 				continue
 			}
 
-			// ID rail first (dim, fixed-ish width — agents refer humans to
-			// threads by ID, so the eye needs a column to scan), then sigils
-			// + type emoji + as much text as fits, author alone in the dim
-			// tail. Dimming keeps content dominant; position keeps the ID
-			// findable (live review, round 2).
-			meta := fmt.Sprintf(" · @%s", c.Author)
-			idRail := fmt.Sprintf("%-5s ", c.ID)
-			lead := fmt.Sprintf("%s%s%s ", resolvedMark, strings.TrimLeft(threadMarkers(c), " "), newBadge)
-			textW := max(m.sidebarWrapWidth()-lipgloss.Width(meta)-lipgloss.Width(lead)-lipgloss.Width(idRail), 12)
+			// The row is 48 columns at a 140-column terminal, and the
+			// previous layout spent 24 of them — a 6-column ID rail, the
+			// sigils, and a 10-column " · @author" tail — before the comment
+			// text got any, flooring it at 12 characters. This reverses the
+			// round-2 live-review decision that put the ID rail on every row:
+			//
+			//   author  → a 2-cell chip (● you / ○ other), because in a
+			//             human-and-agent review the name is one bit; the
+			//             expanded thread and the panel still spell it out.
+			//   ID      → the SELECTED row only, dim, in the tail. Agents
+			//             refer humans to threads by ID, but you need it when
+			//             you are acting on a thread, not on all forty rows.
+			//
+			// Type keeps the emoji AND the text color it already had; those
+			// are the two channels the content itself gets.
+			chip := m.styles.authorChip(c.Author == m.author)
+			// Join only the parts that exist: a thread with no sigils used to
+			// render "○  NEW" with the gap where its markers would have been.
+			var leadParts []string
+			for _, part := range []string{strings.TrimSpace(resolvedMark), strings.TrimSpace(threadMarkers(c)), strings.TrimSpace(newBadge)} {
+				if part != "" {
+					leadParts = append(leadParts, part)
+				}
+			}
+			lead := ""
+			if len(leadParts) > 0 {
+				lead = strings.Join(leadParts, " ") + " "
+			}
+			idTail := ""
+			if idx == m.selectedComment {
+				idTail = " " + c.ID
+			}
+			textW := max(m.sidebarWrapWidth()-lipgloss.Width(chip)-lipgloss.Width(lead)-lipgloss.Width(idTail), 12)
 			summary := truncate(comment.DecorateTypeCompact(c.Text), textW, "…")
-			rendered.WriteString(m.styles.help.Render(idRail))
+			rendered.WriteString(chip)
 			rendered.WriteString(style.Render(lead + summary))
-			rendered.WriteString(m.styles.help.Render(meta))
+			if idTail != "" {
+				rendered.WriteString(m.styles.help.Render(idTail))
+			}
 			rendered.WriteString("\n")
 		}
 		rendered.WriteString("\n")

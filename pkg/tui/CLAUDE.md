@@ -52,6 +52,27 @@ screen, and chrome that grows eats the artifact. Anything that varies per
 thread belongs on the thread's row, not here; anything true of the document
 belongs here, not on every row.
 
+## The sidebar row contract
+
+The row is 48 columns at a 140-column terminal (`sidebarWrapWidth`), and the
+text is what is left after the metadata takes its cut. Three things were moved
+off it because they were spending that budget badly:
+
+- **anchor confidence** (`~fuzzy`, `§section`, up to 9 columns) — document
+  news, not thread news. The rail states it once.
+- **author** (`· @name`, 10 columns) — one bit in a human-and-agent review, so
+  it is a two-cell chip (`authorChip`: ● you / ○ other, shape first so the row
+  never depends on color alone). The name still appears in the expanded thread
+  and the panel.
+- **the ID rail** (6 columns on every row) — this reverses the round-2
+  live-review decision. Agents refer humans to threads by ID, but you need it
+  when you are ACTING on a thread, so it trails dimmed on the SELECTED row
+  only.
+
+Type keeps both the emoji and the text color; those are the content's own two
+channels. Before adding anything to a row, check it varies per thread — if it
+is true of the document, it belongs on the rail.
+
 ## Dialog composition (popups over the live view)
 
 No dialog erases the document. Every dialog mode (add-comment, resolve,

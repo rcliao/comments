@@ -109,7 +109,10 @@ func TestSidebarFocusFollowsCursor(t *testing.T) {
 	}
 }
 
-func TestSidebarShowsBlockingAndConfidenceMarkers(t *testing.T) {
+// Blocking is per-thread, so it stays on the row. Anchor confidence is per
+// DOCUMENT — it moved to the review rail, which states it once instead of
+// spending row columns to repeat it on every affected thread.
+func TestSidebarShowsBlockingButNotAnchorConfidence(t *testing.T) {
 	m := testModel([]*comment.Comment{
 		{ID: "c1", Line: 5, Text: "must fix", Blocking: true, AnchorConfidence: comment.ConfidenceFuzzy},
 	})
@@ -117,8 +120,13 @@ func TestSidebarShowsBlockingAndConfidenceMarkers(t *testing.T) {
 	if !strings.Contains(out, "⛔") {
 		t.Error("blocking thread marker missing from sidebar")
 	}
-	if !strings.Contains(out, "~fuzzy") {
-		t.Error("fuzzy anchor-confidence marker missing from sidebar")
+	for _, gone := range []string{"~fuzzy", "§section"} {
+		if strings.Contains(out, gone) {
+			t.Errorf("%q must not ride the sidebar row — the rail reports anchor health", gone)
+		}
+	}
+	if rail := termEscapes.ReplaceAllString(m.renderRail(140), ""); !strings.Contains(rail, "1 anchor needs re-check") {
+		t.Errorf("rail should carry the anchor health the row gave up, got %q", rail)
 	}
 }
 
