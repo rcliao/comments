@@ -216,10 +216,18 @@ committed.
 ## CLI and MCP surfaces
 
 The CLI router is `cmd/comments/main.go`; `comments help` is its current command
-catalog. The MCP server registers 20 tools and two resources from
+catalog. The MCP server registers 21 tools and two resources from
 `pkg/mcp/server.go`. It covers thread reads/writes, batch operations,
-suggestions, templates, gate/review coordination, inbox/status, and explicit
-re-anchoring.
+suggestions, templates, gate/review coordination, inbox/status, deterministic
+artifact analysis, and explicit re-anchoring.
+
+`comment.ValidateDocument` is the single path-aware template entry point.
+CLI validate/gate and MCP validate/gate all call it, so citation resolution and
+structural rule ordering cannot differ by surface. `comments analyze` /
+`comments_analyze` adds an advisory manifest: declared question-to-finding
+coverage plus research findings cited, explicitly excluded, or uncovered by a
+plan. Its `ready` field never changes gate state; semantic claim judgment stays
+in review threads.
 
 The MCP document and thread resources are read views. Long waits use
 `comments_request_review`; durable non-blocking waits return a timestamp handle

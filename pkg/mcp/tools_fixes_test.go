@@ -3,9 +3,97 @@ package mcp
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
+
+	"github.com/rcliao/comments/pkg/comment"
 	"testing"
 )
+
+func writeValidationParityFixture(t *testing.T) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	templateDir := filepath.Join(dir, ".comments", "templates")
+	if err := os.MkdirAll(templateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	template := `template: parity
+version: 1
+doc:
+  check_citations: true
+sections:
+  - heading: Research Question
+    required: true
+    enumerates_questions: true
+  - heading: Summary
+    required: true
+  - heading: Findings
+    required: true
+    answers_questions: true
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION:"
+  max: 1
+`
+	if err := os.WriteFile(filepath.Join(templateDir, "parity.yaml"), []byte(template), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc := filepath.Join(dir, "research.md")
+	content := "# R\n\n## Research Question\n\nQ1. Covered?\nQ2. Missing?\n\n## Findings\n\n### F1 [Q1]\n\nSee pkg/nope.go:9.\n\n[NEEDS CLARIFICATION: one]\n[NEEDS CLARIFICATION: two]\n"
+	if err := os.WriteFile(doc, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return doc, content
+}
+
+func TestValidateAndGateUseSamePathAwareRulesOverMCP(t *testing.T) {
+	session := startTestSession(t)
+	doc, _ := writeValidationParityFixture(t)
+	validated := callTool(t, session, "comments_validate", map[string]any{"filepath": doc, "template": "parity"})
+	var got []string
+	for _, raw := range validated["violations"].([]any) {
+		got = append(got, raw.(map[string]any)["rule"].(string))
+	}
+	want := []string{"missing_section", "uncovered_question", "unresolved_marker", "unresolved_marker", "too_many_markers", "unresolvable_citation"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("MCP validation rules/order = %v, want %v", got, want)
+	}
+
+	callTool(t, session, "comments_seed", map[string]any{"filepath": doc, "template": "parity", "markers_only": true})
+	gate := callTool(t, session, "comments_gate", map[string]any{"filepath": doc})
+	files := gate["files"].([]any)
+	violations := files[0].(map[string]any)["violations"].([]any)
+	if len(violations) != len(want) || gate["decision"] != comment.DecisionChangesRequested {
+		t.Fatalf("MCP gate skipped recorded-template validation: %v", gate)
+	}
+}
+
+func TestAnalyzeMCPReturnsCoverageManifest(t *testing.T) {
+	session := startTestSession(t)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	research := filepath.Join(dir, "research.md")
+	researchBody := "# R\n\n## Research Question\n\nQ1. What?\n\n## Findings\n\n### F1 — answer [Q1]\n\nFact.\n"
+	if err := os.WriteFile(research, []byte(researchBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	plan := filepath.Join(dir, "plan.md")
+	if err := os.WriteFile(plan, []byte("# P\n\n## Current State\n\nUse research.md:9.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := callTool(t, session, "comments_analyze", map[string]any{"filepath": plan, "against": research})
+	coverage := got["coverage"].([]any)
+	if len(coverage) != 1 || coverage[0].(map[string]any)["status"] != "cited" {
+		t.Fatalf("unexpected analyze payload: %v", got)
+	}
+	if got["ready"] != false || got["structure_unchecked"] != true {
+		t.Fatalf("untemplated artifact must expose structure_unchecked: %v", got)
+	}
+}
 
 // TestListSectionFilterTreeInclusive pins the comments_list section-filter
 // semantics: an exact section path matches the section and all its descendant

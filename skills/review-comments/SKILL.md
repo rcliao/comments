@@ -300,6 +300,42 @@ interview, run question → research → plan WITHOUT a mid-chain human gate:
   carried questions lead the walkthrough). Research needs no signoff of its
   own; the human may `q → a` it in the same sitting if they read it.
 
+### Autonomous research convergence (before drafting the plan)
+
+Research must survive two INDEPENDENT, fresh-context roles; a generic review
+pass is not a substitute. If subagents are unavailable, use separate fresh
+sessions with the same allowlists.
+
+1. **Coverage scout — source-derived, draft-blind.** Give it ONLY the research
+   question, repository access, and resolved coverage-rejection threads from
+   earlier passes — NEVER the draft. It proposes missing questions, each with
+   an expected answer and file:line evidence. Post each candidate as a
+   `coverage-scout` thread.
+2. **Evidence verifier — draft-derived.** Give it ONLY the research draft, its
+   thread history, template criteria, and the files its citations name. It
+   checks each material claim for support, contradiction, and overstatement;
+   findings that would mislead the plan are blocking `evidence-verifier`
+   threads.
+3. **Reconcile one candidate at a time.** Accept a real coverage gap by adding
+   the next `Qn` to Research Question, investigating it, and tagging its
+   finding(s). Reject a duplicate or irrelevant candidate by replying with the
+   evidence and resolving it; this is the negative-coverage memory. Fix or
+   rebut verifier threads through the normal review loop.
+4. **Converge, don't merely finish a pass.** Repeat both roles until
+   `comments analyze <research.md> --json` reports `ready: true`, the latest
+   scout pass adds no accepted question, and no blocking verifier thread
+   remains. Record a resolved round-summary thread even on a clean pass so the
+   no-new-question result is visible rather than inferred from silence.
+5. **Bound exhaustion visibly.** Until the paired eval sets a measured cap,
+   stop after 3 semantic passes. Carry survivors as priority-high PLAN threads;
+   if any survivor changes scope or direction, pause before planning under the
+   existing pause-on-shape rule.
+6. **Prove the handoff.** Before human review, run
+   `comments analyze <plan.md> --against <research.md> --json`. Cite every
+   uncovered finding in the plan or explicitly fence it out with rationale.
+   `ready: true` is required to request review, but remains advisory tool state;
+   only the human plan signoff authorizes implementation.
+
 The two-gate flow below remains for when the human ASKS to review research
 (learning a domain, high-stakes direction) — say "gate the research" to get
 it.

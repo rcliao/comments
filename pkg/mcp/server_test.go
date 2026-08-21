@@ -91,6 +91,7 @@ func TestServerRegistersAllTools(t *testing.T) {
 	}
 	expected := []string{
 		"comments_list", "comments_get", "comments_status", "comments_add",
+		"comments_analyze",
 		"comments_reply", "comments_resolve", "comments_suggest", "comments_accept",
 		"comments_batch_accept",
 		"comments_reject", "comments_batch_add", "comments_batch_reply",

@@ -57,6 +57,20 @@ Nor is word:12 or https://example.com/a.md:1 a local citation.
 	}
 }
 
+func TestParseReferenceRange(t *testing.T) {
+	content := "Research spans notes.md:12-27 here.\n"
+	refs := ParseReferences(content)
+	if len(refs) != 1 {
+		t.Fatalf("want one range reference, got %+v", refs)
+	}
+	if refs[0].Line != 12 || refs[0].EndLine != 27 || refs[0].Raw != "notes.md:12-27" {
+		t.Fatalf("range bounds were not preserved: %+v", refs[0])
+	}
+	if got := content[refs[0].StartCol:refs[0].EndCol]; got != refs[0].Raw {
+		t.Fatalf("range span = %q, want %q", got, refs[0].Raw)
+	}
+}
+
 // posOf converts (line, col) to a content offset for span verification
 func posOf(t *testing.T, content string, line, col int) int {
 	t.Helper()

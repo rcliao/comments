@@ -48,6 +48,10 @@ fi
 step "review-flow smoke test"
 ./scripts/smoke-test.sh
 
+step "autonomous research contract"
+./scripts/eval/check-autonomous-contract.sh
+python3 -m unittest discover -s scripts/eval/autonomous-research -p 'test_*.py'
+
 printf '\n\033[1mAll CI gates passed.\033[0m\n'
 
 # A hook that was never wired up is indistinguishable from a hook that passed,

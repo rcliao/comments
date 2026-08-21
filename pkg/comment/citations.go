@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
+
+	"github.com/rcliao/comments/pkg/markdown"
 )
 
 // Citation checking answers the question the review criteria ask but nothing
@@ -21,10 +21,6 @@ import (
 //
 // This needs the filesystem, so it is deliberately separate from
 // ValidateTemplate, which stays a pure content check.
-
-// citationRef matches "path/to/file.go:12" and "file.go:12-34". The extension
-// list keeps version strings and prose out of the match.
-var citationRef = regexp.MustCompile(`([A-Za-z0-9_./-]+\.(?:go|md|ya?ml|json|ts|tsx|js|py|sh)):(\d+)(?:-(\d+))?`)
 
 // FindRepoRoot walks up from startDir looking for a repository marker, so
 // citations resolve the way a reader would read them: relative to the project.
@@ -95,67 +91,60 @@ func ValidateCitations(content, docPath string) []Violation {
 
 	var violations []Violation
 	var index map[string][]string // built lazily; only bare basenames need it
-	inFence := false
-
-	for i, line := range strings.Split(content, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "```") {
-			inFence = !inFence
+	for _, ref := range markdown.ParseReferences(content) {
+		if ref.Line == 0 || ref.ThreadID != "" {
 			continue
 		}
-		if inFence {
-			continue
+
+		var candidates []string
+		if strings.Contains(ref.Path, string(filepath.Separator)) {
+			if abs, ok := markdown.ResolveReference(filepath.Dir(docPath), ref.Path); ok {
+				candidates = []string{abs}
+			}
+		} else {
+			if index == nil {
+				index = basenameIndex(root)
+			}
+			candidates = index[ref.Path]
 		}
-		for _, m := range citationRef.FindAllStringSubmatch(line, -1) {
-			ref, path := m[0], m[1]
-			start, _ := strconv.Atoi(m[2])
-			last := start
-			if m[3] != "" {
-				last, _ = strconv.Atoi(m[3])
-			}
 
-			var candidates []string
-			if strings.Contains(path, string(filepath.Separator)) {
-				if abs := filepath.Join(root, path); fileExists(abs) {
-					candidates = []string{abs}
-				}
-			} else {
-				if index == nil {
-					index = basenameIndex(root)
-				}
-				candidates = index[path]
+		switch {
+		case len(candidates) == 0:
+			violations = append(violations, Violation{
+				Rule:    "unresolvable_citation",
+				Line:    ref.LineNum,
+				Message: fmt.Sprintf("line %d: %s — no such file in the repository", ref.LineNum, ref.Raw),
+			})
+		case len(candidates) > 1:
+			violations = append(violations, Violation{
+				Rule: "ambiguous_citation",
+				Line: ref.LineNum,
+				Message: fmt.Sprintf("line %d: %s matches %d files (%s) — cite the path from the repo root so a reviewer can peek it",
+					ref.LineNum, ref.Raw, len(candidates), shortList(root, candidates)),
+			})
+		default:
+			last := ref.EndLine
+			if last == 0 {
+				last = ref.Line
 			}
-
-			switch {
-			case len(candidates) == 0:
+			if last < ref.Line {
 				violations = append(violations, Violation{
 					Rule:    "unresolvable_citation",
-					Line:    i + 1,
-					Message: fmt.Sprintf("line %d: %s — no such file in the repository", i+1, ref),
+					Line:    ref.LineNum,
+					Message: fmt.Sprintf("line %d: %s has a reversed line range", ref.LineNum, ref.Raw),
 				})
-			case len(candidates) > 1:
+				continue
+			}
+			if n := countLines(candidates[0]); n >= 0 && (ref.Line < 1 || last > n) {
 				violations = append(violations, Violation{
-					Rule: "ambiguous_citation",
-					Line: i + 1,
-					Message: fmt.Sprintf("line %d: %s matches %d files (%s) — cite the path from the repo root so a reviewer can peek it",
-						i+1, ref, len(candidates), shortList(root, candidates)),
+					Rule:    "unresolvable_citation",
+					Line:    ref.LineNum,
+					Message: fmt.Sprintf("line %d: %s points past the end of the file (%d lines)", ref.LineNum, ref.Raw, n),
 				})
-			default:
-				if n := countLines(candidates[0]); n >= 0 && (start < 1 || last > n) {
-					violations = append(violations, Violation{
-						Rule:    "unresolvable_citation",
-						Line:    i + 1,
-						Message: fmt.Sprintf("line %d: %s points past the end of the file (%d lines)", i+1, ref, n),
-					})
-				}
 			}
 		}
 	}
 	return violations
-}
-
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
 }
 
 // shortList renders candidate paths relative to the root, capped so the message

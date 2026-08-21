@@ -168,6 +168,25 @@ fact
 	}
 }
 
+func TestQuestionCoverageSeparateClaimsPerFinding(t *testing.T) {
+	content := `# Doc
+
+## Research Question
+
+Q1. First?
+Q2. Second?
+
+## Findings
+
+### One finding covering both [Q1] [Q2]
+
+fact
+`
+	if v := ValidateTemplate(content, coverageTemplate()); len(v) != 0 {
+		t.Errorf("separate tags should claim both sub-questions, got %v", rules(v))
+	}
+}
+
 // Templates that do not opt in must be completely unaffected.
 func TestQuestionCoverageOptOut(t *testing.T) {
 	tpl := &Template{

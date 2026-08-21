@@ -115,7 +115,7 @@ The gate turns review state into a machine-readable contract for agent loops and
 
 ### Model Context Protocol (MCP) Integration
 
-`./comments serve-mcp` runs an MCP server over stdio: 2 subscribable resources (`comments://doc/{filepath}`, `comments://thread/{filepath}/{thread_id}`) and 20 tools mirroring the CLI (list/get/status, add/reply/resolve, suggest/accept/reject, batch ops, gate/request_review/check_review, inbox, template get/validate/seed, reanchor). The tool catalog with schemas lives in `pkg/mcp/server.go`. Notable semantics:
+`./comments serve-mcp` runs an MCP server over stdio: 2 subscribable resources (`comments://doc/{filepath}`, `comments://thread/{filepath}/{thread_id}`) and 21 tools mirroring the CLI (list/get/status/analyze, add/reply/resolve, suggest/accept/reject, batch ops, gate/request_review/check_review, inbox, template get/validate/seed, reanchor). The tool catalog with schemas lives in `pkg/mcp/server.go`. Notable semantics:
 
 - **comments_request_review** — default blocks until a human signoff, then returns the decision + remaining comments. With `blocking: false` returns `{status: "requested", since: <RFC3339>}` — a durable handle polled via **comments_check_review** (survives agent restarts).
 - **comments_inbox** — one-call attention view: unresolved threads with replies newer than `since`, plus all unresolved blocking threads.
@@ -138,7 +138,7 @@ Comments can target a markdown section instead of a line: `--section "Implementa
 
 ## RPI Flow (Research → Plan → Implement)
 
-For feature-sized work the AUTONOMOUS CHAIN is the default: interview once, then question → research (`research-deep`, agent-gated via fresh reviewer, no human signoff) → plan (two-lens review, extra teeth) → ONE human sitting on the plan with research as peekable backdrop; surviving human questions carry as high threads on the plan; shape-changing questions pause the chain. Say "gate the research" for the two-gate flow: agent drafts research under the `research` template (findings with file:line evidence; open questions live there) → human signs off → agent drafts the plan under the `plan` template, citing the research by `file:line` → human reviews the plan in the TUI, peeking citations with `f` → gate green → implement phase by phase. Plans carry no open questions (marker cap 1) and split every phase's success criteria into automated vs manual. See `skills/review-comments/SKILL.md` (RPI mode).
+For feature-sized work the AUTONOMOUS CHAIN is the default: interview once, then question → research (`research-deep`) → draft-blind coverage scout + evidence verifier until convergence → plan → `comments analyze plan --against research` → ONE human sitting on the plan. Accepted coverage gaps become new `Qn` questions; rejected candidates remain resolved rationale threads; shape-changing survivors pause the chain. The paired eval under `scripts/eval/autonomous-research/` measures the provisional pass cap before dogfood. Say "gate the research" for the two-gate flow. Plans carry no open questions, cite or explicitly exclude every research finding, and split success criteria into automated/manual. See `skills/review-comments/SKILL.md`.
 
 ## Recommended Review Flow (the tool's core loop)
 

@@ -59,3 +59,11 @@ session (writers and judges as subagents, prompts recorded in the session).
 To extend: add a fixture + golden list under `fixtures/`, keep two runs per
 condition, always include a mangle category in judging, and append a new
 top-level key to the current log file (or start a new dated one).
+
+## Autonomous research convergence
+
+[`autonomous-research/`](autonomous-research/) contains the fixed three-case,
+baseline-versus-treatment protocol for the research convergence loop.
+Its scorer checks the predeclared coverage, faithfulness, executability, and
+review-burden promotion rules; actual artifact judgments remain blinded agent
+and human work rather than regex scores.

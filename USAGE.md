@@ -26,7 +26,7 @@ after submitting a TUI verdict; `signoff` is the non-interactive alternative.
 | Write threads | `add`, `batch-add`, `reply`, `batch-reply`, `resolve` |
 | Suggestions | `suggest`, `accept`, `batch-accept`, `reject` |
 | Review coordination | `gate`, `signoff`, `check-review`, `watch` |
-| Templates | `template list`, `template show`, `validate`, `seed` |
+| Templates and artifact analysis | `template list`, `template show`, `validate`, `seed`, `analyze` |
 | Anchor maintenance | `reanchor` |
 | Diagnostics and integration | `doctor`, `serve-mcp` |
 
@@ -154,6 +154,7 @@ comments template show design-doc
 comments validate draft.md --template design-doc
 comments seed draft.md --template design-doc --markers-only
 comments gate draft.md --json
+comments analyze plan.md --against research.md --json
 ```
 
 Templates define required sections, ordering, word caps, minimum alternatives,
@@ -172,6 +173,27 @@ Gate results:
 The normal gate fails on unresolved blocking threads and template violations.
 `--strict` also fails on any unresolved thread or pending suggestion. A gate on
 a directory scans markdown files that have sidecars.
+
+### Research and plan analysis
+
+`analyze` is the deterministic input to an agent research loop, not a semantic
+judge and not a second gate:
+
+```bash
+comments analyze research.md --json
+comments analyze plan.md --against research.md --json
+```
+
+For research it returns the numbered questions, finding headings, their `Qn`
+mapping, and citation violations even when clean. With `--against`, every
+research finding is classified `cited`, `excluded` (a citation under an
+explicit non-goal section), or `uncovered`. Citation ranges may cover several
+findings; comment trails inside fenced schema examples remain evidence.
+
+`ready: false` always exits 0 because analysis is advisory. Agents fix or
+explain its findings through threads; only `gate` and human plan signoff
+authorize implementation. CLI `validate`, MCP `comments_validate`, and both
+gate surfaces share the same path-aware template and citation validator.
 
 ## Signoff and waiting
 

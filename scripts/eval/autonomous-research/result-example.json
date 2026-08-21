@@ -1,0 +1,40 @@
+{
+  "eval": "autonomous-research-convergence",
+  "date": "YYYY-MM-DD",
+  "model": "pin exact model and reasoning setting",
+  "revision": "git revision",
+  "cases": [
+    {
+      "id": "gate-contract",
+      "runs": [
+        {
+          "variant": "baseline",
+          "research": "path/to/blinded-research-A.md",
+          "plan": "path/to/blinded-plan-A.md",
+          "metrics": {
+            "source_question_coverage": {"covered": 0, "total": 4},
+            "unsupported_claims": 0,
+            "plan_research_coverage": {"covered": 0, "total": 0},
+            "execution_questions": 0,
+            "human_open_threads": 0,
+            "semantic_passes": 0
+          }
+        },
+        {
+          "variant": "treatment",
+          "research": "path/to/blinded-research-B.md",
+          "plan": "path/to/blinded-plan-B.md",
+          "metrics": {
+            "source_question_coverage": {"covered": 0, "total": 4},
+            "unsupported_claims": 0,
+            "plan_research_coverage": {"covered": 0, "total": 0},
+            "execution_questions": 0,
+            "human_open_threads": 0,
+            "semantic_passes": 0
+          }
+        }
+      ],
+      "blind_human_preference": "unscored"
+    }
+  ]
+}

@@ -16,6 +16,7 @@ type Reference struct {
 	Raw      string // exact token as it appears in the line
 	Path     string // path as written (unresolved; "" for same-doc thread refs)
 	Line     int    // cited line number (0 = none)
+	EndLine  int    // cited range end; equals Line for a single-line citation
 	Heading  string // cited #heading anchor (markdown links only, "" = none)
 	ThreadID string // cited comment thread (thread:c1abc form, "" = none)
 	LineNum  int    // 1-based document line the reference appears on
@@ -32,7 +33,7 @@ var mdLinkRe = regexp.MustCompile(`(^|[^!])\[[^\]]+\]\(([^)\s]+)\)`)
 // A backtick counts as a leading boundary: `file.go:12` (code-span-wrapped
 // citations are the common style in agent-written docs, and were silently
 // unpeekable before). Range citations (file.go:11-44) parse as their start.
-var fileLineRe = regexp.MustCompile("(?:^|[\\s(`])((?:[\\w.\\-~]+/)*[\\w.\\-]+\\.[A-Za-z][A-Za-z0-9]{0,9}):(\\d{1,6})\\b")
+var fileLineRe = regexp.MustCompile("(?:^|[\\s(`])((?:[\\w.\\-~]+/)*[\\w.\\-]+\\.[A-Za-z][A-Za-z0-9]{0,9}):(\\d{1,6})(?:-(\\d{1,6}))?\\b")
 
 // threadRefRe matches thread citations (docs/plan-compounding-rpi.md Phase 1,
 // syntax decided in review thread cmvlt): thread:c1abc cites a thread in this
@@ -158,13 +159,22 @@ func parseLineReferences(line string, lineNum int) []Reference {
 		if err != nil || n == 0 {
 			continue
 		}
+		endLine := n
+		tokenEnd := lineEnd
+		if m[6] >= 0 {
+			if parsed, err := strconv.Atoi(line[m[6]:m[7]]); err == nil && parsed > 0 {
+				endLine = parsed
+				tokenEnd = m[7]
+			}
+		}
 		refs = append(refs, Reference{
-			Raw:      line[pathStart:lineEnd],
+			Raw:      line[pathStart:tokenEnd],
 			Path:     line[pathStart:pathEnd],
 			Line:     n,
+			EndLine:  endLine,
 			LineNum:  lineNum,
 			StartCol: pathStart,
-			EndCol:   lineEnd,
+			EndCol:   tokenEnd,
 		})
 	}
 	return refs
