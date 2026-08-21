@@ -38,6 +38,7 @@ func dispatch(args []string) error {
 		"accept":       "Usage: comments accept <file> [flags]",
 		"reject":       "Usage: comments reject <file> [flags]",
 		"validate":     "Usage: comments validate <file> --template <name>",
+		"analyze":      "Usage: comments analyze <file> [--against <research.md>] [--json]",
 		"seed":         "Usage: comments seed <file> --template <name>",
 		"gate":         "Usage: comments gate <file-or-dir> [flags]",
 		"signoff":      "Usage: comments signoff <file> [flags]",
@@ -80,6 +81,8 @@ func dispatch(args []string) error {
 		return templateCommand(args[1:])
 	case "validate":
 		return validateCommand(args[1], args[2:])
+	case "analyze":
+		return analyzeCommand(args[1], args[2:])
 	case "seed":
 		return seedCommand(args[1], args[2:])
 	case "gate":
@@ -935,6 +938,7 @@ Commands:
                               already records one; use this for CI/scripts/--note)
   template list|show <name>   List or inspect doc templates (guardrails for agent-written docs)
   validate <file> [flags]     Check document structure against a template (exit 1 on violations)
+  analyze <file> [flags]      Report question, evidence, and research-to-plan coverage (advisory)
   seed <file> [flags]         Create review threads from a template's criteria and markers
   watch <file-or-dir> [flags] Emit review-state change events as NDJSON (poll-based; --until
                               exits 0 on a match, e.g. --until signoff to block until reviewed)
@@ -986,6 +990,11 @@ Validate/Seed Command Flags:
   --json                      (validate) Output violations as JSON
   --author <name>             (seed) Author for seeded threads (default: template)
   --markers-only              (seed) Seed only NEEDS CLARIFICATION markers (agent posts specific callouts)
+
+Analyze Command Flags:
+  --against <research.md>     Classify every research finding as cited, excluded, or uncovered
+  --template <name>           Template name (defaults to template recorded in sidecar)
+  --json                      Output machine-readable JSON; ready=false never changes exit status
 
 Signoff Command Flags:
   --author <name>             Reviewer name (defaults to $USER)

@@ -461,6 +461,19 @@ func ValidateTemplate(content string, t *Template) []Violation {
 	return violations
 }
 
+// ValidateDocument is the path-aware validation entry point shared by every
+// CLI and MCP surface. ValidateTemplate deliberately stays pure; citation
+// checks need the document path to resolve repository-relative evidence.
+// Keeping the append order stable preserves the existing output contract:
+// structural violations first, citation violations second.
+func ValidateDocument(content, docPath string, t *Template) []Violation {
+	violations := ValidateTemplate(content, t)
+	if t.Doc.CheckCitations {
+		violations = append(violations, ValidateCitations(content, docPath)...)
+	}
+	return violations
+}
+
 // ComputeSeedTargets returns the review threads a template wants for a document:
 // per-section review criteria (anchored at the section heading) and one Q thread
 // per ambiguity marker occurrence. With markersOnly, generic criteria are skipped —

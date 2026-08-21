@@ -127,6 +127,7 @@ type BatchReplyData struct {
 type GateRequest struct {
 	FilePath string `json:"filepath" jsonschema:"Path to a markdown file or a directory of markdown files"`
 	Strict   bool   `json:"strict,omitempty" jsonschema:"If true fail on any unresolved comment or pending suggestion not just blocking ones"`
+	Template string `json:"template,omitempty" jsonschema:"Also validate structure against this template (defaults to the template recorded in each sidecar)"`
 }
 
 // RequestReviewRequest represents a request for human review. By default it
@@ -165,6 +166,14 @@ type ReanchorRequest struct {
 // ValidateRequest represents a request to validate a document against a template
 type ValidateRequest struct {
 	FilePath string `json:"filepath" jsonschema:"Path to the markdown file"`
+	Template string `json:"template,omitempty" jsonschema:"Template name (defaults to the template recorded in the sidecar)"`
+}
+
+// AnalyzeRequest asks for deterministic artifact coverage. It is advisory and
+// never mutates the review gate.
+type AnalyzeRequest struct {
+	FilePath string `json:"filepath" jsonschema:"Path to the markdown artifact"`
+	Against  string `json:"against,omitempty" jsonschema:"Research document to check plan coverage against"`
 	Template string `json:"template,omitempty" jsonschema:"Template name (defaults to the template recorded in the sidecar)"`
 }
 

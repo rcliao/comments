@@ -84,12 +84,30 @@ func TestCitationLinePastEOF(t *testing.T) {
 	}
 }
 
-// Fenced blocks are illustrations, not evidence; checking them produces noise.
-func TestCitationSkipsFencedBlocks(t *testing.T) {
+func TestCitationReversedRange(t *testing.T) {
 	_, doc := citationRepo(t)
-	content := "Prose.\n\n```go\n// see nowhere/at/all.go:999\n```\n\nMore prose.\n"
+	v := ValidateCitations("See pkg/lib/only.go:20-10 here.\n", doc)
+	if len(v) != 1 || !strings.Contains(v[0].Message, "reversed") {
+		t.Fatalf("reversed range must fail clearly, got %+v", v)
+	}
+}
+
+// Fenced code is illustration, but comment trails are evidence: schema
+// templates put their load-bearing citations beside fields inside fences.
+func TestCitationFenceCommentTrailsOnly(t *testing.T) {
+	_, doc := citationRepo(t)
+	content := "Prose.\n\n```go\nload(\"nowhere/at/all.go:999\")\n// see pkg/lib/only.go:10\n```\n\nMore prose.\n"
 	if v := ValidateCitations(content, doc); len(v) != 0 {
-		t.Errorf("references inside code fences must be skipped, got %v", citationRules(v))
+		t.Errorf("only the valid comment-trail citation should be checked, got %v", citationRules(v))
+	}
+}
+
+func TestCitationBrokenFenceCommentTrailFails(t *testing.T) {
+	_, doc := citationRepo(t)
+	content := "```dbml\nfield int // nowhere/at/all.go:999\n```\n"
+	v := ValidateCitations(content, doc)
+	if len(v) != 1 || v[0].Rule != "unresolvable_citation" {
+		t.Fatalf("broken evidence in a fence comment trail must fail, got %+v", v)
 	}
 }
 

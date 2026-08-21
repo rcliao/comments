@@ -1,0 +1,38 @@
+{
+  "eval": "autonomous-research-convergence",
+  "cases": [
+    {
+      "id": "gate-contract",
+      "task": "Research how comments gate derives decisions across CLI and MCP, then plan any parity fixes a human should approve before implementation.",
+      "source_allowlist": ["pkg/comment/gate.go", "cmd/comments/gate.go", "pkg/mcp/gate.go", "pkg/comment/template.go", "pkg/comment/citations.go"],
+      "golden_questions": [
+        {"id": "G1", "question": "Which thread and suggestion states affect normal versus strict decisions?", "expected": "Normal mode fails only unresolved blocking threads; strict also fails unresolved non-blocking threads and pending suggestions.", "evidence": ["pkg/comment/gate.go"]},
+        {"id": "G2", "question": "Where do template and citation violations enter each surface?", "expected": "Path-aware validation is shared by CLI validate, CLI gate, MCP validate, and MCP gate.", "evidence": ["pkg/comment/template.go", "cmd/comments/gate.go", "pkg/mcp/gate.go"]},
+        {"id": "G3", "question": "What happens when a commented document has no template?", "expected": "Thread state is evaluated and structure is explicitly reported unchecked.", "evidence": ["cmd/comments/gate.go", "pkg/mcp/gate.go"]},
+        {"id": "G4", "question": "Do review records authorize the gate?", "expected": "No; the newest record is context only and current state derives the decision.", "evidence": ["pkg/comment/gate.go"]}
+      ]
+    },
+    {
+      "id": "anchor-survival",
+      "task": "Research how comment anchors survive document edits, including ambiguity and terminal failure, then plan a safe change to the cascade.",
+      "source_allowlist": ["pkg/comment/anchor.go", "pkg/comment/reanchor.go", "pkg/comment/anchortext.go", "pkg/comment/validation.go", "pkg/comment/storage.go"],
+      "golden_questions": [
+        {"id": "G1", "question": "What is the ordered automatic re-anchor cascade?", "expected": "Exact position, exact text, normalized text, section fallback, then orphan.", "evidence": ["pkg/comment/anchor.go", "pkg/comment/validation.go"]},
+        {"id": "G2", "question": "How are ambiguous text anchors handled?", "expected": "Creation rejects ambiguous quoted anchors instead of guessing a line.", "evidence": ["pkg/comment/anchortext.go"]},
+        {"id": "G3", "question": "Who supplies explicit moves after an agent edit?", "expected": "The editing agent supplies comment ID to line or section moves; the automatic cascade is only a safety net.", "evidence": ["pkg/comment/reanchor.go"]},
+        {"id": "G4", "question": "How is failure preserved for later repair?", "expected": "The thread becomes orphaned with its original line, reason, and timestamp retained in the sidecar.", "evidence": ["pkg/comment/validation.go", "pkg/comment/storage.go"]}
+      ]
+    },
+    {
+      "id": "template-contract",
+      "task": "Research the complete template contract agents must satisfy before plan review, then plan a compatible extension.",
+      "source_allowlist": ["pkg/comment/template.go", "pkg/comment/coverage.go", "pkg/comment/citations.go", "pkg/comment/style.go", "pkg/comment/actor.go", "cmd/comments/template.go", "pkg/mcp/template.go"],
+      "golden_questions": [
+        {"id": "G1", "question": "Which structural and prose-shape rules are deterministic?", "expected": "Required/order/word/subsection rules, question coverage, style, markers, and optional citation resolution are deterministic.", "evidence": ["pkg/comment/template.go", "pkg/comment/coverage.go", "pkg/comment/style.go", "pkg/comment/citations.go"]},
+        {"id": "G2", "question": "How are omitted research clauses detected?", "expected": "Research questions are numbered and findings claim them with Q tags; unknown and uncovered IDs are violations.", "evidence": ["pkg/comment/coverage.go"]},
+        {"id": "G3", "question": "What does seed persist besides threads?", "expected": "It records the template name so later gate calls enforce the same contract.", "evidence": ["cmd/comments/template.go", "pkg/mcp/template.go"]},
+        {"id": "G4", "question": "Which decisions remain human-owned?", "expected": "Agents cannot resolve threads anchored in template sections marked zone human.", "evidence": ["pkg/comment/actor.go"]}
+      ]
+    }
+  ]
+}

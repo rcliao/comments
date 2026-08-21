@@ -30,7 +30,7 @@ func (s *Server) handleValidate(ctx context.Context, req *mcp.CallToolRequest, a
 			return nil, err
 		}
 
-		violations := comment.ValidateTemplate(doc.Content, t)
+		violations := comment.ValidateDocument(doc.Content, absPath, t)
 		return map[string]any{
 			"template":      t.Name,
 			"conforms":      len(violations) == 0,

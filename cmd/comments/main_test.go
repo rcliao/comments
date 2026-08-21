@@ -6,11 +6,97 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/rcliao/comments/pkg/comment"
 )
+
+func TestAnalyzeCommandJSONMatchesSharedEngine(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	research := filepath.Join(dir, "research.md")
+	researchBody := "# R\n\n## Research Question\n\nQ1. What?\n\n## Findings\n\n### F1 [Q1]\n\nFact.\n"
+	if err := os.WriteFile(research, []byte(researchBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	plan := filepath.Join(dir, "plan.md")
+	planBody := "# P\n\n## Current State\n\nUse research.md:9.\n"
+	if err := os.WriteFile(plan, []byte(planBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout, stderr := runCapture(t, "analyze", plan, "--against", research, "--json")
+	if code != 0 || stderr != "" {
+		t.Fatalf("analyze code=%d stderr=%q", code, stderr)
+	}
+	var got comment.Analysis
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("invalid analyze JSON: %v\n%s", err, stdout)
+	}
+	want := comment.AnalyzeDocument(planBody, plan, nil, researchBody, research)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("CLI payload drifted from shared engine\n got: %+v\nwant: %+v", got, want)
+	}
+}
+
+func TestValidateCommandUsesPathAwareSharedRules(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	templateDir := filepath.Join(dir, ".comments", "templates")
+	if err := os.MkdirAll(templateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	template := `template: parity
+version: 1
+doc:
+  check_citations: true
+sections:
+  - heading: Research Question
+    required: true
+    enumerates_questions: true
+  - heading: Summary
+    required: true
+  - heading: Findings
+    required: true
+    answers_questions: true
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION:"
+  max: 1
+`
+	if err := os.WriteFile(filepath.Join(templateDir, "parity.yaml"), []byte(template), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc := filepath.Join(dir, "research.md")
+	content := "# R\n\n## Research Question\n\nQ1. Covered?\nQ2. Missing?\n\n## Findings\n\n### F1 [Q1]\n\nSee pkg/nope.go:9.\n\n[NEEDS CLARIFICATION: one]\n[NEEDS CLARIFICATION: two]\n"
+	if err := os.WriteFile(doc, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout, _ := runCapture(t, "validate", doc, "--template", "parity", "--json")
+	if code != 1 {
+		t.Fatalf("validate code=%d, want 1; stdout=%s", code, stdout)
+	}
+	var payload struct {
+		Violations []comment.Violation `json:"violations"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, violation := range payload.Violations {
+		got = append(got, violation.Rule)
+	}
+	want := []string{"missing_section", "uncovered_question", "unresolved_marker", "unresolved_marker", "too_many_markers", "unresolvable_citation"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("CLI validation rules/order = %v, want %v", got, want)
+	}
+}
 
 // runCapture invokes run() with os.Stdout and os.Stderr captured, returning
 // the exit code and everything written to each stream.

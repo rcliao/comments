@@ -86,6 +86,7 @@ func (s *Server) registerTools() {
 	s.registerListTool()
 	s.registerGetTool()
 	s.registerStatusTool()
+	s.registerAnalyzeTool()
 
 	// Write operations
 	s.registerAddTool()
@@ -119,6 +120,15 @@ func (s *Server) registerTools() {
 		Name:        "comments_reanchor",
 		Description: "After editing a document that has comments, migrate the anchors your edits displaced (batch comment_id -> new line/section). The editing agent knows the mapping; call this as a required post-edit step.",
 	}, s.handleReanchor)
+}
+
+func (s *Server) registerAnalyzeTool() {
+	tool := &mcp.Tool{
+		Name:        "comments_analyze",
+		Description: "Advisory artifact analysis: expose numbered-question coverage, citation violations, and—with against—research findings cited, explicitly excluded, or uncovered by a plan. ready=false never changes gate state",
+	}
+	s.toolNames = append(s.toolNames, tool.Name)
+	mcp.AddTool(s.mcp, tool, s.handleAnalyze)
 }
 
 func (s *Server) registerTemplateTools() {

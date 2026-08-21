@@ -15,8 +15,9 @@ Google-Docs-style review for markdown, in the terminal. Inline comment threads a
 - **Review gate**: `comments gate` exits 0 (approved) or 10 (changes requested); `signoff` records the human pass agents block on
 - **Doc templates as guardrails**: required sections, word caps, forced alternatives, human-owned zones, `[NEEDS CLARIFICATION:]` marker caps — built-ins: `design-doc`, `mini`, `research`, `plan`, `adr`, `rfc`, `as-built`
 - **RPI flow**: research docs with file:line evidence → plans citing the research → reviewed in the TUI where `f` peeks any citation and Enter opens `$EDITOR` there
+- **Autonomous research convergence**: draft-blind coverage scout + evidence verifier add missing `Qn` questions until clean; `comments analyze plan.md --against research.md` proves the handoff before review
 - **Watch**: `comments watch --until signoff` streams NDJSON review events so agents can wait on humans
-- **MCP server**: 20 tools over stdio for agent integration; batch operations; `@filename` text input
+- **MCP server**: 21 tools over stdio for agent integration; batch operations; `@filename` text input
 - **Surface parity**: every MCP tool has a CLI equivalent backed by the same code — see `docs/ARCHITECTURE.md` decision 8
 
 ## Install
@@ -52,6 +53,7 @@ comments template list                        # when to use which, per descripti
 comments template show design-doc             # the writing brief
 comments validate draft.md --template design-doc
 comments seed draft.md --template design-doc  # criteria + markers become review threads
+comments analyze plan.md --against research.md --json  # advisory coverage manifest
 ```
 
 ## TUI keys

@@ -25,6 +25,9 @@ type gateFileResult struct {
 	NonBlocking        []gateComment         `json:"non_blocking"`
 	PendingSuggestions []gateComment         `json:"pending_suggestions"`
 	LastReview         *comment.ReviewRecord `json:"last_review,omitempty"`
+	Template           string                `json:"template,omitempty"`
+	Violations         []comment.Violation   `json:"violations,omitempty"`
+	StructureUnchecked bool                  `json:"structure_unchecked,omitempty"`
 }
 
 // gateComment mirrors the CLI gate JSON shape (snake_case)
@@ -46,7 +49,7 @@ func (s *Server) handleGate(ctx context.Context, req *mcp.CallToolRequest, args 
 		return nil, nil, fmt.Errorf("invalid file path: %w", err)
 	}
 
-	decision, files, err := evaluateGateForPath(absPath, args.Strict)
+	decision, files, err := evaluateGateForPath(absPath, args.Strict, args.Template)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -92,7 +95,7 @@ func (s *Server) handleRequestReview(ctx context.Context, req *mcp.CallToolReque
 
 	for {
 		if review := comment.LatestReviewSince(absPath, requestedAt); review != nil {
-			decision, files, err := evaluateGateForPath(absPath, args.Strict)
+			decision, files, err := evaluateGateForPath(absPath, args.Strict, "")
 			if err != nil {
 				return nil, nil, err
 			}
@@ -146,7 +149,7 @@ func (s *Server) handleCheckReview(ctx context.Context, req *mcp.CallToolRequest
 		return jsonToolResult(result)
 	}
 
-	decision, files, err := evaluateGateForPath(absPath, args.Strict)
+	decision, files, err := evaluateGateForPath(absPath, args.Strict, "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -159,7 +162,7 @@ func (s *Server) handleCheckReview(ctx context.Context, req *mcp.CallToolRequest
 	return jsonToolResult(result)
 }
 
-func evaluateGateForPath(path string, strict bool) (string, []gateFileResult, error) {
+func evaluateGateForPath(path string, strict bool, templateName string) (string, []gateFileResult, error) {
 	targets, err := comment.FindGateTargets(path)
 	if err != nil {
 		return "", nil, err
@@ -176,15 +179,33 @@ func evaluateGateForPath(path string, strict bool) (string, []gateFileResult, er
 			return "", nil, fmt.Errorf("failed to load %s: %w", file, err)
 		}
 		result := comment.EvaluateGate(doc, strict)
-		files = append(files, gateFileResult{
+		fileResult := gateFileResult{
 			File:               file,
 			Decision:           result.Decision,
 			Blocking:           toGateComments(result.Blocking, doc.Content),
 			NonBlocking:        toGateComments(result.NonBlocking, doc.Content),
 			PendingSuggestions: toGateComments(result.PendingSuggestions, doc.Content),
 			LastReview:         result.LastReview,
-		})
-		if result.Decision == comment.DecisionChangesRequested {
+		}
+		tName := templateName
+		if tName == "" {
+			tName = doc.Template
+		}
+		if tName != "" {
+			t, err := comment.LoadTemplateForDoc(tName, file)
+			if err != nil {
+				return "", nil, err
+			}
+			fileResult.Template = t.Name
+			fileResult.Violations = comment.ValidateDocument(doc.Content, file, t)
+			if len(fileResult.Violations) > 0 {
+				fileResult.Decision = comment.DecisionChangesRequested
+			}
+		} else if len(doc.Threads) > 0 {
+			fileResult.StructureUnchecked = true
+		}
+		files = append(files, fileResult)
+		if fileResult.Decision == comment.DecisionChangesRequested {
 			decision = comment.DecisionChangesRequested
 		}
 	}

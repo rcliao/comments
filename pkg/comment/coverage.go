@@ -57,13 +57,11 @@ func parseSubQuestions(lines []string, section *markdown.Section) []SubQuestion 
 func parseClaims(section *markdown.Section) map[string]int {
 	claims := map[string]int{}
 	for _, child := range section.Children {
-		m := claimedQuestions.FindStringSubmatch(child.Title)
-		if m == nil {
-			continue
-		}
-		for _, part := range strings.Split(m[1], ",") {
-			if n := questionID.FindString(part); n != "" {
-				claims["Q"+n] = child.StartLine
+		for _, m := range claimedQuestions.FindAllStringSubmatch(child.Title, -1) {
+			for _, part := range strings.Split(m[1], ",") {
+				if n := questionID.FindString(part); n != "" {
+					claims["Q"+n] = child.StartLine
+				}
 			}
 		}
 	}

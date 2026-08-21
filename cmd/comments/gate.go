@@ -92,10 +92,7 @@ func gateCommand(target string, args []string) error {
 				return failf("Error: %v", err)
 			}
 			fileJSON.Template = t.Name
-			fileJSON.Violations = comment.ValidateTemplate(doc.Content, t)
-			if t.Doc.CheckCitations {
-				fileJSON.Violations = append(fileJSON.Violations, comment.ValidateCitations(doc.Content, file)...)
-			}
+			fileJSON.Violations = comment.ValidateDocument(doc.Content, file, t)
 			if len(fileJSON.Violations) > 0 {
 				fileJSON.Decision = comment.DecisionChangesRequested
 			}
