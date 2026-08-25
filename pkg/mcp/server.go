@@ -198,7 +198,7 @@ func (s *Server) registerGetTool() {
 func (s *Server) registerStatusTool() {
 	tool := &mcp.Tool{
 		Name:        "comments_status",
-		Description: "Get document status including pending suggestions and orphaned comments",
+		Description: "Get document status: thread/suggestion/orphan counts, plus changed_since (lines, deletions, sections moved since a reviewer's last verdict) — cite those sections when re-requesting review",
 	}
 	s.toolNames = append(s.toolNames, tool.Name)
 	mcp.AddTool(s.mcp, tool, s.handleStatus)

@@ -160,6 +160,17 @@ func signoffCommand(filename string, args []string) error {
 		return failf("Error saving document: %v", err)
 	}
 
+	// A verdict also stores the reviewed content as this reviewer's baseline
+	// (what "changed since your signoff" marks diff against). Best-effort: the
+	// signoff is already in the sidecar, so a baseline failure must not report
+	// a landed signoff as failed. Gate on the RECORD's decision — the flag may
+	// be empty and derived by the gate.
+	if comment.BaselineUpdatesOn(record.Decision) {
+		if err := comment.SaveReviewBaseline(filename, record.Author, doc.Content); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not save review baseline: %v\n", err)
+		}
+	}
+
 	fmt.Printf("✓ Review recorded: %s by @%s\n", record.Decision, record.Author)
 	if record.Decision == comment.DecisionChangesRequested {
 		result := comment.EvaluateGate(doc, *strict)

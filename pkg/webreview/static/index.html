@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comments Review</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">C</span><span>Comments</span></div>
+    <div class="top-actions">
+      <select id="doc-select" aria-label="Document"></select>
+      <div class="segmented" aria-label="Document view">
+        <button id="rendered-mode" class="active">Rendered</button>
+        <button id="source-mode">Source</button>
+      </div>
+      <button id="theme-button" class="theme-button" aria-label="Use dark mode" title="Use dark mode" aria-pressed="false">☾</button>
+      <button id="author-button" class="author-button" aria-label="Change reviewer name" title="Change reviewer name">
+        <span id="author-avatar" class="author-avatar" aria-hidden="true">R</span>
+        <strong id="author-name" class="author-name">Reviewer</strong>
+      </button>
+      <button id="add-comment" class="primary add-comment-button" aria-label="Add comment" title="Add comment">＋</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="document-pane">
+      <div class="document-heading">
+        <h1 id="document-name">Loading…</h1>
+        <div id="document-review-state" class="document-review-state" hidden></div>
+      </div>
+      <div id="notice" class="notice" hidden></div>
+      <div id="gutter-legend" class="gutter-legend" hidden>
+        <i class="comment-hint-icon" aria-hidden="true"></i>
+        <span>Select a bubble to open its comment.</span>
+      </div>
+      <article id="rendered-document" class="markdown-body"></article>
+      <div id="source-document" class="source-view" hidden></div>
+    </section>
+
+    <aside class="review-rail">
+      <div class="rail-heading">
+        <div>
+          <p class="eyebrow">COMMENTS</p>
+          <h2 id="thread-count">0 threads</h2>
+        </div>
+        <div class="rail-status">
+          <span id="live-indicator" class="live">● Live</span>
+          <div id="gate-summary" class="gate-summary"></div>
+        </div>
+      </div>
+      <div class="filters" role="group" aria-label="Thread filters">
+        <button data-filter="open" class="active">Open</button>
+        <button data-filter="blocking">Blocking</button>
+        <button data-filter="all">All</button>
+      </div>
+      <div id="thread-list" class="thread-list"></div>
+      <div class="verdict-card">
+        <div id="review-summary" class="review-summary" hidden>
+          <div class="review-summary-heading">
+            <span id="review-summary-icon" class="review-summary-icon" aria-hidden="true">✓</span>
+            <div><strong id="review-summary-decision">Approved</strong><span id="review-summary-meta"></span></div>
+          </div>
+          <p id="review-summary-note" class="review-summary-note" hidden></p>
+          <button id="review-again" class="review-again">Update review</button>
+        </div>
+        <div id="verdict-controls">
+          <p class="eyebrow">FINISH REVIEW</p>
+          <textarea id="verdict-note" rows="2" placeholder="Optional handoff note"></textarea>
+          <div class="verdict-actions">
+            <button data-verdict="changes_requested" class="danger">Request changes</button>
+            <button data-verdict="commented">Reply pass</button>
+            <button data-verdict="approved" class="approve">Approve</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <dialog id="comment-dialog">
+    <form id="comment-form" method="dialog">
+      <div class="dialog-heading">
+        <div><p class="eyebrow">NEW THREAD</p><h2>Add a comment</h2></div>
+        <button value="cancel" class="icon-button" aria-label="Close" formnovalidate>×</button>
+      </div>
+      <label>Anchor line <input id="comment-line" name="line" type="number" min="1" required></label>
+      <label>Comment <textarea id="comment-text" name="text" rows="5" required placeholder="What should the author know?"></textarea></label>
+      <div class="form-row">
+        <label>Type
+          <select id="comment-type"><option value="">General</option><option value="Q">Question</option><option value="S">Suggestion</option><option value="B">Bug</option><option value="T">Task</option><option value="E">Evidence</option></select>
+        </label>
+        <label>Priority
+          <select id="comment-priority"><option>medium</option><option>high</option><option>low</option></select>
+        </label>
+      </div>
+      <label class="check"><input id="comment-blocking" type="checkbox"> Blocks approval</label>
+      <div class="dialog-actions"><button value="cancel" formnovalidate>Cancel</button><button id="submit-comment" value="default" class="primary">Add thread</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="author-dialog">
+    <form id="author-form" method="dialog">
+      <div class="dialog-heading">
+        <div><p class="eyebrow">REVIEW IDENTITY</p><h2>Your review name</h2></div>
+        <button value="cancel" class="icon-button" aria-label="Close" formnovalidate>×</button>
+      </div>
+      <p class="dialog-copy">This name will be used for every new comment, reply, and review verdict in this workspace.</p>
+      <label>Name <input id="author-input" name="author" maxlength="80" autocomplete="name" required placeholder="Your name"></label>
+      <div class="dialog-actions"><button value="cancel" formnovalidate>Cancel</button><button value="default" class="primary">Save name</button></div>
+    </form>
+  </dialog>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

@@ -30,6 +30,17 @@ type GetCommentRequest struct {
 // StatusRequest represents a request to get document status
 type StatusRequest struct {
 	FilePath string `json:"filepath" jsonschema:"Path to the markdown file"`
+	Reviewer string `json:"reviewer,omitempty" jsonschema:"Reviewer whose last verdict to diff against (default: $USER). Populates changed_since so an agent can say which sections it touched when re-requesting review"`
+}
+
+// ChangedSince reports what moved in the document since a reviewer's last
+// verdict (approved / changes_requested — a commented reply-pass does not
+// move the baseline). Absent when that reviewer has never signed off.
+type ChangedSince struct {
+	Reviewer        string   `json:"reviewer"`
+	ChangedLines    int      `json:"changed_lines"`    // lines added or edited
+	Deletions       int      `json:"deletions"`        // pure removals (not beside an edit, which counts once as the edit)
+	ChangedSections []string `json:"changed_sections"` // innermost section paths touched, in document order
 }
 
 // AddCommentRequest represents a request to add a root comment
@@ -194,6 +205,7 @@ type DocumentStatus struct {
 	DocumentHash        string         `json:"document_hash"`
 	LastValidated       string         `json:"last_validated"`
 	SuggestionsByAuthor map[string]int `json:"suggestions_by_author,omitempty"`
+	ChangedSince        *ChangedSince  `json:"changed_since,omitempty"`
 }
 
 // CommentWithContext represents a comment with its surrounding context

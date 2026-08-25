@@ -70,6 +70,12 @@ type Model struct {
 	rangeActive         bool // True if range selection is active
 	suggestionIsSection bool // True if suggestion is section-based
 
+	// Lines changed since this reviewer's last verdict (diffed against the
+	// stored review baseline at load and on every content refresh; empty when
+	// no baseline exists). Their line numbers render in the changed accent;
+	// with line numbers hidden a bar column carries the mark instead.
+	changedLines map[int]bool
+
 	// Reference peek state (docs/design-reference-jump.md)
 	refsByLine        map[int][]resolvedRef // citations per doc line, resolved at load
 	refPeekList       []resolvedRef         // references on the peeked line
@@ -222,6 +228,7 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 		m.refsByLine = buildRefMap(doc.Content, filename)
 		m.fenceCache = m.buildFenceCache()
 		m.tableCache = m.buildTableCache()
+		m.refreshChangedLines()
 	}
 
 	// Resume the previous review position, if one was persisted
@@ -473,6 +480,7 @@ func (m Model) loadFile(path string) (tea.Model, tea.Cmd) {
 	m.refsByLine = buildRefMap(m.doc.Content, path)
 	m.fenceCache = m.buildFenceCache()
 	m.tableCache = m.buildTableCache()
+	m.refreshChangedLines()
 
 	// If we have dimensions, initialize viewports now
 	if m.width > 0 && m.height > 0 {
@@ -540,6 +548,7 @@ func (m *Model) refreshDocFromDisk() {
 		m.refsByLine = buildRefMap(fresh.Content, m.filename)
 		m.fenceCache = m.buildFenceCache()
 		m.tableCache = m.buildTableCache()
+		m.refreshChangedLines()
 		m.refreshDocumentPane()
 	}
 	m.clampSelectedComment(len(m.visibleComments()))
@@ -565,4 +574,19 @@ func (m Model) viewContent() string {
 		return d.view(m)
 	}
 	return "Unknown mode"
+}
+
+// refreshChangedLines re-diffs the document against this reviewer's stored
+// baseline (comment.ChangedSince). Call it wherever the content-derived
+// caches are rebuilt; with no baseline it clears the marks at zero cost.
+func (m *Model) refreshChangedLines() {
+	m.changedLines = nil
+	if m.doc == nil || m.filename == "" {
+		return
+	}
+	if cs, ok := comment.ChangedSince(m.filename, m.author, m.doc.Content); ok {
+		// Edited lines plus each deletion's anchor (the line before the gap):
+		// a removal has no line of its own, so its predecessor carries the mark
+		m.changedLines = cs.Marked()
+	}
 }

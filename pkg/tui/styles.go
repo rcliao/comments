@@ -50,6 +50,10 @@ type styleSet struct {
 	// Accented line number, same 4-cell right-aligned box as lineNumber
 	cursorLineNum lipgloss.Style
 
+	// Line number of a line changed since the reviewer's last verdict, same
+	// box as lineNumber; the cursor accent wins when both apply
+	changedLineNum lipgloss.Style
+
 	// Resolvable file references (citations): link-styled, followable with f
 	refLink lipgloss.Style
 
@@ -151,6 +155,12 @@ func newStyleSet(t Theme) *styleSet {
 
 		cursorLineNum: lipgloss.NewStyle().
 			Foreground(t.CursorAccent.Color()).
+			Bold(true).
+			Width(4).
+			Align(lipgloss.Right),
+
+		changedLineNum: lipgloss.NewStyle().
+			Foreground(t.Changed.Color()).
 			Bold(true).
 			Width(4).
 			Align(lipgloss.Right),

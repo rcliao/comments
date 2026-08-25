@@ -61,6 +61,7 @@ type Theme struct {
 	VirtualText ThemeColor // end-of-line thread summaries
 	GroupHeader ThemeColor // sidebar group headers, panel/thread borders
 	New         ThemeColor // NEW-activity badge
+	Changed     ThemeColor // line numbers changed since the reviewer's last verdict
 
 	// Inline markdown spans
 	Code   ThemeColor // inline code spans
@@ -102,7 +103,7 @@ var themes = map[string]Theme{
 		CursorAccent: "#B48EAD", CursorLineBg: "#3B4252", SelectionBg: "#434C5E",
 		SelectionFg: "#ECEFF4", Accent: "#88C0D0",
 		Blocking: "#BF616A", Marker: "#D08770", Resolved: "#A3BE8C",
-		VirtualText: "#4C566A", GroupHeader: "#81A1C1", New: "#EBCB8B",
+		VirtualText: "#4C566A", GroupHeader: "#81A1C1", New: "#EBCB8B", Changed: "#A3BE8C",
 		Code: "#D08770", Bullet: "#D08770", Quote: "#A3BE8C", Warning: "#EBCB8B",
 		TypeQ: "#EBCB8B", TypeS: "#81A1C1", TypeB: "#BF616A", TypeT: "#B48EAD", TypeE: "#88C0D0",
 	},
@@ -116,7 +117,7 @@ var themes = map[string]Theme{
 		CursorAccent: "#FF79C6", CursorLineBg: "#44475A", SelectionBg: "#44475A",
 		SelectionFg: "#F8F8F2", Accent: "#8BE9FD",
 		Blocking: "#FF5555", Marker: "#FFB86C", Resolved: "#50FA7B",
-		VirtualText: "#6272A4", GroupHeader: "#BD93F9", New: "#FFB86C",
+		VirtualText: "#6272A4", GroupHeader: "#BD93F9", New: "#FFB86C", Changed: "#50FA7B",
 		Code: "#F1FA8C", Bullet: "#FFB86C", Quote: "#50FA7B", Warning: "#F1FA8C",
 		TypeQ: "#F1FA8C", TypeS: "#8BE9FD", TypeB: "#FF5555", TypeT: "#BD93F9", TypeE: "#50FA7B",
 	},
@@ -130,7 +131,7 @@ var themes = map[string]Theme{
 		CursorAccent: "#FE8019", CursorLineBg: "#3C3836", SelectionBg: "#504945",
 		SelectionFg: "#FBF1C7", Accent: "#83A598",
 		Blocking: "#FB4934", Marker: "#FABD2F", Resolved: "#B8BB26",
-		VirtualText: "#928374", GroupHeader: "#83A598", New: "#FABD2F",
+		VirtualText: "#928374", GroupHeader: "#83A598", New: "#FABD2F", Changed: "#B8BB26",
 		Code: "#8EC07C", Bullet: "#FE8019", Quote: "#8EC07C", Warning: "#FABD2F",
 		TypeQ: "#FABD2F", TypeS: "#83A598", TypeB: "#FB4934", TypeT: "#D3869B", TypeE: "#8EC07C",
 	},
@@ -145,7 +146,7 @@ var themes = map[string]Theme{
 		CursorAccent: "205", CursorLineBg: "237", SelectionBg: "235",
 		SelectionFg: "255", Accent: "39",
 		Blocking: "196", Marker: "214", Resolved: "28",
-		VirtualText: "240", GroupHeader: "63", New: "205",
+		VirtualText: "240", GroupHeader: "63", New: "205", Changed: "70",
 		Code: "173", Bullet: "214", Quote: "108", Warning: "3",
 		TypeQ: "220", TypeS: "33", TypeB: "196", TypeT: "13", TypeE: "14",
 	},

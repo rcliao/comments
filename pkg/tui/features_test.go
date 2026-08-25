@@ -829,3 +829,156 @@ func TestSearchHighlightsAllMatches(t *testing.T) {
 		t.Error("highlight should clear when the prompt closes")
 	}
 }
+
+// --- Changed-since-verdict baseline ----------------------------------------
+
+// Both signoff writers must store the same baseline: the TUI verdict writes
+// what `comments signoff` writes. A reply-pass (r) leaves it untouched.
+func TestVerdictStoresBaselineLikeSignoffReplyPassDoesNot(t *testing.T) {
+	newModel := func() Model {
+		m := testModel(nil)
+		m.filename = filepath.Join(t.TempDir(), "doc.md")
+		if err := os.WriteFile(m.filename, []byte(tuiTestDoc), 0644); err != nil {
+			t.Fatal(err)
+		}
+		m.author = "eric"
+		m.verdictReturnMode = ModeBrowse
+		m.mode = ModeVerdict
+		return *m
+	}
+
+	m := newModel()
+	if _, _ = m.handleVerdictKeys(keyMsg("r")); true {
+		if _, ok := comment.LoadReviewBaseline(m.filename, "eric"); ok {
+			t.Fatal("reply-pass must not store a baseline")
+		}
+	}
+
+	m = newModel()
+	if _, cmd := m.handleVerdictKeys(keyMsg("a")); cmd == nil {
+		t.Fatal("approve should quit")
+	}
+	got, ok := comment.LoadReviewBaseline(m.filename, "eric")
+	if !ok || got != tuiTestDoc {
+		t.Fatalf("approve must store the reviewed content as baseline, got %q, %v", got, ok)
+	}
+	// Parity with the CLI writer: identical bytes
+	cliDoc := filepath.Join(t.TempDir(), "doc.md")
+	if err := os.WriteFile(cliDoc, []byte(tuiTestDoc), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := comment.SaveReviewBaseline(cliDoc, "eric", tuiTestDoc); err != nil {
+		t.Fatal(err)
+	}
+	cli, _ := comment.LoadReviewBaseline(cliDoc, "eric")
+	if cli != got {
+		t.Error("TUI and CLI baselines differ")
+	}
+
+	m = newModel()
+	if _, cmd := m.handleVerdictKeys(keyMsg("c")); cmd == nil {
+		t.Fatal("changes-requested should quit")
+	}
+	if _, ok := comment.LoadReviewBaseline(m.filename, "eric"); !ok {
+		t.Fatal("changes_requested must store a baseline too")
+	}
+}
+
+// Reopening an edited, signed-off doc tints the CHANGED line numbers only —
+// gutter-only, so the byte-identity contract holds.
+func TestChangedLinesMarkNumbersOnlyOnChangedLines(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "doc.md")
+	if err := comment.SaveReviewBaseline(path, "eric", tuiTestDoc); err != nil {
+		t.Fatal(err)
+	}
+	edited := strings.Replace(tuiTestDoc, "Beta body text.", "Beta body REWRITTEN.", 1)
+	if err := os.WriteFile(path, []byte(edited), 0644); err != nil {
+		t.Fatal(err)
+	}
+	doc := &comment.DocumentWithComments{Content: edited}
+	m := NewModelWithFile(doc, path)
+	m.author = "eric"
+	m.refreshChangedLines()
+	m.width, m.height = 140, 40
+	m.handleResize()
+
+	if !m.changedLines[9] || len(m.changedLines) != 1 {
+		t.Fatalf("changedLines = %v, want only line 9", m.changedLines)
+	}
+	// Compare against the same model with the marks cleared: only the
+	// changed line's row may differ, and only in styling
+	marked := strings.Split(m.renderDocument(), "\n")
+	m.changedLines = nil
+	plain := strings.Split(m.renderDocument(), "\n")
+	if len(marked) != len(plain) {
+		t.Fatalf("marks changed the row count: %d vs %d", len(marked), len(plain))
+	}
+	for i := range plain {
+		same := marked[i] == plain[i]
+		if i+1 == 9 && same {
+			t.Errorf("changed line 9 should render differently: %q", marked[i])
+		}
+		if i+1 != 9 && !same {
+			t.Errorf("unchanged line %d must render identically: %q vs %q", i+1, marked[i], plain[i])
+		}
+	}
+	if stripANSI(marked[8]) != stripANSI(plain[8]) {
+		t.Error("the mark must be style-only (byte-identity contract)")
+	}
+
+	// Without a baseline: nothing marked, nothing paid
+	other := NewModelWithFile(doc, path)
+	other.author = "nobody"
+	other.refreshChangedLines()
+	if len(other.changedLines) != 0 {
+		t.Errorf("no baseline should mean no marks, got %v", other.changedLines)
+	}
+}
+
+// With line numbers hidden (#), the change bar stands in as the mark's
+// carrier — only while there is something to mark, so a clean doc pays no
+// gutter width.
+func TestHiddenLineNumbersStillCarryChangedMarks(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "doc.md")
+	// Delete "Alpha body text." (line 5): the line before the gap (4) is marked
+	edited := strings.Replace(tuiTestDoc, "Alpha body text.\n", "", 1)
+	if err := comment.SaveReviewBaseline(path, "eric", tuiTestDoc); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(edited), 0644); err != nil {
+		t.Fatal(err)
+	}
+	m := NewModelWithFile(&comment.DocumentWithComments{Content: edited}, path)
+	m.author = "eric"
+	m.refreshChangedLines()
+	m.width, m.height = 140, 40
+	m.handleResize()
+	if len(m.changedLines) != 1 || !m.changedLines[4] {
+		t.Fatalf("deletion should mark the line before the gap (4), got %v", m.changedLines)
+	}
+
+	m.hideLineNumbers = true
+	if got := m.gutterWidth(); got != 5 {
+		t.Errorf("hidden numbers + marks: gutter should be marker(3)+bar(2)=5, got %d", got)
+	}
+	rows := strings.Split(stripANSI(m.renderDocument()), "\n")
+	if !strings.HasPrefix(rows[3], "   ▎ ") {
+		t.Errorf("line 4 should carry the change bar, got %q", rows[3])
+	}
+	if strings.Contains(rows[2], "▎") || strings.Contains(rows[4], "▎") {
+		t.Errorf("unchanged lines must not carry the bar: %q / %q", rows[2], rows[4])
+	}
+	for i, row := range rows {
+		if row != "" && i != 3 && !strings.HasPrefix(row, "     ") {
+			t.Errorf("row %d not padded to the 5-cell gutter: %q", i+1, row)
+		}
+	}
+
+	// No marks: the bar column disappears and the gutter is the marker cell alone
+	m.changedLines = nil
+	if got := m.gutterWidth(); got != 3 {
+		t.Errorf("hidden numbers, no marks: gutter should be 3, got %d", got)
+	}
+}
