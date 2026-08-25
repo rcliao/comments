@@ -162,7 +162,10 @@ small changes, or a project template):
    ask the human to review with `comments view <doc.md>` (the verdict on exit
    records the signoff) and wait on it with
    `comments watch <doc.md> --until signoff`. While waiting, do not modify the
-   document.
+   document. On a re-request, first call `comments_status` with the
+   reviewer's name and quote its `changed_since.changed_sections` in your
+   message — the reviewer sees the same lines tinted in the TUI, and naming
+   the sections you touched is what lets them skip the rest.
 
 Zone rule: threads in sections the template marks `zone: human` cannot be
 resolved by you over MCP — reply with your input and leave resolution to the

@@ -1,6 +1,6 @@
 # Comments
 
-Google-Docs-style review for markdown, in the terminal. Inline comment threads and edit suggestions live in sidecar JSON files next to your docs — a TUI for the human, a CLI + MCP server for agents, and a machine-readable review gate between them.
+Google-Docs-style review for markdown, locally. Inline comment threads and edit suggestions live in sidecar JSON files next to your docs — a TUI or browser workspace for the human, a CLI + MCP server for agents, and a machine-readable review gate between them.
 
 [![asciicast](https://asciinema.org/a/z6fSaof32MYS36NOtZ5Oj84Lf.svg)](https://asciinema.org/a/z6fSaof32MYS36NOtZ5Oj84Lf)
 
@@ -16,6 +16,7 @@ Google-Docs-style review for markdown, in the terminal. Inline comment threads a
 - **Doc templates as guardrails**: required sections, word caps, forced alternatives, human-owned zones, `[NEEDS CLARIFICATION:]` marker caps — built-ins: `design-doc`, `mini`, `research`, `plan`, `adr`, `rfc`, `as-built`
 - **RPI flow**: research docs with file:line evidence → plans citing the research → reviewed in the TUI where `f` peeks any citation and Enter opens `$EDITOR` there
 - **Watch**: `comments watch --until signoff` streams NDJSON review events so agents can wait on humans
+- **Browser review**: `comments serve` opens a rendered document and line-accurate source view beside live threads, suggestions, and verdict controls
 - **MCP server**: 20 tools over stdio for agent integration; batch operations; `@filename` text input
 - **Surface parity**: every MCP tool has a CLI equivalent backed by the same code — see `docs/ARCHITECTURE.md` decision 8
 
@@ -39,6 +40,7 @@ go install github.com/rcliao/comments/cmd/comments@latest
 
 ```bash
 comments view doc.md            # TUI review; q -> a/c signs off (n adds a note)
+comments serve doc.md           # local browser review; use the one-time URL it prints
 comments add doc.md --line 10 --author eric --text "Fix this first" --blocking
 comments gate doc.md            # exit 0 = approved, 10 = changes requested
 comments signoff doc.md         # same review record, non-interactively (CI, --note)

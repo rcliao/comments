@@ -391,9 +391,20 @@ func (m *Model) docWrapWidth() int {
 // range background.
 func (m *Model) gutterWidth() int {
 	if m.hideLineNumbers {
-		return 3
+		return 3 + m.changeBarWidth()
 	}
 	return 3 + m.lineNumWidth() + 1
+}
+
+// changeBarWidth is the width of the change-bar column that stands in for
+// the line number as the carrier of "changed since your verdict" marks when
+// line numbers are hidden: 2 cells (bar + space) only while there is
+// something to mark, so a clean document pays nothing.
+func (m *Model) changeBarWidth() int {
+	if m.hideLineNumbers && len(m.changedLines) > 0 {
+		return 2
+	}
+	return 0
 }
 
 // lineNumWidth is the number column's width: exactly the digits the LAST line
@@ -451,6 +462,12 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 		lineNum := i + 1
 		numW := m.lineNumWidth()
 		lineNumStr := m.styles.lineNumber.Width(numW).Render(fmt.Sprintf("%d", lineNum))
+		if m.changedLines[lineNum] {
+			// Changed since the reviewer's last verdict: the NUMBER carries the
+			// mark — no new gutter cell, no width change (the marker cell is
+			// taken). The cursor accent below still wins on the focused line.
+			lineNumStr = m.styles.changedLineNum.Width(numW).Render(fmt.Sprintf("%d", lineNum))
+		}
 
 		marker := m.styles.lineMarker(commentsByLine[lineNum])
 
@@ -491,7 +508,15 @@ func (m *Model) renderDocumentView(withCursor bool) string {
 			markerCell := marker + strings.Repeat(" ", max(0, 3-lipgloss.Width(marker)))
 			numCell := lineNumStr + " "
 			if m.hideLineNumbers {
+				// Numbers hidden: the change bar (if any changes exist) is the
+				// only remaining carrier for the changed-since mark
 				numCell = ""
+				if w := m.changeBarWidth(); w > 0 {
+					numCell = strings.Repeat(" ", w)
+					if m.changedLines[lineNum] {
+						numCell = m.styles.changedLineNum.Width(0).UnsetAlign().Render("▎") + " "
+					}
+				}
 			}
 
 			if j == 0 {

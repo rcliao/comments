@@ -31,8 +31,10 @@ inputs, not promises about current behavior.
 
 | Document | Status |
 |---|---|
-| [Artifact-quality eval plan](plan-artifact-quality-eval.md) | Proposed. `comments analyze` and the probe protocol are not implemented; the narrower template eval harness exists under `scripts/eval/`. |
-| [Landscape improvements plan](plan-landscape-improvements.md) | Proposed. The skill is still monolithic and changed-since-signoff line marks do not exist. |
+| [Autonomous research convergence plan](plan-autonomous-research-convergence.md) | Phases 1–3 implemented: validation parity, `analyze`, convergence skill, and paired eval harness. Phase 4 dogfood awaits a promoting blinded pilot. |
+| [Autonomous research convergence research](research-autonomous-research-convergence.md) | Research basis for the convergence plan. |
+| [Artifact-quality eval plan](plan-artifact-quality-eval.md) | Partially implemented. The narrower `comments analyze` mechanical layer and autonomous paired-eval harness exist; post-signoff probe logging remains proposed. |
+| [Landscape improvements plan](plan-landscape-improvements.md) | Partially implemented in the current worktree: changed-since-signoff baselines and marks landed; skill decomposition remains deferred. |
 | [Artifact-quality research](research-artifact-quality-eval.md) | Research basis for the eval plan. |
 | [2026 landscape research](research-landscape-2026-08.md) | Dated market/workflow snapshot supporting the landscape plan. |
 | [Diagram-rendering research](research-diagram-render.md) | Partially adopted: fenced syntax highlighting shipped; injected ASCII diagram rendering remains deferred and its review has open blockers. |

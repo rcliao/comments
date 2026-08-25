@@ -47,6 +47,7 @@ func dispatch(args []string) error {
 		"status":       "Usage: comments status <file> [flags]",
 		"check-review": "Usage: comments check-review <file> --since <RFC3339>",
 		"batch-accept": "Usage: comments batch-accept <file> [flags]",
+		"serve":        "Usage: comments serve <file-or-dir> [flags]",
 	}
 	if usage, needsFile := fileUsage[command]; needsFile && len(args) < 2 {
 		return failf("%s", usage)
@@ -100,6 +101,8 @@ func dispatch(args []string) error {
 		return batchAcceptCommand(args[1], args[2:])
 	case "doctor":
 		return doctorCommand(args[1:])
+	case "serve":
+		return serveCommand(args[1], args[2:])
 	case "serve-mcp":
 		return serveMCPCommand()
 	case "help", "-h", "--help":
@@ -926,7 +929,7 @@ Commands:
   reject <file> [flags]       Reject a suggestion
   reanchor <file> [flags]     Migrate anchors your edits displaced (run after editing
                               a commented document; the load-time cascade is the net)
-  status <file> [flags]       Thread/suggestion/orphan counts for a document
+  status <file> [flags]       Thread/suggestion/orphan counts; --author <reviewer> adds lines/sections changed since their last verdict
   inbox <file-or-dir> [flags] What needs attention: new replies + unresolved blockers
   gate <file-or-dir> [flags]  Evaluate review gate (exit 0 = approved, 10 = changes requested)
   check-review <file> [flags] Poll for a signoff landed after --since (non-blocking
@@ -940,6 +943,7 @@ Commands:
                               exits 0 on a match, e.g. --until signoff to block until reviewed)
   doctor [path] [flags]       Check install health: binary, MCP server, plugin, sidecars
                               (exit 0 = sound, 1 = broken; warnings alone stay 0)
+  serve <file-or-dir> [flags] Open a token-protected local browser review workspace
   serve-mcp                   Start Model Context Protocol server (for LLM integration)
   help                        Show this help message
 
