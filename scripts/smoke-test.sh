@@ -16,12 +16,13 @@ workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 doc="$workdir/ci-doc.md"
 
-printf '# Doc\n\n## Problem\n\nIt is slow.\n\n## Goals / Non-Goals\n\nFaster. Non-goal: rewrite.\n\n## Proposed Design\n\nCache.\n\n## Options Considered\n\n### Option 1: Cache (recommended)\n\nGood.\n\n### Option 2: Rewrite\n\nBig.\n\n## Risks\n\nStaleness: accepted.\n\n## Definition of Done\n\nCache hit rate measured above 90 percent in the smoke benchmark.\n\n## Unresolved Questions\n\nNone.\n' > "$doc"
+printf '%s\n' '---' 'comments:' '  template: design-doc' '---' '' '# Doc' '' '## Problem' '' 'It is slow.' '' '## Goals / Non-Goals' '' 'Faster. Non-goal: rewrite.' '' '## Proposed Design' '' 'Cache.' '' '## Options Considered' '' '### Option 1: Cache (recommended)' '' 'Good.' '' '### Option 2: Rewrite' '' 'Big.' '' '## Risks' '' 'Staleness: accepted.' '' '## Definition of Done' '' 'Cache hit rate measured above 90 percent in the smoke benchmark.' '' '## Unresolved Questions' '' 'None.' > "$doc"
 
-./comments validate "$doc" --template design-doc
-./comments seed "$doc" --template design-doc
+./comments validate "$doc"
+./comments add "$doc" --anchor 'It is slow.' --author agent --type Q --blocking --text 'Is this the right problem framing?'
+./comments add "$doc" --anchor 'Staleness: accepted.' --author agent --type Q --blocking --text 'Confirm the accepted risk.'
 
-# The gate must fail (exit 10) while seeded blocking threads are open.
+# The gate must fail (exit 10) while explicit blocking threads are open.
 if ./comments gate "$doc"; then
   echo "FAIL: gate should have failed with blocking threads open" >&2
   exit 1
@@ -29,7 +30,7 @@ fi
 echo "✓ gate fails while blocking threads are open"
 
 # zone:human guard: with no TTY and no override the CLI is treated as an agent,
-# so a thread seeded into a human-decision section (design-doc marks Problem as
+# so a thread added to a human-decision section (design-doc marks Problem as
 # zone: human) must be refused. Regression cover for the /dev/null bypass.
 human_id=$(./comments list "$doc" --format json 2>/dev/null \
   | jq -r '[.[] | select(.section_path | test("Problem"))][0].id')

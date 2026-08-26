@@ -50,7 +50,7 @@ func gateCommand(target string, args []string) error {
 	jsonOut := fs.Bool("json", false, "Output machine-readable JSON decision")
 	strict := fs.Bool("strict", false, "Fail on any unresolved comment or pending suggestion, not just blocking ones")
 	contextSize := fs.Int("context", 2, "Lines of document context around each comment (0 to disable)")
-	templateName := fs.String("template", "", "Also validate structure against this template (defaults to template recorded in sidecar)")
+	templateName := fs.String("template", "", "Also validate structure against this template (defaults to frontmatter, sidecar, or bundle)")
 	if err := fs.Parse(args); err != nil {
 		return exitSilent(2)
 	}
@@ -81,23 +81,19 @@ func gateCommand(target string, args []string) error {
 			LastReview:         result.LastReview,
 		}
 
-		// Template structural validation: explicit flag wins, else sidecar record
-		tName := *templateName
-		if tName == "" {
-			tName = doc.Template
+		// Explicit flag wins; otherwise frontmatter, legacy sidecar, then bundle.
+		t, _, err := comment.ResolveTemplateForDocument(file, doc.Content, *templateName, doc.Template)
+		if err != nil {
+			return failf("Error: %v", err)
 		}
-		if tName != "" {
-			t, err := comment.LoadTemplateForDoc(tName, file)
-			if err != nil {
-				return failf("Error: %v", err)
-			}
+		if t != nil {
 			fileJSON.Template = t.Name
-			fileJSON.Violations = comment.ValidateDocument(doc.Content, file, t)
+			fileJSON.Violations = comment.ValidateManagedDocument(doc.Content, file, t)
 			if len(fileJSON.Violations) > 0 {
 				fileJSON.Decision = comment.DecisionChangesRequested
 			}
 		} else if len(doc.Threads) > 0 {
-			// A doc with no recorded template passes the structural half of the
+			// A doc with no discoverable template passes the structural half of the
 			// gate by default, which reads identically to passing it on merit.
 			// Shipped RPI artifacts have gone out hundreds of words over their
 			// caps this way, so say it out loud.
@@ -157,6 +153,17 @@ func signoffCommand(filename string, args []string) error {
 		return failf("Error saving document: %v", err)
 	}
 
+	// A verdict also stores the reviewed content as this reviewer's baseline
+	// (what "changed since your signoff" marks diff against). Best-effort: the
+	// signoff is already in the sidecar, so a baseline failure must not report
+	// a landed signoff as failed. Gate on the RECORD's decision — the flag may
+	// be empty and derived by the gate.
+	if comment.BaselineUpdatesOn(record.Decision) {
+		if err := comment.SaveReviewBaseline(filename, record.Author, doc.Content); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not save review baseline: %v\n", err)
+		}
+	}
+
 	fmt.Printf("✓ Review recorded: %s by @%s\n", record.Decision, record.Author)
 	if record.Decision == comment.DecisionChangesRequested {
 		result := comment.EvaluateGate(doc, *strict)
@@ -192,7 +199,7 @@ func printStructureUnchecked(output gateOutputJSON) {
 	for _, file := range output.Files {
 		if file.StructureUnchecked {
 			fmt.Printf("  ⚠ %s: structure unchecked — no template recorded.\n"+
-				"    Record one with: comments seed %s --template <name> --markers-only\n", file.File, file.File)
+				"    Add comments.template frontmatter or pass: comments gate %s --template <name>\n", file.File, file.File)
 		}
 	}
 }

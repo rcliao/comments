@@ -151,7 +151,7 @@ type DocumentWithComments struct {
 	DocumentHash  string         // SHA-256 hash of content for staleness detection
 	LastValidated time.Time      // Last time sidecar was validated against document
 	Reviews       []ReviewRecord // Completed review passes (signoffs), newest last
-	Template      string         // Name of the doc template governing this document (set by seed)
+	Template      string         // Legacy sidecar template association; frontmatter is preferred
 }
 
 // GetAllComments returns a flat list of all comments (roots + replies)

@@ -15,7 +15,7 @@ import (
 func analyzeCommand(filename string, args []string) error {
 	fs := flag.NewFlagSet("analyze", flag.ContinueOnError)
 	against := fs.String("against", "", "Research document to check plan coverage against")
-	templateName := fs.String("template", "", "Template name (defaults to the sidecar record)")
+	templateName := fs.String("template", "", "Template name (defaults to frontmatter, sidecar, or bundle)")
 	jsonOut := fs.Bool("json", false, "Output machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
 		return exitSilent(2)
@@ -30,16 +30,10 @@ func analyzeCommand(filename string, args []string) error {
 		return failf("Error loading document: %v", err)
 	}
 
-	name := *templateName
-	if name == "" {
-		name = doc.Template
-	}
 	var template *comment.Template
-	if name != "" {
-		template, err = comment.LoadTemplateForDoc(name, absPath)
-		if err != nil {
-			return failf("Error: %v", err)
-		}
+	template, _, err = comment.ResolveTemplateForDocument(absPath, doc.Content, *templateName, doc.Template)
+	if err != nil {
+		return failf("Error: %v", err)
 	}
 
 	var againstContent, againstPath string
@@ -71,7 +65,7 @@ func analyzeCommand(filename string, args []string) error {
 	}
 	fmt.Printf("Analysis: %s — %s\n", state, filename)
 	if result.StructureUnchecked {
-		fmt.Println("  structure unchecked: seed or pass --template before treating this artifact as ready")
+		fmt.Println("  structure unchecked: add comments.template frontmatter or pass --template before treating this artifact as ready")
 	}
 	for _, q := range result.Questions {
 		fmt.Printf("  %s line %d → %v\n", q.ID, q.Line, q.Findings)

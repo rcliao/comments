@@ -187,17 +187,13 @@ func evaluateGateForPath(path string, strict bool, templateName string) (string,
 			PendingSuggestions: toGateComments(result.PendingSuggestions, doc.Content),
 			LastReview:         result.LastReview,
 		}
-		tName := templateName
-		if tName == "" {
-			tName = doc.Template
+		t, _, err := comment.ResolveTemplateForDocument(file, doc.Content, templateName, doc.Template)
+		if err != nil {
+			return "", nil, err
 		}
-		if tName != "" {
-			t, err := comment.LoadTemplateForDoc(tName, file)
-			if err != nil {
-				return "", nil, err
-			}
+		if t != nil {
 			fileResult.Template = t.Name
-			fileResult.Violations = comment.ValidateDocument(doc.Content, file, t)
+			fileResult.Violations = comment.ValidateManagedDocument(doc.Content, file, t)
 			if len(fileResult.Violations) > 0 {
 				fileResult.Decision = comment.DecisionChangesRequested
 			}

@@ -114,6 +114,9 @@ func (s *Server) registerTools() {
 	// Template operations
 	s.registerTemplateTools()
 
+	// OKF bundle operations
+	s.registerKnowledgeTools()
+
 	// Anchor migration
 	s.toolNames = append(s.toolNames, "comments_reanchor")
 	mcp.AddTool(s.mcp, &mcp.Tool{
@@ -133,7 +136,7 @@ func (s *Server) registerAnalyzeTool() {
 
 func (s *Server) registerTemplateTools() {
 	s.toolNames = append(s.toolNames,
-		"comments_get_template", "comments_validate", "comments_seed")
+		"comments_get_template", "comments_validate")
 
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name:        "comments_get_template",
@@ -145,10 +148,6 @@ func (s *Server) registerTemplateTools() {
 		Description: "Validate a document's structure against a template (required sections, order, length caps, unresolved ambiguity markers); fix violations before requesting human review",
 	}, s.handleValidate)
 
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "comments_seed",
-		Description: "Materialize a template's per-section review criteria and NEEDS CLARIFICATION markers as anchored comment threads, and record the template on the document",
-	}, s.handleSeed)
 }
 
 func (s *Server) registerGateTool() {
@@ -208,7 +207,7 @@ func (s *Server) registerGetTool() {
 func (s *Server) registerStatusTool() {
 	tool := &mcp.Tool{
 		Name:        "comments_status",
-		Description: "Get document status including pending suggestions and orphaned comments",
+		Description: "Get document status: thread/suggestion/orphan counts, plus changed_since (lines, deletions, sections moved since a reviewer's last verdict) — cite those sections when re-requesting review",
 	}
 	s.toolNames = append(s.toolNames, tool.Name)
 	mcp.AddTool(s.mcp, tool, s.handleStatus)

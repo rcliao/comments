@@ -1,36 +1,178 @@
 {
   "eval": "autonomous-research-convergence",
   "date": "YYYY-MM-DD",
-  "model": "pin exact model and reasoning setting",
-  "revision": "git revision",
+  "model": "pin exact model",
+  "reasoning": "pin exact reasoning setting",
+  "revision": "pin git revision",
+  "context_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "token_budget": 50000,
+  "time_budget_seconds": 1800,
   "cases": [
     {
       "id": "gate-contract",
       "runs": [
         {
           "variant": "baseline",
-          "research": "path/to/blinded-research-A.md",
-          "plan": "path/to/blinded-plan-A.md",
+          "research": "artifacts/gate-contract/blinded-research-A.md",
+          "plan": "artifacts/gate-contract/blinded-plan-A.md",
           "metrics": {
             "source_question_coverage": {"covered": 0, "total": 4},
             "unsupported_claims": 0,
-            "plan_research_coverage": {"covered": 0, "total": 0},
+            "plan_research_coverage": {"covered": 0, "total": 4},
             "execution_questions": 0,
             "human_open_threads": 0,
-            "semantic_passes": 0
+            "semantic_passes": 1
           }
         },
         {
           "variant": "treatment",
-          "research": "path/to/blinded-research-B.md",
-          "plan": "path/to/blinded-plan-B.md",
+          "research": "artifacts/gate-contract/blinded-research-B.md",
+          "plan": "artifacts/gate-contract/blinded-plan-B.md",
+          "trace": "traces/gate-contract-treatment.json",
+          "termination_reason": "converged_no_surviving_gap",
           "metrics": {
             "source_question_coverage": {"covered": 0, "total": 4},
             "unsupported_claims": 0,
-            "plan_research_coverage": {"covered": 0, "total": 0},
+            "plan_research_coverage": {"covered": 0, "total": 4},
             "execution_questions": 0,
             "human_open_threads": 0,
-            "semantic_passes": 0
+            "semantic_passes": 1
+          }
+        }
+      ],
+      "blind_human_preference": "unscored"
+    },
+    {
+      "id": "anchor-survival",
+      "runs": [
+        {
+          "variant": "baseline",
+          "research": "artifacts/anchor-survival/blinded-research-A.md",
+          "plan": "artifacts/anchor-survival/blinded-plan-A.md",
+          "metrics": {
+            "source_question_coverage": {"covered": 0, "total": 4},
+            "unsupported_claims": 0,
+            "plan_research_coverage": {"covered": 0, "total": 4},
+            "execution_questions": 0,
+            "human_open_threads": 0,
+            "semantic_passes": 1
+          }
+        },
+        {
+          "variant": "treatment",
+          "research": "artifacts/anchor-survival/blinded-research-B.md",
+          "plan": "artifacts/anchor-survival/blinded-plan-B.md",
+          "trace": "traces/anchor-survival-treatment.json",
+          "termination_reason": "converged_no_surviving_gap",
+          "metrics": {
+            "source_question_coverage": {"covered": 0, "total": 4},
+            "unsupported_claims": 0,
+            "plan_research_coverage": {"covered": 0, "total": 4},
+            "execution_questions": 0,
+            "human_open_threads": 0,
+            "semantic_passes": 1
+          }
+        }
+      ],
+      "blind_human_preference": "unscored"
+    },
+    {
+      "id": "template-contract",
+      "runs": [
+        {
+          "variant": "baseline",
+          "research": "artifacts/template-contract/blinded-research-A.md",
+          "plan": "artifacts/template-contract/blinded-plan-A.md",
+          "metrics": {
+            "source_question_coverage": {"covered": 0, "total": 4},
+            "unsupported_claims": 0,
+            "plan_research_coverage": {"covered": 0, "total": 4},
+            "execution_questions": 0,
+            "human_open_threads": 0,
+            "semantic_passes": 1
+          }
+        },
+        {
+          "variant": "treatment",
+          "research": "artifacts/template-contract/blinded-research-B.md",
+          "plan": "artifacts/template-contract/blinded-plan-B.md",
+          "trace": "traces/template-contract-treatment.json",
+          "termination_reason": "converged_no_surviving_gap",
+          "metrics": {
+            "source_question_coverage": {"covered": 0, "total": 4},
+            "unsupported_claims": 0,
+            "plan_research_coverage": {"covered": 0, "total": 4},
+            "execution_questions": 0,
+            "human_open_threads": 0,
+            "semantic_passes": 1
+          }
+        }
+      ],
+      "blind_human_preference": "unscored"
+    },
+    {
+      "id": "review-baseline",
+      "runs": [
+        {
+          "variant": "baseline",
+          "research": "artifacts/review-baseline/blinded-research-A.md",
+          "plan": "artifacts/review-baseline/blinded-plan-A.md",
+          "metrics": {
+            "source_question_coverage": {"covered": 0, "total": 4},
+            "unsupported_claims": 0,
+            "plan_research_coverage": {"covered": 0, "total": 4},
+            "execution_questions": 0,
+            "human_open_threads": 0,
+            "semantic_passes": 1
+          }
+        },
+        {
+          "variant": "treatment",
+          "research": "artifacts/review-baseline/blinded-research-B.md",
+          "plan": "artifacts/review-baseline/blinded-plan-B.md",
+          "trace": "traces/review-baseline-treatment.json",
+          "termination_reason": "converged_no_surviving_gap",
+          "metrics": {
+            "source_question_coverage": {"covered": 0, "total": 4},
+            "unsupported_claims": 0,
+            "plan_research_coverage": {"covered": 0, "total": 4},
+            "execution_questions": 0,
+            "human_open_threads": 0,
+            "semantic_passes": 1
+          }
+        }
+      ],
+      "blind_human_preference": "unscored"
+    },
+    {
+      "id": "citation-resolution",
+      "runs": [
+        {
+          "variant": "baseline",
+          "research": "artifacts/citation-resolution/blinded-research-A.md",
+          "plan": "artifacts/citation-resolution/blinded-plan-A.md",
+          "metrics": {
+            "source_question_coverage": {"covered": 0, "total": 4},
+            "unsupported_claims": 0,
+            "plan_research_coverage": {"covered": 0, "total": 4},
+            "execution_questions": 0,
+            "human_open_threads": 0,
+            "semantic_passes": 1
+          }
+        },
+        {
+          "variant": "treatment",
+          "research": "artifacts/citation-resolution/blinded-research-B.md",
+          "plan": "artifacts/citation-resolution/blinded-plan-B.md",
+          "trace": "traces/citation-resolution-treatment.json",
+          "termination_reason": "converged_no_surviving_gap",
+          "metrics": {
+            "source_question_coverage": {"covered": 0, "total": 4},
+            "unsupported_claims": 0,
+            "plan_research_coverage": {"covered": 0, "total": 4},
+            "execution_questions": 0,
+            "human_open_threads": 0,
+            "semantic_passes": 1
           }
         }
       ],

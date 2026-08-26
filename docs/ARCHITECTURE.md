@@ -1,13 +1,13 @@
 # Architecture
 
-**Status:** Current · **Last reviewed:** 2026-08-12 · **Sidecar format:** 2.0 ·
+**Status:** Current · **Last reviewed:** 2026-08-25 · **Sidecar format:** 2.0 ·
 **Anchor behavior:** v2.1 design
 
 `comments` is a local-first review system for markdown. The markdown remains
 the content artifact; a neighboring JSON sidecar carries threads, suggestions,
 template identity, hashes, and review records. Humans work primarily in the
-TUI, while scripts and agents use the CLI or MCP server over the same core
-logic.
+TUI or local browser workspace, while scripts and agents use the CLI or MCP
+server over the same core logic.
 
 ## System shape
 
@@ -28,6 +28,9 @@ agent ─► MCP adapter ├──────────────┘
        └─────────────┘       ┌──────▼──────────────┐
                              │ doc.md.comments.json│
                              └─────────────────────┘
+
+human ─► local web adapter ────────► pkg/comment
+         pkg/webreview
 ```
 
 The dependency direction is intentional:
@@ -36,8 +39,8 @@ The dependency direction is intentional:
   citations, review records, inboxes, and watch snapshots.
 - `pkg/markdown` parses headings and local references without depending on a
   user interface.
-- `pkg/tui`, `pkg/mcp`, and `cmd/comments` translate input and output. Shared
-  behavior does not live in an adapter.
+- `pkg/tui`, `pkg/webreview`, `pkg/mcp`, and `cmd/comments` translate input and
+  output. Shared behavior does not live in an adapter.
 
 This rule prevents an MCP-only capability or guard. New behavior starts in
 `pkg/comment`, then both public adapters expose it.
@@ -99,10 +102,28 @@ Decisions are:
 - `commented`, a reply-only pass that hands the turn back without changing the
   gate outcome.
 
-The recorded template name makes structural validation durable. Once `seed`
-records a template, later `validate` and `gate` calls can load it without a
-flag. Built-ins are embedded from `pkg/comment/templates/`; project-specific
-templates are discovered by walking upward for `.comments/templates/`.
+A verdict (`approved` or `changes_requested`) also stores the reviewed content
+as the reviewer's **review baseline** at
+`<docdir>/.comments/baselines/<doc>.<author>.md` — one file per document per
+reviewer, latest verdict only, in the same gitignored local-state directory as
+the TUI view state. A `commented` pass does not touch it. Both signoff writers
+(TUI verdict, `comments signoff`) call `SaveReviewBaseline` after the record
+lands; the write is best-effort so a baseline failure never reports a landed
+signoff as failed. Readers diff the current document against it
+(`comment.ChangedSince`: line-level LCS, then innermost-section rollup) to
+answer "what moved since my last verdict". Edited lines are marked directly;
+a pure deletion marks the line before the gap (so the blame stays in the
+section that lost content), and a removal beside an edit counts once. The TUI tints changed line numbers in the gutter (or shows a bar
+column when numbers are hidden); `comments status --author <reviewer>` and
+MCP `comments_status {reviewer}` report `changed_lines`, `deletions` and
+`changed_sections` (omitted entirely when no baseline exists, so absence means
+"never signed off", not "unchanged").
+
+Template identity is durable without creating review noise. Resolution is:
+explicit argument, `comments.template` frontmatter, legacy sidecar, then an
+unambiguous bundle collection. Built-ins are embedded from
+`pkg/comment/templates/`; project-specific templates and `.comments/bundle.yaml`
+are discovered upward from the document.
 
 ## Read and write invariants
 
@@ -216,31 +237,76 @@ committed.
 ## CLI and MCP surfaces
 
 The CLI router is `cmd/comments/main.go`; `comments help` is its current command
-catalog. The MCP server registers 21 tools and two resources from
+catalog. The MCP server registers 23 tools and two resources from
 `pkg/mcp/server.go`. It covers thread reads/writes, batch operations,
 suggestions, templates, gate/review coordination, inbox/status, deterministic
-artifact analysis, and explicit re-anchoring.
+artifact analysis, OKF bundle/context operations, and explicit re-anchoring.
 
-`comment.ValidateDocument` is the single path-aware template entry point.
+`comment.ValidateManagedDocument` is the shared path-aware entry point.
 CLI validate/gate and MCP validate/gate all call it, so citation resolution and
-structural rule ordering cannot differ by surface. `comments analyze` /
+structural rule ordering cannot differ by surface; documents inside a bundle
+also receive the OKF metadata and collection-type checks. `comments analyze` /
 `comments_analyze` adds an advisory manifest: declared question-to-finding
 coverage plus research findings cited, explicitly excluded, or uncovered by a
 plan. Its `ready` field never changes gate state; semantic claim judgment stays
 in review threads.
 
-The MCP document and thread resources are read views. Long waits use
-`comments_request_review`; durable non-blocking waits return a timestamp handle
-consumed by `comments_check_review`. Without MCP, `comments watch --until
-signoff` observes the same sidecar review record.
+The MCP document and thread resources are read views. Agents normally hand the
+document to the human and listen with `comments watch --until signoff`; the MCP
+request/check pair remains a transport-equivalent blocking or durable poll over
+the same sidecar review record.
+
+## Local web review surface
+
+`comments serve <file-or-dir>` mounts `pkg/webreview` on a loopback listener.
+It is a human adapter over the same `pkg/comment` operations as the TUI: add,
+reply, resolve/reopen, suggestion accept/reject, and verdict records. Goldmark
+renders GFM without enabling raw HTML; a separate source view keeps line
+anchors exact. Approved and changes-requested verdicts also update the same
+per-reviewer baseline used by the TUI and `comments signoff`.
+
+The renderer wraps each top-level Goldmark block with its source-line range.
+The client assigns every root thread to the containing (or nearest) block and
+draws a compact comment bubble on that block's right edge; source mode uses the
+exact line directly. Open, blocking, and resolved states have distinct bubble
+treatments, and either gutter focuses the matching thread card without changing
+storage state. Hover/focus linkage is bidirectional: document anchors highlight
+their visible thread cards, while a thread card highlights both its rendered
+block and exact source row. The linkage is entirely client-side presentation.
+
+The reviewer identity is a workspace-level browser preference, initialized
+from the server's `--author` value and sent explicitly with every new thread,
+reply, and verdict. The server trims it and enforces an 80-character limit
+before calling core operations. Theme is also client-only: the first visit
+follows `prefers-color-scheme`, while an explicit light/dark choice is retained
+in local storage. Neither preference changes the document sidecar schema.
+
+The initial URL contains 256 bits of random capability token. A successful
+bootstrap exchanges it for an HttpOnly, SameSite=Strict cookie and redirects
+to a token-free URL. The handler pins accepted Host values to the listener,
+checks mutation origins, sends a restrictive CSP, and never accepts a
+non-loopback CLI address. Directory mode resolves every document under the
+selected root and addresses it by an enumerated relative ID, so request input
+cannot traverse to arbitrary files.
+
+Each state response includes a revision over both markdown and sidecar bytes.
+Mutations lock per document, compare the client revision under that lock, and
+return HTTP 409 plus refreshed state on mismatch. A lightweight SSE stream
+announces external file changes; the client then refetches canonical state.
+This makes a browser session safe alongside CLI, MCP, or TUI writes without
+introducing a second storage system.
 
 ## Concurrency and consistency
 
-There is no central server or lock manager. The sidecar is the shared event
+There is no central multi-process server or lock manager. The sidecar is the shared event
 bus, and writes use temporary-file-plus-rename replacement. Before every TUI
 mutation, the model refreshes from disk so an open session does not overwrite
 agent changes with an old in-memory copy. Suggestion decisions queue in the TUI
 and apply together at verdict.
+
+Within one `comments serve` process, mutations are serialized by document and
+guarded by the composite revision described above. That closes browser
+lost-update races, but it is not a cross-process distributed lock.
 
 This is last-writer-wins per action, not real-time multi-user collaboration.
 Network sync, comment edit history, and cross-machine conflict resolution are
@@ -263,6 +329,7 @@ pkg/comment/templates/     Embedded template YAML
 pkg/markdown/              Heading and reference parsing
 pkg/mcp/                   MCP adapters and resources
 pkg/tui/                   Bubbletea review UI
+pkg/webreview/             Local HTTP review adapter and embedded UI
 skills/review-comments/    Agent workflow
 scripts/eval/              Template/eval harness and logs
 docs/examples/             Maintained template examples
@@ -270,7 +337,7 @@ docs/examples/             Maintained template examples
 
 The module currently targets Go 1.25 and uses `charm.land/bubbletea/v2`,
 `charm.land/lipgloss/v2`, the Model Context Protocol Go SDK, Chroma, and YAML
-v3. Exact versions live in `go.mod`.
+v3; Goldmark powers safe browser rendering. Exact versions live in `go.mod`.
 
 ## Durable design constraints
 

@@ -1,0 +1,50 @@
+{
+  "schema_version": "convergence-run/v1",
+  "run_id": "gate-contract-treatment-001",
+  "case_id": "gate-contract",
+  "variant": "treatment",
+  "max_passes": 3,
+  "provenance": {
+    "model": "pin exact model",
+    "reasoning": "pin exact reasoning setting",
+    "revision": "pin git revision",
+    "context_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "token_budget": 50000,
+    "time_budget_seconds": 1800
+  },
+  "initial_questions": ["Q1", "Q2", "Q3", "Q4"],
+  "passes": [
+    {
+      "number": 1,
+      "research": {
+        "path": "artifacts/gate-contract/treatment/research-pass-1.md",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "analysis_ready": true,
+      "coverage": {
+        "schema_version": "coverage-judgment/v1",
+        "case_id": "gate-contract",
+        "pass": 1,
+        "judge": {"id": "coverage-judge-1", "runtime": "pin runtime version"},
+        "candidates": []
+      },
+      "reconciliation": [],
+      "evidence": {
+        "schema_version": "evidence-judgment/v1",
+        "case_id": "gate-contract",
+        "pass": 1,
+        "judge": {"id": "evidence-judge-1", "runtime": "pin runtime version"},
+        "findings": [
+          {
+            "id": "E1",
+            "claim": "Normal mode fails only when an unresolved blocking thread remains.",
+            "verdict": "supported",
+            "blocking": false,
+            "reason": "EvaluateGate derives changes_requested from the blocking collection.",
+            "citations": [{"path": "pkg/comment/gate.go", "start_line": 34, "end_line": 64}]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -36,9 +36,16 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
+__pycache__/
+*.py[cod]
 
 # Application binary (root directory only)
 /comments
 
-# TUI view-state dirs (per-document cursor/scroll persistence)
-.comments/
+# Runtime view state stays local; only the root template and bundle config are source.
+**/.comments/
+!/.comments/
+/.comments/*
+!/.comments/templates/
+!/.comments/templates/**
+!/.comments/bundle.yaml

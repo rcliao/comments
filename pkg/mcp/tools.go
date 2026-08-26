@@ -224,7 +224,21 @@ func (s *Server) handleStatus(ctx context.Context, req *mcp.CallToolRequest, arg
 			}
 		}
 
+		var changed *ChangedSince
+		reviewer := args.Reviewer
+		if reviewer == "" {
+			reviewer = os.Getenv("USER")
+		}
+		if cs, ok := comment.ChangedSince(absPath, reviewer, doc.Content); ok {
+			sections := cs.Sections
+			if sections == nil {
+				sections = []string{}
+			}
+			changed = &ChangedSince{Reviewer: reviewer, ChangedLines: cs.Count(), Deletions: cs.Deletions(), ChangedSections: sections}
+		}
+
 		return DocumentStatus{
+			ChangedSince:        changed,
 			FilePath:            absPath,
 			TotalThreads:        totalThreads,
 			TotalComments:       len(allComments),

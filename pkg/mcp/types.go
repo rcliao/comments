@@ -30,6 +30,17 @@ type GetCommentRequest struct {
 // StatusRequest represents a request to get document status
 type StatusRequest struct {
 	FilePath string `json:"filepath" jsonschema:"Path to the markdown file"`
+	Reviewer string `json:"reviewer,omitempty" jsonschema:"Reviewer whose last verdict to diff against (default: $USER). Populates changed_since so an agent can say which sections it touched when re-requesting review"`
+}
+
+// ChangedSince reports what moved in the document since a reviewer's last
+// verdict (approved / changes_requested — a commented reply-pass does not
+// move the baseline). Absent when that reviewer has never signed off.
+type ChangedSince struct {
+	Reviewer        string   `json:"reviewer"`
+	ChangedLines    int      `json:"changed_lines"`    // lines added or edited
+	Deletions       int      `json:"deletions"`        // pure removals (not beside an edit, which counts once as the edit)
+	ChangedSections []string `json:"changed_sections"` // innermost section paths touched, in document order
 }
 
 // AddCommentRequest represents a request to add a root comment
@@ -127,7 +138,7 @@ type BatchReplyData struct {
 type GateRequest struct {
 	FilePath string `json:"filepath" jsonschema:"Path to a markdown file or a directory of markdown files"`
 	Strict   bool   `json:"strict,omitempty" jsonschema:"If true fail on any unresolved comment or pending suggestion not just blocking ones"`
-	Template string `json:"template,omitempty" jsonschema:"Also validate structure against this template (defaults to the template recorded in each sidecar)"`
+	Template string `json:"template,omitempty" jsonschema:"Also validate structure against this template (defaults to frontmatter, legacy sidecar, or bundle)"`
 }
 
 // RequestReviewRequest represents a request for human review. By default it
@@ -166,7 +177,7 @@ type ReanchorRequest struct {
 // ValidateRequest represents a request to validate a document against a template
 type ValidateRequest struct {
 	FilePath string `json:"filepath" jsonschema:"Path to the markdown file"`
-	Template string `json:"template,omitempty" jsonschema:"Template name (defaults to the template recorded in the sidecar)"`
+	Template string `json:"template,omitempty" jsonschema:"Template name (defaults to frontmatter, legacy sidecar, or bundle)"`
 }
 
 // AnalyzeRequest asks for deterministic artifact coverage. It is advisory and
@@ -174,15 +185,29 @@ type ValidateRequest struct {
 type AnalyzeRequest struct {
 	FilePath string `json:"filepath" jsonschema:"Path to the markdown artifact"`
 	Against  string `json:"against,omitempty" jsonschema:"Research document to check plan coverage against"`
-	Template string `json:"template,omitempty" jsonschema:"Template name (defaults to the template recorded in the sidecar)"`
+	Template string `json:"template,omitempty" jsonschema:"Template name (defaults to frontmatter, legacy sidecar, or bundle)"`
 }
 
-// SeedRequest represents a request to seed template review threads
-type SeedRequest struct {
-	FilePath    string `json:"filepath" jsonschema:"Path to the markdown file"`
-	Template    string `json:"template,omitempty" jsonschema:"Template name (defaults to the template recorded in the sidecar)"`
-	Author      string `json:"author,omitempty" jsonschema:"Author for seeded threads (default 'template')"`
-	MarkersOnly bool   `json:"markers_only,omitempty" jsonschema:"Seed only NEEDS CLARIFICATION markers; post your own doc-specific callouts instead of generic criteria"`
+// NewDocumentRequest creates a concept through the project's OKF bundle.
+type NewDocumentRequest struct {
+	Name        string `json:"name" jsonschema:"Lowercase document slug without .md"`
+	Template    string `json:"template" jsonschema:"Template that selects the bundle collection and document shape"`
+	Title       string `json:"title,omitempty" jsonschema:"Document title; defaults to the slug"`
+	Description string `json:"description,omitempty" jsonschema:"One-sentence concept description"`
+	From        string `json:"from,omitempty" jsonschema:"Related source document to record as informed_by"`
+	BundlePath  string `json:"bundle_path,omitempty" jsonschema:"Path used to discover .comments/bundle.yaml; defaults to current directory"`
+}
+
+// ContextRequest retrieves the relevant OKF neighborhood for an agent role.
+type ContextRequest struct {
+	FilePath       string `json:"filepath" jsonschema:"Path to the current OKF concept"`
+	For            string `json:"for,omitempty" jsonschema:"Role mode: drafting, review, coverage-scout, evidence-verifier, or human-review"`
+	IncludeBody    bool   `json:"include_body,omitempty" jsonschema:"Include document bodies"`
+	IncludeThreads bool   `json:"include_threads,omitempty" jsonschema:"Include review comment threads"`
+}
+
+type BundleIndexRequest struct {
+	Path string `json:"path,omitempty" jsonschema:"Path used to discover .comments/bundle.yaml; defaults to current directory"`
 }
 
 // GetTemplateRequest represents a request to read a template definition
@@ -203,6 +228,7 @@ type DocumentStatus struct {
 	DocumentHash        string         `json:"document_hash"`
 	LastValidated       string         `json:"last_validated"`
 	SuggestionsByAuthor map[string]int `json:"suggestions_by_author,omitempty"`
+	ChangedSince        *ChangedSince  `json:"changed_since,omitempty"`
 }
 
 // CommentWithContext represents a comment with its surrounding context

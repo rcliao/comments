@@ -1,6 +1,6 @@
 # Comments
 
-Google-Docs-style review for markdown, in the terminal. Inline comment threads and edit suggestions live in sidecar JSON files next to your docs — a TUI for the human, a CLI + MCP server for agents, and a machine-readable review gate between them.
+Google-Docs-style review for markdown, locally. Inline comment threads and edit suggestions live in sidecar JSON files next to your docs — a TUI or browser workspace for the human, a CLI + MCP server for agents, and a machine-readable review gate between them.
 
 [![asciicast](https://asciinema.org/a/z6fSaof32MYS36NOtZ5Oj84Lf.svg)](https://asciinema.org/a/z6fSaof32MYS36NOtZ5Oj84Lf)
 
@@ -14,10 +14,12 @@ Google-Docs-style review for markdown, in the terminal. Inline comment threads a
 - **Edit suggestions**: multi-line proposals with preview and accept/reject; queued decisions apply atomically at review verdict
 - **Review gate**: `comments gate` exits 0 (approved) or 10 (changes requested); `signoff` records the human pass agents block on
 - **Doc templates as guardrails**: required sections, word caps, forced alternatives, human-owned zones, `[NEEDS CLARIFICATION:]` marker caps — built-ins: `design-doc`, `mini`, `research`, `plan`, `adr`, `rfc`, `as-built`
+- **OKF document bundles**: `comments new` creates frontmatter-rich concepts in template-guided folders; `comments context` exposes explicit relations, backlinks, sources, and review state without a whole-tree search
 - **RPI flow**: research docs with file:line evidence → plans citing the research → reviewed in the TUI where `f` peeks any citation and Enter opens `$EDITOR` there
 - **Autonomous research convergence**: draft-blind coverage scout + evidence verifier add missing `Qn` questions until clean; `comments analyze plan.md --against research.md` proves the handoff before review
 - **Watch**: `comments watch --until signoff` streams NDJSON review events so agents can wait on humans
-- **MCP server**: 21 tools over stdio for agent integration; batch operations; `@filename` text input
+- **Browser review**: `comments serve` opens a rendered document and line-accurate source view beside live threads, suggestions, and verdict controls
+- **MCP server**: 23 tools over stdio for agent integration; batch operations; `@filename` text input
 - **Surface parity**: every MCP tool has a CLI equivalent backed by the same code — see `docs/ARCHITECTURE.md` decision 8
 
 ## Install
@@ -40,6 +42,7 @@ go install github.com/rcliao/comments/cmd/comments@latest
 
 ```bash
 comments view doc.md            # TUI review; q -> a/c signs off (n adds a note)
+comments serve doc.md           # local browser review; use the one-time URL it prints
 comments add doc.md --line 10 --author eric --text "Fix this first" --blocking
 comments gate doc.md            # exit 0 = approved, 10 = changes requested
 comments signoff doc.md         # same review record, non-interactively (CI, --note)
@@ -51,8 +54,9 @@ Agent-side drafting under a template:
 ```bash
 comments template list                        # when to use which, per description
 comments template show design-doc             # the writing brief
-comments validate draft.md --template design-doc
-comments seed draft.md --template design-doc  # criteria + markers become review threads
+comments new cache-policy --template design-doc
+comments context docs/artifacts/designs/cache-policy.md --for drafting --include-threads
+comments validate docs/artifacts/designs/cache-policy.md
 comments analyze plan.md --against research.md --json  # advisory coverage manifest
 ```
 

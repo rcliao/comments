@@ -8,29 +8,74 @@ your installed version differ.
 
 ```bash
 comments view doc.md
+comments serve doc.md --author eric
 comments add doc.md --anchor "sentence under review" --author eric --text "Tighten this" --blocking
 comments gate doc.md
 ```
 
-`comments view` is the human review surface. Press `q` to open the verdict and
+`comments view` is the terminal review surface. Press `q` to open the verdict and
 then `a` to approve, `c` to request changes, or `r` to submit a reply-only pass.
 All three choices record a review in the sidecar. Do not run `comments signoff`
 after submitting a TUI verdict; `signoff` is the non-interactive alternative.
+
+`comments serve` provides the same review loop in a browser. Open the one-time
+URL printed by the command; it exchanges its random token for a local HttpOnly
+session cookie. The server binds to loopback only, watches the markdown and
+sidecar for changes, and rejects stale writes rather than overwriting a newer
+review action. A directory target provides a document queue for every markdown
+file under it that already has a comment sidecar.
 
 ## Command map
 
 | Area | Commands |
 |---|---|
-| Human review | `view` |
+| Human review | `view`, `serve` |
 | Read threads | `list`, `get`, `status`, `inbox` |
 | Write threads | `add`, `batch-add`, `reply`, `batch-reply`, `resolve` |
 | Suggestions | `suggest`, `accept`, `batch-accept`, `reject` |
 | Review coordination | `gate`, `signoff`, `check-review`, `watch` |
-| Templates and artifact analysis | `template list`, `template show`, `validate`, `seed`, `analyze` |
+| Bundles and context | `new`, `context`, `bundle index` |
+| Templates and artifact analysis | `template list`, `template show`, `validate`, `analyze` |
 | Anchor maintenance | `reanchor` |
-| Diagnostics and integration | `doctor`, `serve-mcp` |
+| Diagnostics and integration | `doctor`, `serve`, `serve-mcp` |
 
 Run `comments help` for the complete flag list and examples.
+
+## Browser review workspace
+
+```bash
+comments serve doc.md
+comments serve docs/ --author eric
+comments serve doc.md --addr 127.0.0.1:8080
+```
+
+Rendered mode is optimized for reading. Source mode preserves exact line
+identity: select any line number to start a thread there. The review rail can
+reply, resolve or reopen threads, accept or reject suggestions, and submit an
+approve, changes-requested, or reply-only verdict. Changes made by an agent,
+the TUI, or another CLI command appear through the live event stream.
+
+Both modes expose a comment gutter. Rendered blocks show a compact comment
+bubble on the document's right edge; source rows show a count badge beside the
+line number. Blocking and resolved bubbles use distinct treatments. Select any
+bubble to highlight the passage and focus its thread in the review rail.
+Hovering a commented passage or source row highlights its thread cards; hovering
+a thread card highlights the corresponding rendered passage and source row.
+Replies use a multiline composer: Enter or Cmd+Enter sends, while Shift+Enter
+inserts a newline.
+
+Set **Commenting as** once in the top bar to use the same review name for every
+new thread, reply, and verdict across the workspace. The browser remembers that
+name. The adjacent theme control switches between light and dark mode, starts
+from the operating-system preference, and remembers an explicit choice.
+After a verdict is submitted, its decision, reviewer, time, and note remain
+visible in the finish-review card; the document header also carries the latest
+decision. **Update review** reopens the verdict controls for a later pass.
+
+The server intentionally refuses non-loopback `--addr` values. Its review token
+is a capability: do not paste the printed URL into logs or messages. Markdown
+HTML is not trusted; raw HTML is omitted by the renderer and the page ships a
+restrictive Content Security Policy.
 
 ## Targeting document content
 
@@ -152,17 +197,39 @@ Built-ins are `design-doc`, `mini`, `research`, `research-deep`, `plan`, `adr`,
 comments template list
 comments template show design-doc
 comments validate draft.md --template design-doc
-comments seed draft.md --template design-doc --markers-only
 comments gate draft.md --json
 comments analyze plan.md --against research.md --json
 ```
 
 Templates define required sections, ordering, word caps, minimum alternatives,
-review criteria, citation checks, and human-owned zones. `seed` records the
-template in the sidecar so later `validate` and `gate` calls can omit
-`--template`. Agent workflows normally use `--markers-only` and post their own
-specific self-review callouts; human-only workflows may seed all generic
-criteria.
+review criteria, citation checks, and human-owned zones. Template identity
+resolves in this order: explicit flag, `comments.template` frontmatter, legacy
+sidecar, then a bundle collection with exactly one template. Agents post their
+own specific self-review callouts with `add` or `batch-add`; generic criterion
+threads are intentionally not generated.
+
+### OKF bundles and agent context
+
+Projects opt in with `.comments/bundle.yaml`. The config maps templates to
+review-friendly collections under one knowledge root. Concept files use
+OKF-compatible frontmatter; `related` is a producer extension used for
+deterministic navigation.
+
+```bash
+comments new cache-policy --template research-deep --description "Evidence for cache invalidation policy"
+comments new cache-policy --template plan --from docs/artifacts/research/cache-policy.md
+comments context docs/artifacts/plans/cache-policy.md --for drafting --include-threads
+comments bundle index
+```
+
+`new` selects the folder from the template, emits required section headings,
+creates an empty review sidecar, and refreshes root and collection indexes.
+`context` returns explicit frontmatter relations, Markdown links, backlinks,
+sources, review state, and up to five tag-based suggestions. Every edge names
+why it was included. `coverage-scout` exposes only the Research Question as its
+`focus` while forcibly excluding bodies, threads, and draft-derived links;
+`evidence-verifier` and review modes do not broaden the working set with tag
+suggestions.
 
 Gate results:
 

@@ -314,3 +314,60 @@ func TestErrorsGoToStderr(t *testing.T) {
 		t.Errorf("stderr missing load error: %q", stderr)
 	}
 }
+
+// A verdict signoff stores the reviewed content as the reviewer's baseline;
+// status then names what moved since. A reply-pass leaves the baseline alone.
+func TestSignoffStoresBaselineAndStatusReportsChangedSections(t *testing.T) {
+	doc := writeTestDoc(t)
+
+	if code, _, stderr := runCapture(t, "signoff", doc, "--author", "eric", "--decision", "approved"); code != 0 {
+		t.Fatalf("signoff exited %d: %s", code, stderr)
+	}
+	base, ok := comment.LoadReviewBaseline(doc, "eric")
+	if !ok {
+		t.Fatal("approved signoff must store a baseline")
+	}
+	original, _ := os.ReadFile(doc)
+	if base != string(original) {
+		t.Errorf("baseline = %q, want the signed-off content", base)
+	}
+
+	// Agent edits the second section
+	edited := strings.Replace(string(original), "Second paragraph line.", "Second paragraph REWRITTEN.\nAnd a new line.", 1)
+	if err := os.WriteFile(doc, []byte(edited), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout, _ := runCapture(t, "status", doc, "--json", "--author", "eric")
+	if code != 0 {
+		t.Fatalf("status exited %d", code)
+	}
+	var st struct {
+		ChangedLines    int      `json:"changed_lines"`
+		ChangedSections []string `json:"changed_sections"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &st); err != nil {
+		t.Fatalf("status --json invalid: %v\n%s", err, stdout)
+	}
+	if st.ChangedLines != 2 || len(st.ChangedSections) != 1 || st.ChangedSections[0] != "Title > Section" {
+		t.Errorf("status changes = %+v, want 2 lines in [Title > Section]", st)
+	}
+	code, stdout, _ = runCapture(t, "status", doc, "--author", "eric")
+	if code != 0 || !strings.Contains(stdout, "2 line(s), 0 deletion(s) since @eric's last verdict") || !strings.Contains(stdout, "- Title > Section") {
+		t.Errorf("text status should list changed sections, got:\n%s", stdout)
+	}
+
+	// A reply-pass does NOT move the baseline: marks keep reading since the verdict
+	if code, _, stderr := runCapture(t, "signoff", doc, "--author", "eric", "--decision", "commented"); code != 0 {
+		t.Fatalf("commented signoff exited %d: %s", code, stderr)
+	}
+	if after, _ := comment.LoadReviewBaseline(doc, "eric"); after != base {
+		t.Error("commented signoff must not replace the baseline")
+	}
+
+	// No baseline for another reviewer → no changed_* keys at all
+	_, stdout, _ = runCapture(t, "status", doc, "--json", "--author", "someone-else")
+	if strings.Contains(stdout, "changed_lines") {
+		t.Error("status must omit changed_* when the reviewer has no baseline")
+	}
+}

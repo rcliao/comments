@@ -166,6 +166,7 @@ func inboxCommand(target string, args []string) error {
 func statusCommand(filename string, args []string) error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	jsonOut := fs.Bool("json", false, "Output machine-readable JSON")
+	reviewer := fs.String("author", os.Getenv("USER"), "Reviewer whose last-verdict baseline to diff against (defaults to $USER)")
 	if err := fs.Parse(args); err != nil {
 		return exitSilent(2)
 	}
@@ -215,6 +216,18 @@ func statusCommand(filename string, args []string) error {
 		"template":            doc.Template,
 		"document_hash":       doc.DocumentHash,
 	}
+	// What moved since this reviewer's last verdict: present only when a
+	// baseline exists, so "no key" means "never signed off", not "unchanged"
+	changes, hasBaseline := comment.ChangedSince(absPath, *reviewer, doc.Content)
+	if hasBaseline {
+		sections := changes.Sections
+		if sections == nil {
+			sections = []string{}
+		}
+		status["changed_lines"] = changes.Count()
+		status["deletions"] = changes.Deletions()
+		status["changed_sections"] = sections
+	}
 
 	if *jsonOut {
 		encoded, err := json.MarshalIndent(status, "", "  ")
@@ -236,6 +249,16 @@ func statusCommand(filename string, args []string) error {
 	}
 	if report.Stale {
 		fmt.Printf("  ⚠ Document changed since the sidecar was written — anchors were revalidated\n")
+	}
+	if hasBaseline {
+		if changes.Count() == 0 && changes.Deletions() == 0 {
+			fmt.Printf("  Changed         nothing since @%s's last verdict\n", *reviewer)
+		} else {
+			fmt.Printf("  Changed         %d line(s), %d deletion(s) since @%s's last verdict, in %d section(s):\n", changes.Count(), changes.Deletions(), *reviewer, len(changes.Sections))
+			for _, sec := range changes.Sections {
+				fmt.Printf("                    - %s\n", sec)
+			}
+		}
 	}
 	return nil
 }

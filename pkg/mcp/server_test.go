@@ -97,7 +97,8 @@ func TestServerRegistersAllTools(t *testing.T) {
 		"comments_reject", "comments_batch_add", "comments_batch_reply",
 		"comments_gate", "comments_request_review", "comments_check_review",
 		"comments_inbox",
-		"comments_get_template", "comments_validate", "comments_seed",
+		"comments_get_template", "comments_validate",
+		"comments_new", "comments_context", "comments_bundle_index",
 		"comments_reanchor",
 	}
 	names := map[string]bool{}
@@ -123,6 +124,34 @@ func TestServerRegistersAllTools(t *testing.T) {
 		if !names[name] {
 			t.Errorf("ToolNames reports %s, which is not registered", name)
 		}
+	}
+}
+
+func TestKnowledgeBundleToolsRoundTrip(t *testing.T) {
+	session := startTestSession(t)
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".comments"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	config := "bundle: MCP Knowledge\nversion: 1\nokf_version: \"0.2\"\nroot: docs\ncollections:\n  plans:\n    path: plans\n    type: Plan\n    templates: [plan]\n"
+	if err := os.WriteFile(filepath.Join(root, ".comments", "bundle.yaml"), []byte(config), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	created := callTool(t, session, "comments_new", map[string]any{
+		"name": "cache-policy", "template": "plan", "bundle_path": root,
+	})
+	path := created["path"].(string)
+	if !strings.HasSuffix(filepath.ToSlash(path), "/docs/plans/cache-policy.md") {
+		t.Fatalf("unexpected created path: %v", created)
+	}
+	context := callTool(t, session, "comments_context", map[string]any{"filepath": path, "for": "drafting"})
+	document := context["document"].(map[string]any)
+	if document["template"] != "plan" || document["type"] != "Plan" {
+		t.Fatalf("unexpected context document: %v", document)
+	}
+	indexed := callTool(t, session, "comments_bundle_index", map[string]any{"path": root})
+	if indexed["indexed"] != true {
+		t.Fatalf("bundle index failed: %v", indexed)
 	}
 }
 
@@ -183,31 +212,22 @@ func TestHumanZoneResolveRefused(t *testing.T) {
 	session := startTestSession(t)
 	doc := writeFixture(t)
 
-	// design-doc template marks "Problem" as zone: human; seeding records the template
-	seeded := callTool(t, session, "comments_seed", map[string]any{
-		"filepath": doc, "template": "design-doc",
+	data, err := os.ReadFile(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frontmatter := "---\ncomments:\n  template: design-doc\n---\n\n"
+	if err := os.WriteFile(doc, []byte(frontmatter+string(data)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	added := callTool(t, session, "comments_add", map[string]any{
+		"filepath": doc, "author": "agent", "text": "human decision", "anchor": "It is slow.",
 	})
-	if seeded["seeded_count"].(float64) < 1 {
-		t.Fatalf("expected seeded threads: %v", seeded)
-	}
-	// The response leads with the recording act — an empty seeded list must
-	// never read as "nothing happened".
-	if seeded["template_recorded"] != "design-doc" {
-		t.Fatalf("seed response must state template_recorded, got %v", seeded)
-	}
+	problemThread := added["comment_id"].(string)
 
-	// find a seeded thread anchored in the Problem section (line 3 heading)
 	listed := callTool(t, session, "comments_list", map[string]any{"filepath": doc})
-	var problemThread string
-	for _, raw := range listed["comments"].([]any) {
-		c := raw.(map[string]any)
-		if strings.Contains(c["section_path"].(string), "Problem") {
-			problemThread = c["id"].(string)
-			break
-		}
-	}
-	if problemThread == "" {
-		t.Fatal("no seeded thread in Problem section")
+	if len(listed["comments"].([]any)) != 1 {
+		t.Fatalf("expected explicit agent annotation: %v", listed)
 	}
 
 	errText := callToolExpectError(t, session, "comments_resolve", map[string]any{

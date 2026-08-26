@@ -46,6 +46,7 @@ var threadRefRe = regexp.MustCompile("(?:^|[\\s(`])thread:(?:((?:[\\w.\\-~]+/)*[
 // URLs (scheme://) and pure anchors (#section) are not references.
 func ParseReferences(content string) []Reference {
 	var refs []Reference
+	content = MaskFrontmatter(content)
 	lines := strings.Split(content, "\n")
 
 	inFence := false

@@ -1,4 +1,5 @@
 {
+  "schema_version": "autonomous-research-cases/v1",
   "eval": "autonomous-research-convergence",
   "cases": [
     {
@@ -32,6 +33,28 @@
         {"id": "G2", "question": "How are omitted research clauses detected?", "expected": "Research questions are numbered and findings claim them with Q tags; unknown and uncovered IDs are violations.", "evidence": ["pkg/comment/coverage.go"]},
         {"id": "G3", "question": "What does seed persist besides threads?", "expected": "It records the template name so later gate calls enforce the same contract.", "evidence": ["cmd/comments/template.go", "pkg/mcp/template.go"]},
         {"id": "G4", "question": "Which decisions remain human-owned?", "expected": "Agents cannot resolve threads anchored in template sections marked zone human.", "evidence": ["pkg/comment/actor.go"]}
+      ]
+    },
+    {
+      "id": "review-baseline",
+      "task": "Research how changed-since-last-review state is recorded and reported for one reviewer, then plan a safe extension without changing gate authority.",
+      "source_allowlist": ["pkg/comment/baseline.go", "cmd/comments/gate.go", "cmd/comments/parity.go", "pkg/webreview/server.go"],
+      "golden_questions": [
+        {"id": "G1", "question": "Which review decisions replace the reviewer baseline?", "expected": "Approved and changes_requested verdicts replace it; a commented reply-pass leaves the prior verdict baseline intact.", "evidence": ["pkg/comment/baseline.go", "cmd/comments/gate.go", "pkg/webreview/server.go"]},
+        {"id": "G2", "question": "Where is reviewer-specific baseline content stored?", "expected": "One sanitized-author Markdown file per document and reviewer lives under the document-local .comments/baselines directory.", "evidence": ["pkg/comment/baseline.go"]},
+        {"id": "G3", "question": "How are edits and pure deletions represented?", "expected": "An LCS diff marks new or edited current lines and separately anchors pure deletion runs to a surviving current line; very large documents skip the quadratic diff.", "evidence": ["pkg/comment/baseline.go"]},
+        {"id": "G4", "question": "How does status expose changed document regions?", "expected": "When a baseline exists, status reports changed-line and deletion counts plus innermost changed section paths in document order; it omits those keys when no baseline exists.", "evidence": ["pkg/comment/baseline.go", "cmd/comments/parity.go"]}
+      ]
+    },
+    {
+      "id": "citation-resolution",
+      "task": "Research how file-line and thread citations remain unambiguous and peekable from a citing document, then plan a compatible browser citation view.",
+      "source_allowlist": ["pkg/comment/citations.go", "pkg/comment/storage.go", "pkg/markdown/refs.go", "cmd/comments/main.go", "pkg/tui/keys_refpeek.go"],
+      "golden_questions": [
+        {"id": "G1", "question": "How are repository file citations resolved and rejected?", "expected": "Path-qualified references resolve from the citing document, while bare basenames are indexed repository-wide and rejected when ambiguous; missing files, reversed ranges, and lines past EOF are violations.", "evidence": ["pkg/comment/citations.go", "pkg/markdown/refs.go"]},
+        {"id": "G2", "question": "Which apparent citations are deliberately not validated as file evidence?", "expected": "References without a line, thread references, and references inside fenced code blocks are skipped by file-line validation.", "evidence": ["pkg/comment/citations.go", "pkg/markdown/refs.go"]},
+        {"id": "G3", "question": "How do same-document and cross-document thread citations resolve?", "expected": "thread:c1abc requires the citing document; thread:path.md#c1abc resolves relative paths against the citing document's directory rather than the caller working directory.", "evidence": ["pkg/comment/storage.go", "cmd/comments/main.go"]},
+        {"id": "G4", "question": "What conversation is returned when a citation names a reply?", "expected": "Thread reads return the containing root thread so a citation peek includes the whole discussion rather than an isolated reply.", "evidence": ["pkg/comment/storage.go"]}
       ]
     }
   ]

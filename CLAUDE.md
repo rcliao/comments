@@ -62,7 +62,8 @@ Command surface: run `./comments` with no args for full usage. The core review-l
 ./comments signoff doc.md         # record a review pass (what agents wait on)
 ./comments watch specs/ --until signoff                 # block until a signoff (NDJSON events)
 ./comments validate draft.md --template design-doc
-./comments seed draft.md --template design-doc
+./comments new cache-policy --template design-doc       # when a bundle is configured
+./comments context docs/artifacts/designs/cache-policy.md --for drafting
 ./comments doctor                 # install health: binary, MCP, plugin, sidecars
 ./comments serve-mcp              # MCP server over stdio
 ```
@@ -93,10 +94,10 @@ Templates constrain what an agent writes so humans can review it well. A templat
 
 - **Sections**: required headings (matched by title or path suffix), order, `max_words` caps (attacks LLM padding), `min_subsections` (e.g. "Options Considered" needs >= 2 alternatives). **Citation tokens (`file.go:12`, `thread:c1abc`) do not count toward any word cap** — one counter, `countWords`, strips them via `markdown.StripCitations`, so evidence never competes with content (measured cost before the exemption: ~12% of a section's budget, `scripts/eval/`).
 - **`zone: human`**: human-decision sections. Threads anchored there cannot be resolved by agents over MCP — the agent gets an error telling it to reply instead; only the human resolves (CLI/TUI).
-- **`review_criteria`**: per-section self-review prompts for the *agent* — the skill requires the agent to judge its draft against each criterion and post doc-specific callouts (weakest reasoning, assumptions, invented facts) at exact lines, instead of forwarding generic questions. `comments seed` without flags still materializes criteria as generic blocking threads (useful for human-only workflows); agent flows use `seed --markers-only`.
-- **Markers**: every `[NEEDS CLARIFICATION: ...]` occurrence is a validation violation and seeds a blocking Q thread at that line — agents must flag ambiguity instead of guessing (Spec Kit convention).
+- **`review_criteria`**: per-section self-review prompts for the *agent* — the skill requires the agent to judge its draft against each criterion and post doc-specific callouts (weakest reasoning, assumptions, invented facts) at exact lines, instead of forwarding generic questions.
+- **Markers**: every `[NEEDS CLARIFICATION: ...]` occurrence is a validation violation; agents add a specific blocking Q comment at that line instead of guessing (Spec Kit convention).
 
-Workflow: agent reads the template (`comments_get_template`) as its writing brief → drafts → `comments_validate` and self-corrects structure → `comments_seed` → human review = resolving seeded/own threads → `comments gate` (validates structure + comment state; `seed` records the template in the sidecar so the gate picks it up automatically) → `signoff`.
+Workflow: agent creates a bundle concept or reads the template (`comments_get_template`) → loads `comments_context` → drafts → validates and self-corrects → adds specific inline annotations → human review → `comments gate` → agent listens for `signoff`.
 
 ### Review Gate and Signoff
 
@@ -111,11 +112,11 @@ The gate turns review state into a machine-readable contract for agent loops and
     (never treat it as approval). Also applies the queued suggestion decisions and exits 0/10, so the TUI doubles as the interactive gate. **A human who reviewed in the TUI has already signed off — do not also ask them to run `comments signoff`** (it would append a second record).
   - `comments signoff <file>` for everything non-interactive: CI, scripts, `--decision`/`--note`/`--strict` overrides, or signing off a doc reviewed elsewhere. Decision derives from the gate unless overridden.
 - **Waiting for a review** (no MCP): `comments watch <file-or-dir> --until signoff` blocks and exits 0 on the first signoff, emitting `{"event":"signoff","author","decision","note"}` — the decision and the reviewer's message in one event. The sidecar is the shared event bus, so it fires for either writer above.
-- **Agent loop**: agent drafts → calls `comments_request_review` (MCP, blocks) or waits on `comments watch --until signoff` → human reviews and signs off (`comments view`, verdict on exit) → agent runs the inbox FIRST (replies are the payload, the decision is the envelope), then acts on the decision (see `skills/review-comments/SKILL.md`) → repeat until gate passes.
+- **Agent loop**: agent drafts → tells the human to review and listens with `comments watch --until signoff` → human reviews and signs off (`comments view`, verdict on exit) → agent runs the inbox FIRST (replies are the payload, the decision is the envelope), then acts on the decision (see `skills/review-comments/SKILL.md`) → repeat until gate passes.
 
 ### Model Context Protocol (MCP) Integration
 
-`./comments serve-mcp` runs an MCP server over stdio: 2 subscribable resources (`comments://doc/{filepath}`, `comments://thread/{filepath}/{thread_id}`) and 21 tools mirroring the CLI (list/get/status/analyze, add/reply/resolve, suggest/accept/reject, batch ops, gate/request_review/check_review, inbox, template get/validate/seed, reanchor). The tool catalog with schemas lives in `pkg/mcp/server.go`. Notable semantics:
+`./comments serve-mcp` runs an MCP server over stdio: 2 subscribable resources (`comments://doc/{filepath}`, `comments://thread/{filepath}/{thread_id}`) and 23 tools mirroring the CLI (list/get/status/analyze, add/reply/resolve, suggest/accept/reject, batch ops, gate/request_review/check_review, inbox, template get/validate, new/context/bundle index, reanchor). The tool catalog with schemas lives in `pkg/mcp/server.go`. Notable semantics:
 
 - **comments_request_review** — default blocks until a human signoff, then returns the decision + remaining comments. With `blocking: false` returns `{status: "requested", since: <RFC3339>}` — a durable handle polled via **comments_check_review** (survives agent restarts).
 - **comments_inbox** — one-call attention view: unresolved threads with replies newer than `since`, plus all unresolved blocking threads.
@@ -142,8 +143,8 @@ For feature-sized work the AUTONOMOUS CHAIN is the default: interview once, then
 
 ## Recommended Review Flow (the tool's core loop)
 
-1. **Agent produces doc** under a template: read the brief (`comments_get_template`), draft, `comments validate` until structure is clean.
-2. **Seed and self-review**: agents run `comments seed --markers-only`, then post specific anchored callouts from the template criteria; the template is recorded in the sidecar and ambiguity markers become blocking threads.
+1. **Agent produces doc** under a template: use `comments new` in a configured bundle, read the brief and `comments context`, then draft and validate until structure is clean.
+2. **Annotate and self-review**: post specific anchored callouts from the template criteria with `add`/`batch-add`; each ambiguity marker gets a blocking Q thread. Template identity lives in frontmatter, not in review threads.
 3. **Human reviews** in the TUI: `comments view <doc>` — walk threads, reply/resolve, add comments (`--blocking` for must-fix), then submit the TUI verdict, which records the signoff.
 4. **Agent processes feedback** one comment at a time (see `skills/review-comments/SKILL.md`): reply/resolve/suggest, `comments_reanchor` after edits, re-request review.
 5. **Iterate until the gate unblocks**: `comments gate <doc>` exit 0 → implement.

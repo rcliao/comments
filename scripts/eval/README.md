@@ -62,8 +62,9 @@ top-level key to the current log file (or start a new dated one).
 
 ## Autonomous research convergence
 
-[`autonomous-research/`](autonomous-research/) contains the fixed three-case,
+[`autonomous-research/`](autonomous-research/) contains the fixed five-case,
 baseline-versus-treatment protocol for the research convergence loop.
-Its scorer checks the predeclared coverage, faithfulness, executability, and
-review-burden promotion rules; actual artifact judgments remain blinded agent
+Its runner validates versioned judge envelopes and recursive convergence traces;
+its scorer checks the predeclared coverage, faithfulness, executability, and
+review-burden promotion rules. Actual artifact judgments remain blinded agent
 and human work rather than regex scores.

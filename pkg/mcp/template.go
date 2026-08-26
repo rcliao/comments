@@ -8,17 +8,17 @@ import (
 	"github.com/rcliao/comments/pkg/comment"
 )
 
-// resolveDocTemplate picks the template: explicit name wins, else sidecar
-// record. Resolution is doc-relative so project templates are found no matter
-// where the MCP server was launched from.
+// resolveDocTemplate picks the template from the explicit argument,
+// frontmatter, legacy sidecar, or an unambiguous bundle collection.
 func resolveDocTemplate(doc *comment.DocumentWithComments, name, docPath string) (*comment.Template, error) {
-	if name == "" {
-		name = doc.Template
+	template, _, err := comment.ResolveTemplateForDocument(docPath, doc.Content, name, doc.Template)
+	if err != nil {
+		return nil, err
 	}
-	if name == "" {
-		return nil, fmt.Errorf("no template specified and none recorded in sidecar; call comments_get_template with no name to list available templates")
+	if template == nil {
+		return nil, fmt.Errorf("no template specified; use the template argument, comments.template frontmatter, or a bundle collection with one template")
 	}
-	return comment.LoadTemplateForDoc(name, docPath)
+	return template, nil
 }
 
 // handleValidate checks document structure against a template so the agent can
@@ -30,49 +30,12 @@ func (s *Server) handleValidate(ctx context.Context, req *mcp.CallToolRequest, a
 			return nil, err
 		}
 
-		violations := comment.ValidateDocument(doc.Content, absPath, t)
+		violations := comment.ValidateManagedDocument(doc.Content, absPath, t)
 		return map[string]any{
 			"template":      t.Name,
 			"conforms":      len(violations) == 0,
 			"violations":    violations,
 			"section_words": comment.SectionWordReport(doc.Content, t),
-		}, nil
-	})
-}
-
-// handleSeed materializes the template's review criteria and ambiguity markers
-// as anchored comment threads, and records the template on the document.
-func (s *Server) handleSeed(ctx context.Context, req *mcp.CallToolRequest, args SeedRequest) (*mcp.CallToolResult, any, error) {
-	return withDocSave(args.FilePath, func(absPath string, doc *comment.DocumentWithComments) (any, error) {
-		t, err := resolveDocTemplate(doc, args.Template, absPath)
-		if err != nil {
-			return nil, err
-		}
-
-		author := args.Author
-		if author == "" {
-			author = "template"
-		}
-		added := comment.SeedTemplateThreads(doc, t, author, args.MarkersOnly)
-
-		seeded := make([]map[string]any, 0, len(added))
-		for _, c := range added {
-			seeded = append(seeded, map[string]any{
-				"id":       c.ID,
-				"line":     c.Line,
-				"text":     c.Text,
-				"blocking": c.Blocking,
-			})
-		}
-		return map[string]any{
-			// Leads the response: recording the template is a distinct act
-			// from seeding threads — an empty seeded list does NOT mean
-			// nothing happened; the gate now enforces this template's
-			// structure.
-			"template_recorded": t.Name,
-			"gate_enforces":     "document structure now validates against this template on every gate",
-			"seeded_count":      len(added),
-			"seeded":            seeded,
 		}, nil
 	})
 }

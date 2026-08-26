@@ -1,7 +1,7 @@
 {
   "version": "2.0",
-  "documentHash": "06b502077dae721342eddb4774264d2b09fe558dfe0bed7b6080966f0ae61c6f",
-  "lastValidated": "2026-08-12T12:06:24.719554-07:00",
+  "documentHash": "9740ddf5eb646b63cf329f3e92123f7bf1a6d3c338998fa2fd131b0eafe9230e",
+  "lastValidated": "2026-08-21T14:26:16.93799-07:00",
   "threads": [
     {
       "ID": "cfnwq",
@@ -464,7 +464,32 @@
       "OriginalLine": 38,
       "OrphanedReason": "",
       "OrphanedAt": null,
-      "Replies": [],
+      "Replies": [
+        {
+          "ID": "cva8m",
+          "Author": "claude",
+          "Timestamp": "2026-08-21T14:26:16.937987-07:00",
+          "Text": "Phase 1 (skill split) deferred; Phases 2+3 shipped independently of it. Still your call.",
+          "Type": "",
+          "Line": 38,
+          "SectionID": "s7",
+          "SectionPath": "Plan: landscape-driven improvements to the comments review loop \u003e Implementation Phases \u003e Phase 1 — Skill decomposition: router + phase files",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "",
+          "Priority": "",
+          "OriginalLine": 0,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
       "IsSuggestion": false,
       "StartLine": 0,
       "EndLine": 0,
@@ -493,7 +518,37 @@
       "OriginalLine": 52,
       "OrphanedReason": "",
       "OrphanedAt": null,
-      "Replies": [],
+      "Replies": [
+        {
+          "ID": "chrlz",
+          "Author": "claude",
+          "Timestamp": "2026-08-21T14:26:16.926467-07:00",
+          "Text": "Built Phase 2+3 on the plan's stated semantics: approved/changes_requested replace the baseline, a commented reply-pass leaves it, so marks read 'since your last verdict'. Flipping to any-signoff-resets is a one-line change in comment.BaselineUpdatesOn if you prefer it after using it. Also added beyond the plan: comments status --author \u003cyou\u003e reports changed_lines + changed_sections (innermost section per changed line), which is the section-level answer to 'what did the agent touch'. Deviation: baseline path is dir-local (\u003cdocdir\u003e/.comments/baselines/\u003cdoc\u003e.\u003cauthor\u003e.md, the view-state pattern) instead of a central relpath scheme — plan text updated.",
+          "Type": "",
+          "Line": 52,
+          "SectionID": "s8",
+          "SectionPath": "Plan: landscape-driven improvements to the comments review loop \u003e Implementation Phases \u003e Phase 2 — Record last-reviewed content at signoff",
+          "Anchor": {
+            "selected_text": "Decisions approved and changes_requested update the baseline; commented (reply-pass) does NOT — the mark stays \"since your last verdict\".",
+            "context_before": "Baseline lives dir-local at \u003cdocdir\u003e/.comments/baselines/\u003cdoc\u003e.\u003cauthor\u003e.md, latest only (the view-state pattern; .comments/ is already gitignored)."
+          },
+          "AnchorConfidence": "exact",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "active",
+          "Priority": "medium",
+          "OriginalLine": 52,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
       "IsSuggestion": false,
       "StartLine": 0,
       "EndLine": 0,

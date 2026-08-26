@@ -113,8 +113,8 @@ func templateCommand(args []string) error {
 		if t.Markers.Max > 0 {
 			fmt.Printf("\nAmbiguity markers: at most %d %s ...] per document.\n",
 				t.Markers.Max, t.MarkerPrefix())
-			fmt.Println("  Each marker is reported by validate and seeded as a blocking thread;")
-			fmt.Println("  decide the rest yourself and record them as assumptions in the doc.")
+			fmt.Println("  Each marker is reported by validate; add an explicit blocking comment")
+			fmt.Println("  for the human, then decide the rest and record assumptions in the doc.")
 		}
 
 	default:
@@ -127,7 +127,7 @@ func templateCommand(args []string) error {
 // Exit codes: 0 = conforms, 1 = violations or error.
 func validateCommand(filename string, args []string) error {
 	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
-	templateName := fs.String("template", "", "Template name (defaults to template recorded in sidecar)")
+	templateName := fs.String("template", "", "Template name (defaults to frontmatter, sidecar, or bundle)")
 	jsonOut := fs.Bool("json", false, "Output violations as JSON")
 	if err := fs.Parse(args); err != nil {
 		return exitSilent(2)
@@ -137,7 +137,7 @@ func validateCommand(filename string, args []string) error {
 	if err != nil {
 		return err
 	}
-	violations := comment.ValidateDocument(doc.Content, filename, t)
+	violations := comment.ValidateManagedDocument(doc.Content, filename, t)
 	wordReport := comment.SectionWordReport(doc.Content, t)
 
 	if *jsonOut {
@@ -152,7 +152,7 @@ func validateCommand(filename string, args []string) error {
 		fmt.Println(string(encoded))
 	} else {
 		// Markers are deliberate: an agent flags an ambiguity it refuses to
-		// guess at, and seed turns each into a blocking thread. Lumping them in
+		// guess at, then adds a blocking comment at that line. Lumping them in
 		// with structural defects made "validate until it is clean" unreachable
 		// for any doc that uses one — two independent drafting agents read the
 		// same output and could not tell which violations they were meant to fix.
@@ -170,11 +170,11 @@ func validateCommand(filename string, args []string) error {
 			fmt.Printf("✓ %s conforms to template %q\n", filename, t.Name)
 		case len(structural) == 0:
 			fmt.Printf("✓ %s conforms to template %q — structure is clean\n\n", filename, t.Name)
-			fmt.Printf("%d intentional marker(s), each becomes a blocking review thread:\n", len(markers))
+			fmt.Printf("%d intentional marker(s), each needs a blocking review comment:\n", len(markers))
 			for _, v := range markers {
 				fmt.Printf("  [%s] %s\n", v.Rule, v.Message)
 			}
-			fmt.Printf("\nSeed them with: comments seed %s --template %s --markers-only\n", filename, t.Name)
+			fmt.Printf("\nAnnotate each with: comments add %s --anchor <marker text> --blocking --type Q --author <agent> --text <question>\n", filename)
 		default:
 			fmt.Printf("✗ %s has %d structural violation(s) against template %q — fix these:\n\n", filename, len(structural), t.Name)
 			for _, v := range structural {
@@ -208,58 +208,19 @@ func validateCommand(filename string, args []string) error {
 	return nil
 }
 
-// seedCommand handles `comments seed <file> --template <name> [--author name]`
-func seedCommand(filename string, args []string) error {
-	fs := flag.NewFlagSet("seed", flag.ContinueOnError)
-	templateName := fs.String("template", "", "Template name (defaults to template recorded in sidecar)")
-	author := fs.String("author", "template", "Author for seeded threads")
-	markersOnly := fs.Bool("markers-only", false, "Seed only NEEDS CLARIFICATION markers, not generic criteria (agent posts specific callouts instead)")
-	if err := fs.Parse(args); err != nil {
-		return exitSilent(2)
-	}
-
-	t, doc, err := loadTemplateForDoc(filename, *templateName)
-	if err != nil {
-		return err
-	}
-	added := comment.SeedTemplateThreads(doc, t, *author, *markersOnly)
-
-	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		return failf("Error saving document: %v", err)
-	}
-
-	if len(added) == 0 {
-		fmt.Printf("✓ Nothing to seed — all template review threads already exist (template %q recorded)\n", t.Name)
-		return nil
-	}
-	fmt.Printf("✓ Seeded %d review thread(s); template %q recorded — the gate now enforces its structure:\n", len(added), t.Name)
-	for _, c := range added {
-		marker := ""
-		if c.Blocking {
-			marker = " [blocking]"
-		}
-		fmt.Printf("  %s (line %d)%s %s\n", c.ID, c.Line, marker, comment.DecorateType(c.Text))
-	}
-	fmt.Println("\nReview = resolving these threads. Check progress with: comments gate", filename)
-	return nil
-}
-
-// loadTemplateForDoc resolves the template (flag > sidecar record) and loads the doc
+// loadTemplateForDoc resolves the template (flag > frontmatter > legacy sidecar
+// > unambiguous bundle collection) and loads the doc.
 func loadTemplateForDoc(filename, templateName string) (*comment.Template, *comment.DocumentWithComments, error) {
 	doc, err := loadDocument(filename)
 	if err != nil {
 		return nil, nil, failf("Error loading document: %v", err)
 	}
-	name := templateName
-	if name == "" {
-		name = doc.Template
-	}
-	if name == "" {
-		return nil, nil, failf("Error: no template specified (--template <name>) and none recorded in sidecar\nList templates with: comments template list")
-	}
-	t, err := comment.LoadTemplateForDoc(name, filename)
+	t, _, err := comment.ResolveTemplateForDocument(filename, doc.Content, templateName, doc.Template)
 	if err != nil {
 		return nil, nil, failf("Error: %v", err)
+	}
+	if t == nil {
+		return nil, nil, failf("Error: no template specified; use --template, comments.template frontmatter, or a bundle collection with one template\nList templates with: comments template list")
 	}
 	return t, doc, nil
 }

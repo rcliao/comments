@@ -1,0 +1,35 @@
+bundle: Comments Knowledge
+version: 1
+okf_version: "0.2"
+root: docs/artifacts
+collections:
+  research:
+    path: research
+    type: Research
+    templates: [research, research-deep]
+    description: Questions, evidence, and findings that inform delivery.
+  plans:
+    path: plans
+    type: Plan
+    templates: [plan]
+    description: Implementation intent and verification strategy.
+  designs:
+    path: designs
+    type: Design
+    templates: [design-doc, rfc]
+    description: Technical designs and proposals under review.
+  decisions:
+    path: decisions
+    type: Decision
+    templates: [adr]
+    description: Durable decisions and their tradeoffs.
+  as-built:
+    path: as-built
+    type: AsBuilt
+    templates: [as-built]
+    description: What shipped and how it was verified.
+  briefs:
+    path: briefs
+    type: Brief
+    templates: [mini]
+    description: Small reviewable changes that do not need a full plan.

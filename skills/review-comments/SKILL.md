@@ -1,12 +1,13 @@
 ---
 name: review-comments
-description: Process human review comments on a markdown document one at a time using the comments CLI/MCP, then request further review or pass the gate. Use when a document you drafted has review comments to address, or after finishing a draft that needs human review.
+description: Create template-guided OKF document bundles, load related context, annotate drafts, process human review comments one at a time, and wait for signoff using the comments CLI/MCP. Use for drafting or reviewing a managed Markdown artifact, including Research → Plan → Implement workflows.
 ---
 
 # Review Comments Workflow
 
 You are addressing human review feedback on a markdown document managed by the
-`comments` tool (sidecar `.comments.json` files). Work through comments **one at
+`comments` tool (OKF-compatible Markdown plus sidecar `.comments.json` files).
+Work through comments **one at
 a time** — never batch-dismiss feedback.
 
 ## Prerequisites
@@ -31,6 +32,11 @@ with your input and leave the resolve to the human.
    requested. The JSON lists `blocking`, `non_blocking`, and
    `pending_suggestions`, each with document context.
 
+   In a configured bundle, first run `comments context <doc.md> --for review
+   --include-threads` (MCP: `comments_context`). Read the explicit related
+   concepts and backlinks it returns; do not search the whole docs tree by
+   default.
+
 2. **Process each unresolved comment individually**, blocking comments first,
    then non-blocking. For each comment, choose exactly one action:
 
@@ -53,10 +59,9 @@ with your input and leave the resolve to the human.
 
 3. **Re-check the gate** after processing all comments (`comments gate <doc.md>`).
 
-4. **Request another human pass** when you have addressed everything or need
-   decisions. Via MCP call `comments_request_review` (blocks until a signoff
-   lands). Without MCP, ask the human for **one** command — the TUI review ends
-   in a signoff, so do not also ask them to run `comments signoff`:
+4. **Hand off and listen for another human pass** when you have addressed
+   everything or need decisions. Ask the human for **one** command — the TUI
+   review ends in a signoff, so do not also ask them to run `comments signoff`:
 
    ```bash
    comments view <doc.md>     # review, then q -> a/c (n adds a note for you)
@@ -97,6 +102,15 @@ with your input and leave the resolve to the human.
 
 When drafting a new document under a template (design-doc, adr, rfc, mini for
 small changes, or a project template):
+
+- If `.comments/bundle.yaml` exists, create the artifact with
+  `comments new <slug> --template <name> [--from <related.md>]`. This selects
+  the review-friendly folder, emits OKF frontmatter with
+  `comments.template`, creates the sidecar, and refreshes indexes. Do not hand
+  assemble the folder or metadata.
+- Before writing an existing bundle concept, run
+  `comments context <doc.md> --for drafting --include-threads`. Treat explicit
+  relationships as the working set; tag matches are suggestions, not evidence.
 
 0. **Decompose the question first.** Where a template asks for enumerated
    sub-questions (`Q1.`, `Q2.`, ...), write them before drafting and tag each
@@ -153,22 +167,25 @@ small changes, or a project template):
      opening it puts the relevant detail beside it as the backdrop.
    - High-priority is a walkthrough slot, not emphasis — if six threads are
      high, none are.
-4. **Seed the ambiguity markers**: `comments seed <doc.md> --template <name> --markers-only`
-   — turns each NEEDS CLARIFICATION marker into a blocking Q thread at its line
-   and records the template so the gate enforces structure. (Full `seed` without
-   the flag also posts the generic criteria threads — for human-only workflows
-   with no agent to do step 3.)
-5. Request review: call `comments_request_review` (MCP) with the file path, or
-   ask the human to review with `comments view <doc.md>` (the verdict on exit
-   records the signoff) and wait on it with
+4. **Annotate ambiguity markers yourself** with the existing `comments add`
+   or `comments_batch_add` surface. Each marker gets a specific anchored,
+   blocking Q comment that states the decision needed. Do not generate generic
+   template-criterion threads. Template identity belongs in
+   `comments.template` frontmatter (or is inferred from an unambiguous bundle
+   collection); comments remain discussion, not configuration.
+5. Request review by asking the human to use `comments view <doc.md>` (the
+   verdict on exit records the signoff), then listen without requiring a nudge:
    `comments watch <doc.md> --until signoff`. While waiting, do not modify the
-   document.
+   document. On a re-request, first call `comments_status` with the
+   reviewer's name and quote its `changed_since.changed_sections` in your
+   message — the reviewer sees the same lines tinted in the TUI, and naming
+   the sections you touched is what lets them skip the rest.
 
 Zone rule: threads in sections the template marks `zone: human` cannot be
 resolved by you over MCP — reply with your input and leave resolution to the
-human. Seeded criteria threads answer questions about the human's judgment of
-your writing; address the underlying issue in the doc, reply with what you
-changed, and let the human resolve.
+human. Address agent-authored annotations the same way as human threads: update
+the document or reply with the decision, but leave human-zone resolution to the
+human.
 
 ## Revising under review: rewrite, don't append (required)
 
@@ -276,6 +293,19 @@ For feature-sized work, split drafting into two phase docs with the dedicated
 templates. These steps are opinionated about what makes a quality artifact,
 not a ceremony to perform: scale them to the work.
 
+In a configured bundle, start the chain with:
+
+```bash
+comments new <slug> --template research-deep
+comments context docs/artifacts/research/<slug>.md --for drafting --include-threads
+# after research convergence:
+comments new <slug> --template plan --from docs/artifacts/research/<slug>.md
+comments context docs/artifacts/plans/<slug>.md --for drafting --include-threads
+```
+
+The shared slug makes navigation predictable; `--from` records the durable
+`informed_by` edge instead of relying only on a prose citation.
+
 **The autonomous chain is the DEFAULT** (decided in review, 2026-08-11: the
 human's value lands at plan review — research signoff was ceremony). After the
 interview, run question → research → plan WITHOUT a mid-chain human gate:
@@ -306,12 +336,17 @@ Research must survive two INDEPENDENT, fresh-context roles; a generic review
 pass is not a substitute. If subagents are unavailable, use separate fresh
 sessions with the same allowlists.
 
-1. **Coverage scout — source-derived, draft-blind.** Give it ONLY the research
+1. **Coverage scout — source-derived, draft-blind.** Start from
+   `comments context <research.md> --for coverage-scout --json`. This mode
+   exposes the numbered Research Question as `focus`, while forcibly omitting
+   bodies, threads, and draft-derived backlinks. Give the role ONLY the research
    question, repository access, and resolved coverage-rejection threads from
    earlier passes — NEVER the draft. It proposes missing questions, each with
    an expected answer and file:line evidence. Post each candidate as a
    `coverage-scout` thread.
-2. **Evidence verifier — draft-derived.** Give it ONLY the research draft, its
+2. **Evidence verifier — draft-derived.** Start from
+   `comments context <research.md> --for evidence-verifier --include-body
+   --include-threads --json`. Give it ONLY the research draft, its
    thread history, template criteria, and the files its citations name. It
    checks each material claim for support, contradiction, and overstatement;
    findings that would mislead the plan are blocking `evidence-verifier`

@@ -12,17 +12,9 @@ import (
 
 func (s *Server) handleAnalyze(ctx context.Context, req *mcp.CallToolRequest, args AnalyzeRequest) (*mcp.CallToolResult, any, error) {
 	return withDoc(args.FilePath, func(absPath string, doc *comment.DocumentWithComments, _ *comment.LoadReport) (any, error) {
-		name := args.Template
-		if name == "" {
-			name = doc.Template
-		}
-		var template *comment.Template
-		var err error
-		if name != "" {
-			template, err = comment.LoadTemplateForDoc(name, absPath)
-			if err != nil {
-				return nil, err
-			}
+		template, _, err := comment.ResolveTemplateForDocument(absPath, doc.Content, args.Template, doc.Template)
+		if err != nil {
+			return nil, err
 		}
 
 		var againstContent, againstPath string

@@ -39,7 +39,8 @@ func dispatch(args []string) error {
 		"reject":       "Usage: comments reject <file> [flags]",
 		"validate":     "Usage: comments validate <file> --template <name>",
 		"analyze":      "Usage: comments analyze <file> [--against <research.md>] [--json]",
-		"seed":         "Usage: comments seed <file> --template <name>",
+		"context":      "Usage: comments context <file> [flags]",
+		"new":          "Usage: comments new <name> --template <name> [flags]",
 		"gate":         "Usage: comments gate <file-or-dir> [flags]",
 		"signoff":      "Usage: comments signoff <file> [flags]",
 		"watch":        "Usage: comments watch <file-or-dir> [flags]",
@@ -48,6 +49,7 @@ func dispatch(args []string) error {
 		"status":       "Usage: comments status <file> [flags]",
 		"check-review": "Usage: comments check-review <file> --since <RFC3339>",
 		"batch-accept": "Usage: comments batch-accept <file> [flags]",
+		"serve":        "Usage: comments serve <file-or-dir> [flags]",
 	}
 	if usage, needsFile := fileUsage[command]; needsFile && len(args) < 2 {
 		return failf("%s", usage)
@@ -83,8 +85,12 @@ func dispatch(args []string) error {
 		return validateCommand(args[1], args[2:])
 	case "analyze":
 		return analyzeCommand(args[1], args[2:])
-	case "seed":
-		return seedCommand(args[1], args[2:])
+	case "context":
+		return contextCommand(args[1], args[2:])
+	case "new":
+		return newCommand(args[1], args[2:])
+	case "bundle":
+		return bundleCommand(args[1:])
 	case "gate":
 		return gateCommand(args[1], args[2:])
 	case "signoff":
@@ -103,6 +109,8 @@ func dispatch(args []string) error {
 		return batchAcceptCommand(args[1], args[2:])
 	case "doctor":
 		return doctorCommand(args[1:])
+	case "serve":
+		return serveCommand(args[1], args[2:])
 	case "serve-mcp":
 		return serveMCPCommand()
 	case "help", "-h", "--help":
@@ -929,7 +937,7 @@ Commands:
   reject <file> [flags]       Reject a suggestion
   reanchor <file> [flags]     Migrate anchors your edits displaced (run after editing
                               a commented document; the load-time cascade is the net)
-  status <file> [flags]       Thread/suggestion/orphan counts for a document
+  status <file> [flags]       Thread/suggestion/orphan counts; --author <reviewer> adds lines/sections changed since their last verdict
   inbox <file-or-dir> [flags] What needs attention: new replies + unresolved blockers
   gate <file-or-dir> [flags]  Evaluate review gate (exit 0 = approved, 10 = changes requested)
   check-review <file> [flags] Poll for a signoff landed after --since (non-blocking
@@ -939,11 +947,14 @@ Commands:
   template list|show <name>   List or inspect doc templates (guardrails for agent-written docs)
   validate <file> [flags]     Check document structure against a template (exit 1 on violations)
   analyze <file> [flags]      Report question, evidence, and research-to-plan coverage (advisory)
-  seed <file> [flags]         Create review threads from a template's criteria and markers
+  new <name> [flags]          Create an OKF concept in its template-guided bundle folder
+  context <file> [flags]      Discover related bundle concepts, backlinks, sources and review state
+  bundle index [path]         Regenerate OKF root and collection indexes
   watch <file-or-dir> [flags] Emit review-state change events as NDJSON (poll-based; --until
                               exits 0 on a match, e.g. --until signoff to block until reviewed)
   doctor [path] [flags]       Check install health: binary, MCP server, plugin, sidecars
                               (exit 0 = sound, 1 = broken; warnings alone stay 0)
+  serve <file-or-dir> [flags] Open a token-protected local browser review workspace
   serve-mcp                   Start Model Context Protocol server (for LLM integration)
   help                        Show this help message
 
@@ -983,17 +994,26 @@ Gate Command Flags:
   --json                      Output machine-readable JSON decision
   --strict                    Fail on any unresolved comment or pending suggestion
   --context <n>               Lines of context around each comment (default: 2)
-  --template <name>           Also validate structure against a template (defaults to sidecar record)
+  --template <name>           Also validate structure (defaults to frontmatter, sidecar, or bundle)
 
-Validate/Seed Command Flags:
-  --template <name>           Template name (defaults to template recorded in sidecar)
-  --json                      (validate) Output violations as JSON
-  --author <name>             (seed) Author for seeded threads (default: template)
-  --markers-only              (seed) Seed only NEEDS CLARIFICATION markers (agent posts specific callouts)
+Validate Command Flags:
+  --template <name>           Template name (defaults to frontmatter, sidecar, or bundle)
+  --json                      Output violations as JSON
+
+New/Context Command Flags:
+  --template <name>           (new) Template that selects the bundle collection
+  --title <text>              (new) Document title; defaults to the slug
+  --description <text>        (new) One-sentence concept description
+  --from <file>               (new) Record an informed_by relationship
+  --for <mode>                (context) drafting, review, coverage-scout,
+                              evidence-verifier, or human-review
+  --include-body              (context) Include document bodies
+  --include-threads           (context) Include review threads
+  --json                      Machine-readable output
 
 Analyze Command Flags:
   --against <research.md>     Classify every research finding as cited, excluded, or uncovered
-  --template <name>           Template name (defaults to template recorded in sidecar)
+  --template <name>           Template name (defaults to frontmatter, sidecar, or bundle)
   --json                      Output machine-readable JSON; ready=false never changes exit status
 
 Signoff Command Flags:

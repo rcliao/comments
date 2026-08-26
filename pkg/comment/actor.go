@@ -56,15 +56,15 @@ func StdoutIsTTY() bool {
 // Both the CLI and the MCP server call this, so the guard cannot be sidestepped
 // by choosing a different surface.
 func GuardZoneResolve(doc *DocumentWithComments, absPath, threadID string, actor Actor) error {
-	if actor == ActorHuman || doc.Template == "" {
+	if actor == ActorHuman {
 		return nil
 	}
 	thread := doc.FindThreadByID(threadID)
 	if thread == nil {
 		return nil // let the caller's own not-found error report this
 	}
-	t, err := LoadTemplateForDoc(doc.Template, absPath)
-	if err != nil {
+	t, _, err := ResolveTemplateForDocument(absPath, doc.Content, "", doc.Template)
+	if err != nil || t == nil {
 		return nil // an unreadable template must not block legitimate work
 	}
 	if SectionZone(doc.Content, t, thread.Line) != ZoneHuman {
@@ -72,5 +72,5 @@ func GuardZoneResolve(doc *DocumentWithComments, absPath, threadID string, actor
 	}
 	return fmt.Errorf(
 		"thread %s is in a human-decision zone (template %q); reply with your input instead — the human resolves it in the TUI, or via 'comments resolve' at a terminal (set %s=human to override)",
-		threadID, doc.Template, ActorEnvVar)
+		threadID, t.Name, ActorEnvVar)
 }

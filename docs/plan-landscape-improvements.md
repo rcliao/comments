@@ -48,7 +48,7 @@ Manual: run one full RPI cycle; the agent never needs a phase file it wasn't rou
 
 New pure helper comment.SaveReviewBaseline(docPath, author, content), called explicitly by BOTH writers
 (pkg/tui/keys_verdict.go:64 and cmd/comments/gate.go:158) right after AddReviewRecord — which stays pure and path-free.
-Baseline lives at .comments/baselines/<doc-relpath, slashes as __>.<author>.md, latest only; directory gitignored.
+Baseline lives dir-local at <docdir>/.comments/baselines/<doc>.<author>.md, latest only (the view-state pattern; .comments/ is already gitignored).
 Decisions approved and changes_requested update the baseline; commented (reply-pass) does NOT — the mark stays "since your last verdict".
 
 Success criteria — automated: unit test proves both writers store identical baselines and reply-pass leaves it untouched; scripts/ci.sh green.

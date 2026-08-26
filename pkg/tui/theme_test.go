@@ -154,3 +154,19 @@ func TestMarkerDiffersFromCursorAccent(t *testing.T) {
 		}
 	}
 }
+
+// Every theme must define the changed-line accent, and it must differ from the
+// plain line-number color or the mark is invisible.
+func TestEveryThemeDefinesDistinctChangedColor(t *testing.T) {
+	for name, th := range themes {
+		if th.Changed == "" {
+			t.Errorf("theme %s: Changed color unset", name)
+		}
+		if th.Changed == th.LineNumber {
+			t.Errorf("theme %s: Changed must differ from LineNumber", name)
+		}
+	}
+	if got := newStyleSet(themes["nord"]).changedLineNum.GetForeground(); got != lipgloss.Color("#A3BE8C") {
+		t.Errorf("nord changedLineNum = %v", got)
+	}
+}

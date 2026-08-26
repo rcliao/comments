@@ -1,0 +1,37 @@
+{
+  "version": "2.0",
+  "documentHash": "57d5c73240eea3c6ae875e991c5c3705ce50cdb333931d0b71de0dc67346de38",
+  "lastValidated": "2026-08-26T12:25:17.631803-07:00",
+  "threads": [
+    {
+      "ID": "cw9m4",
+      "Author": "codex",
+      "Timestamp": "2026-08-26T12:20:32.57729-07:00",
+      "Text": "[Q] Dogfood confirms deterministic creation and role-scoped loading are useful. The remaining judgment is rollout: keep this repo bundle as the default example now, or require more cross-project evidence?",
+      "Type": "Q",
+      "Line": 84,
+      "SectionID": "s10",
+      "SectionPath": "OKF Comments Workflow \u003e Open Questions",
+      "Anchor": {
+        "selected_text": "- Adopt this bundle as the default for new RPI artifacts, or keep it opt-in until several projects confirm the folder map?",
+        "context_after": "- Do these findings justify a follow-up plan for richer context ranking, or is deterministic navigation sufficient for now?"
+      },
+      "AnchorConfidence": "exact",
+      "Resolved": false,
+      "Blocking": false,
+      "Status": "active",
+      "Priority": "high",
+      "OriginalLine": 74,
+      "OrphanedReason": "",
+      "OrphanedAt": null,
+      "Replies": [],
+      "IsSuggestion": false,
+      "StartLine": 0,
+      "EndLine": 0,
+      "OriginalText": "",
+      "ProposedText": "",
+      "Accepted": null
+    }
+  ],
+  "template": "research-deep"
+}

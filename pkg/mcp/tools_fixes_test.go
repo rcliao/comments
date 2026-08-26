@@ -61,12 +61,11 @@ func TestValidateAndGateUseSamePathAwareRulesOverMCP(t *testing.T) {
 		t.Fatalf("MCP validation rules/order = %v, want %v", got, want)
 	}
 
-	callTool(t, session, "comments_seed", map[string]any{"filepath": doc, "template": "parity", "markers_only": true})
-	gate := callTool(t, session, "comments_gate", map[string]any{"filepath": doc})
+	gate := callTool(t, session, "comments_gate", map[string]any{"filepath": doc, "template": "parity"})
 	files := gate["files"].([]any)
 	violations := files[0].(map[string]any)["violations"].([]any)
 	if len(violations) != len(want) || gate["decision"] != comment.DecisionChangesRequested {
-		t.Fatalf("MCP gate skipped recorded-template validation: %v", gate)
+		t.Fatalf("MCP gate skipped explicit-template validation: %v", gate)
 	}
 }
 
@@ -327,5 +326,42 @@ func TestAcceptShiftsLowerSuggestion(t *testing.T) {
 	lines := strings.Split(text, "\n")
 	if len(lines) < 11 || lines[10] != "Better notes." {
 		t.Errorf("expected line 11 to be the replaced notes line, got %q", lines[min(10, len(lines)-1)])
+	}
+}
+
+// comments_status carries changed_since for a reviewer with a stored verdict
+// baseline — lines, deletions, and the innermost sections touched — and omits
+// it entirely for a reviewer who never signed off.
+func TestStatusReportsChangedSinceReviewerVerdict(t *testing.T) {
+	session := startTestSession(t)
+	doc := writeFixture(t)
+
+	before := callTool(t, session, "comments_status", map[string]any{"filepath": doc, "reviewer": "eric"})
+	if _, present := before["changed_since"]; present {
+		t.Fatalf("no baseline → changed_since must be absent, got %v", before["changed_since"])
+	}
+
+	content, err := os.ReadFile(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := comment.SaveReviewBaseline(doc, "eric", string(content)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(doc, append(content, []byte("\n## Added\n\nNew section body.\n")...), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	status := callTool(t, session, "comments_status", map[string]any{"filepath": doc, "reviewer": "eric"})
+	cs, ok := status["changed_since"].(map[string]any)
+	if !ok {
+		t.Fatalf("changed_since missing: %v", status)
+	}
+	if cs["reviewer"] != "eric" || cs["changed_lines"].(float64) < 3 || cs["deletions"] != float64(0) {
+		t.Errorf("changed_since = %v", cs)
+	}
+	secs := cs["changed_sections"].([]any)
+	if len(secs) == 0 || !strings.HasSuffix(secs[len(secs)-1].(string), "Added") {
+		t.Errorf("changed_sections should name the added section, got %v", secs)
 	}
 }

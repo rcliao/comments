@@ -13,6 +13,7 @@ var (
 
 // ParseDocument parses markdown content and extracts the document structure
 func ParseDocument(content string) *DocumentStructure {
+	content = MaskFrontmatter(content)
 	lines := strings.Split(content, "\n")
 
 	// First pass: identify all headings, skipping lines inside fenced code blocks

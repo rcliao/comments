@@ -198,6 +198,20 @@ the record, not on who wrote it. The note deliberately survives `q` → Esc →
 `q` within a session (you drafted it, going back to check a thread shouldn't
 discard it) — that is intended, not a leak.
 
+After the record lands, a verdict (`a`/`c`, not `r`) also stores the
+post-accept content as the reviewer's baseline (`comment.SaveReviewBaseline`,
+best-effort like view state). On load and on every content refresh,
+`refreshChangedLines` diffs against that baseline and `renderDocumentView`
+tints the line NUMBER of each changed line with `changedLineNum` — no new
+gutter cell, no width change, style-only, and the cursor accent still wins on
+the focused line. Marks are `ChangeSet.Marked()`: edited lines plus the line
+before each pure deletion (so the mark stays in the section that lost text). When `#` hides the numbers, `changeBarWidth` adds a
+2-cell `▎` column as the carrier — only while marks exist, so a clean doc
+pays nothing (it reflows exactly like the `#` toggle itself). The `Changed` theme color must differ from `LineNumber` in
+every theme (test-enforced) or the mark is invisible. This is a second "since"
+notion on purpose: `lastSignoffTime` counts `commented` passes for NEW badges;
+the baseline does not.
+
 ## Styles and themes
 
 Styles live on `m.styles` (a `*styleSet` built from a `Theme` at model

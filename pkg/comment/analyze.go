@@ -77,7 +77,7 @@ func AnalyzeDocument(content, docPath string, t *Template, againstContent, again
 		result.Violations = append(result.Violations, result.CitationViolations...)
 	} else {
 		result.Template = t.Name
-		result.Violations = ValidateDocument(content, docPath, t)
+		result.Violations = ValidateManagedDocument(content, docPath, t)
 		if !t.Doc.CheckCitations {
 			result.Violations = append(result.Violations, ValidateCitations(content, docPath)...)
 		}

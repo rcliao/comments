@@ -52,7 +52,7 @@ const (
 )
 
 // Template is a document guardrail: it constrains structure at write time,
-// powers `comments validate` at gate time, and seeds review threads.
+// powers `comments validate` at gate time, and supplies self-review criteria.
 type Template struct {
 	Name        string            `yaml:"template"`
 	Version     int               `yaml:"version"`
@@ -92,7 +92,7 @@ type TemplateSection struct {
 	EnumeratesQuestions bool     `yaml:"enumerates_questions"`
 	AnswersQuestions    bool     `yaml:"answers_questions"`
 	Zone                string   `yaml:"zone"`              // "human" or "agent" (default agent)
-	ReviewCriteria      []string `yaml:"review_criteria"`   // seeded as anchored threads
+	ReviewCriteria      []string `yaml:"review_criteria"`   // agent self-review prompts
 	CriteriaBlocking    *bool    `yaml:"criteria_blocking"` // nil = default true
 }
 
@@ -111,14 +111,6 @@ type Violation struct {
 	Section string `json:"section,omitempty"`
 	Line    int    `json:"line,omitempty"`
 	Message string `json:"message"`
-}
-
-// SeedTarget is a review thread the template wants materialized
-type SeedTarget struct {
-	Line     int    // heading line (criteria) or marker line
-	Text     string // thread text
-	Type     string // T for criteria, Q for markers
-	Blocking bool
 }
 
 func (t *Template) markerPrefix() string {
@@ -242,7 +234,7 @@ func headingMatchesPath(heading, path string) bool {
 
 // findTemplateSection locates the document section matching a template heading.
 // Matches by exact title, or by whole-segment path suffix for nested headings
-// ("A > B"). All template matching (validation, seeding, zone lookup) goes
+// ("A > B"). All template matching (validation and zone lookup) goes
 // through this single helper so the rule cannot drift between sites.
 func findTemplateSection(structure *markdown.DocumentStructure, heading string) *markdown.Section {
 	var found *markdown.Section
@@ -311,9 +303,10 @@ type SectionWordCount struct {
 // SectionWordReport computes the word count of every template section present
 // in the document (whole subtree), with the doc total first.
 func SectionWordReport(content string, t *Template) []SectionWordCount {
-	structure := markdown.ParseDocument(content)
-	lines := strings.Split(content, "\n")
-	report := []SectionWordCount{{Section: "(document)", Words: countWords(content), Max: t.Doc.MaxWords}}
+	body := markdown.MaskFrontmatter(content)
+	structure := markdown.ParseDocument(body)
+	lines := strings.Split(body, "\n")
+	report := []SectionWordCount{{Section: "(document)", Words: countWords(body), Max: t.Doc.MaxWords}}
 	for _, ts := range t.Sections {
 		if section := findTemplateSection(structure, ts.Heading); section != nil {
 			report = append(report, SectionWordCount{
@@ -330,12 +323,13 @@ func SectionWordReport(content string, t *Template) []SectionWordCount {
 // Returns violations; empty means the document conforms.
 func ValidateTemplate(content string, t *Template) []Violation {
 	violations := []Violation{}
-	structure := markdown.ParseDocument(content)
-	lines := strings.Split(content, "\n")
+	body := markdown.MaskFrontmatter(content)
+	structure := markdown.ParseDocument(body)
+	lines := strings.Split(body, "\n")
 
 	// Whole-doc word cap
 	if t.Doc.MaxWords > 0 {
-		total := countWords(content)
+		total := countWords(body)
 		if total > t.Doc.MaxWords {
 			violations = append(violations, Violation{
 				Rule:    "doc_over_length",
@@ -472,82 +466,6 @@ func ValidateDocument(content, docPath string, t *Template) []Violation {
 		violations = append(violations, ValidateCitations(content, docPath)...)
 	}
 	return violations
-}
-
-// ComputeSeedTargets returns the review threads a template wants for a document:
-// per-section review criteria (anchored at the section heading) and one Q thread
-// per ambiguity marker occurrence. With markersOnly, generic criteria are skipped —
-// the agent is expected to post doc-specific callouts instead (see the
-// review-comments skill); only the doc-specific ambiguity markers seed.
-func ComputeSeedTargets(content string, t *Template, markersOnly bool) []SeedTarget {
-	targets := []SeedTarget{}
-	structure := markdown.ParseDocument(content)
-	lines := strings.Split(content, "\n")
-
-	for _, ts := range t.Sections {
-		if markersOnly {
-			break
-		}
-		section := findTemplateSection(structure, ts.Heading)
-		if section == nil {
-			continue
-		}
-		blocking := true
-		if ts.CriteriaBlocking != nil {
-			blocking = *ts.CriteriaBlocking
-		}
-		for _, criteria := range ts.ReviewCriteria {
-			targets = append(targets, SeedTarget{
-				Line:     section.StartLine,
-				Text:     criteria,
-				Type:     "T",
-				Blocking: blocking,
-			})
-		}
-	}
-
-	marker := t.markerPrefix()
-	for i, line := range lines {
-		if idx := strings.Index(line, marker); idx >= 0 {
-			targets = append(targets, SeedTarget{
-				Line:     i + 1,
-				Text:     fmt.Sprintf("Resolve ambiguity: %s", strings.TrimSpace(line[idx:])),
-				Type:     "Q",
-				Blocking: true,
-			})
-		}
-	}
-
-	return targets
-}
-
-// SeedTemplateThreads materializes seed targets as comment threads, skipping
-// targets that already exist (same author + text) so seeding is idempotent.
-// Returns the newly created comments.
-func SeedTemplateThreads(doc *DocumentWithComments, t *Template, author string, markersOnly bool) []*Comment {
-	existing := map[string]bool{}
-	for _, thread := range doc.Threads {
-		if thread.Author == author {
-			existing[thread.Text] = true
-		}
-	}
-
-	added := []*Comment{}
-	for _, target := range ComputeSeedTargets(doc.Content, t, markersOnly) {
-		text := "[" + target.Type + "] " + target.Text
-		if existing[text] {
-			continue
-		}
-		c := NewCommentWithType(author, target.Line, text, target.Type)
-		c.Blocking = target.Blocking
-		c.Status = StatusActive
-		UpdateCommentSection(c, doc.Content)
-		doc.Threads = append(doc.Threads, c)
-		added = append(added, c)
-		existing[text] = true
-	}
-	doc.Template = t.Name
-	return added
 }
 
 // SectionZone returns the template zone ("human"/"agent") for a document line,

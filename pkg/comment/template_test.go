@@ -93,48 +93,6 @@ Something [NEEDS CLARIFICATION: which?] here.
 	}
 }
 
-func TestComputeSeedTargets(t *testing.T) {
-	doc := strings.Replace(conformingDoc, "Things are slow.", "Things are [NEEDS CLARIFICATION: how slow?] slow.", 1)
-	targets := ComputeSeedTargets(doc, testTemplate(t), false)
-
-	var criteria, markers int
-	for _, target := range targets {
-		switch target.Type {
-		case "T":
-			criteria++
-			if target.Line != 3 {
-				t.Errorf("criteria should anchor at Problem heading (line 3), got %d", target.Line)
-			}
-		case "Q":
-			markers++
-			if !target.Blocking {
-				t.Error("marker threads must be blocking")
-			}
-		}
-	}
-	if criteria != 1 || markers != 1 {
-		t.Errorf("expected 1 criteria + 1 marker target, got %d + %d", criteria, markers)
-	}
-}
-
-func TestSeedTemplateThreadsIdempotent(t *testing.T) {
-	doc := &DocumentWithComments{Content: conformingDoc}
-	tmpl := testTemplate(t)
-
-	first := SeedTemplateThreads(doc, tmpl, "template", false)
-	if len(first) != 1 {
-		t.Fatalf("expected 1 seeded thread, got %d", len(first))
-	}
-	if doc.Template != "test-doc" {
-		t.Errorf("seeding should record template name, got %q", doc.Template)
-	}
-
-	second := SeedTemplateThreads(doc, tmpl, "template", false)
-	if len(second) != 0 {
-		t.Errorf("re-seeding should add nothing, got %d", len(second))
-	}
-}
-
 func TestSectionZone(t *testing.T) {
 	tmpl := testTemplate(t)
 	// Line 5 = "Things are slow." inside Problem (zone: human)
@@ -249,22 +207,6 @@ func TestSectionZoneSegmentBoundary(t *testing.T) {
 	}
 }
 
-func TestComputeSeedTargetsSegmentBoundary(t *testing.T) {
-	tmpl, err := parseTemplate([]byte(zoneBoundaryTemplateYAML))
-	if err != nil {
-		t.Fatal(err)
-	}
-	targets := ComputeSeedTargets(zoneBoundaryDoc, tmpl, false)
-	if len(targets) != 1 {
-		t.Fatalf("expected 1 seed target, got %d: %v", len(targets), targets)
-	}
-	// "Risks" heading is line 7; the old suffix match would anchor at
-	// "More Risks" (line 3).
-	if targets[0].Line != 7 {
-		t.Errorf("criteria must anchor at the Risks heading (line 7), got %d", targets[0].Line)
-	}
-}
-
 func TestLoadBuiltinTemplates(t *testing.T) {
 	for _, name := range []string{"design-doc", "adr", "rfc", "mini", "research", "plan", "as-built"} {
 		tmpl, err := LoadTemplate(name)
@@ -275,15 +217,6 @@ func TestLoadBuiltinTemplates(t *testing.T) {
 		if tmpl.Name != name {
 			t.Errorf("template %q has mismatched name %q", name, tmpl.Name)
 		}
-	}
-}
-
-func TestSeedMarkersOnly(t *testing.T) {
-	doc := strings.Replace(conformingDoc, "Things are slow.", "Things are [NEEDS CLARIFICATION: how slow?] slow.", 1)
-	targets := ComputeSeedTargets(doc, testTemplate(t), true)
-
-	if len(targets) != 1 || targets[0].Type != "Q" {
-		t.Errorf("markers-only should seed only the marker Q thread, got %v", targets)
 	}
 }
 
