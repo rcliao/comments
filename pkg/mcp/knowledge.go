@@ -15,7 +15,7 @@ func (s *Server) registerKnowledgeTools() {
 	}, s.handleNewDocument)
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name:        "comments_context",
-		Description: "Load an explainable OKF neighborhood for an agent role: explicit relations, links, backlinks, sources, review state, and optional bodies or threads. coverage-scout is draft-blind",
+		Description: "Load an explainable OKF neighborhood for an agent role: explicit relations, links, backlinks, sources, review state, and optional bodies or threads. coverage-scout is draft-blind; implementation summarizes a plan ledger",
 	}, s.handleContext)
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name:        "comments_bundle_index",

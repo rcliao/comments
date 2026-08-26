@@ -138,10 +138,12 @@ func (c *Comment) GetPriority() Priority {
 
 // ReviewRecord captures a completed human review pass over a document
 type ReviewRecord struct {
-	Author    string    `json:"author"`
-	Timestamp time.Time `json:"timestamp"`
-	Decision  string    `json:"decision"` // "approved" or "changes_requested"
-	Note      string    `json:"note,omitempty"`
+	Author       string    `json:"author"`
+	Timestamp    time.Time `json:"timestamp"`
+	Decision     string    `json:"decision"` // "approved" or "changes_requested"
+	Note         string    `json:"note,omitempty"`
+	DocumentHash string    `json:"document_hash,omitempty"`
+	IntentHash   string    `json:"intent_hash,omitempty"`
 }
 
 // DocumentWithComments represents a parsed document with comment threads (v2.0)

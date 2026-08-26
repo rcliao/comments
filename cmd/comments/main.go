@@ -1006,7 +1006,7 @@ New/Context Command Flags:
   --description <text>        (new) One-sentence concept description
   --from <file>               (new) Record an informed_by relationship
   --for <mode>                (context) drafting, review, coverage-scout,
-                              evidence-verifier, or human-review
+                              evidence-verifier, human-review, or implementation
   --include-body              (context) Include document bodies
   --include-threads           (context) Include review threads
   --json                      Machine-readable output

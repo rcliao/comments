@@ -62,3 +62,44 @@ func TestCoverageScoutContextNeverIncludesBody(t *testing.T) {
 		t.Fatalf("unexpected path: %s", context.Document.Path)
 	}
 }
+
+func TestImplementationContextUsesPlanLedger(t *testing.T) {
+	root := writeTestBundle(t)
+	created, err := CreateBundleDocument(NewDocumentOptions{Name: "ledger", Template: "plan", StartDir: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(created.Path, []byte(planLedgerFixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc, _, err := LoadFromSidecar(created.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	AddReviewRecord(doc, "human", DecisionApproved, "approved", false)
+	if err := SaveToSidecar(created.Path, doc); err != nil {
+		t.Fatal(err)
+	}
+
+	context, err := BuildDocumentContext(created.Path, ContextOptions{For: "implementation"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if context.Implementation == nil || context.Implementation.Approval.Freshness != "current" {
+		t.Fatalf("implementation = %#v", context.Implementation)
+	}
+	if len(context.Implementation.Phases) != 2 || context.Implementation.Phases[0].State != "active" {
+		t.Fatalf("phases = %#v", context.Implementation.Phases)
+	}
+}
+
+func TestImplementationContextRejectsNonPlan(t *testing.T) {
+	root := writeTestBundle(t)
+	created, err := CreateBundleDocument(NewDocumentOptions{Name: "research", Template: "research-deep", StartDir: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BuildDocumentContext(created.Path, ContextOptions{For: "implementation"}); err == nil {
+		t.Fatal("implementation context accepted non-plan")
+	}
+}

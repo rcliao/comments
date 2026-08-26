@@ -149,6 +149,15 @@ func TestKnowledgeBundleToolsRoundTrip(t *testing.T) {
 	if document["template"] != "plan" || document["type"] != "Plan" {
 		t.Fatalf("unexpected context document: %v", document)
 	}
+	implementation := callTool(t, session, "comments_context", map[string]any{"filepath": path, "for": "implementation"})
+	direct, err := comment.BuildDocumentContext(path, comment.ContextOptions{For: "implementation"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	implementationView := implementation["implementation"].(map[string]any)
+	if implementationView["overall_status"] != direct.Implementation.OverallStatus {
+		t.Fatalf("MCP context drifted from shared implementation context: %v vs %#v", implementationView, direct.Implementation)
+	}
 	indexed := callTool(t, session, "comments_bundle_index", map[string]any{"path": root})
 	if indexed["indexed"] != true {
 		t.Fatalf("bundle index failed: %v", indexed)

@@ -114,10 +114,14 @@ func AddReviewRecord(doc *DocumentWithComments, author, decision, note string, s
 		decision = EvaluateGate(doc, strict).Decision
 	}
 	record := ReviewRecord{
-		Author:    author,
-		Timestamp: time.Now(),
-		Decision:  decision,
-		Note:      note,
+		Author:       author,
+		Timestamp:    time.Now(),
+		Decision:     decision,
+		Note:         note,
+		DocumentHash: ComputeDocumentHash(doc.Content),
+	}
+	if meta, err := ParseDocumentMetadata(doc.Content); err == nil && (meta.Template == "plan" || strings.EqualFold(meta.Type, "plan")) {
+		record.IntentHash = PlanIntentHash(doc.Content)
 	}
 	doc.Reviews = append(doc.Reviews, record)
 	return record

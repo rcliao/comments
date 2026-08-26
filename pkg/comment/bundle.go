@@ -511,6 +511,9 @@ func readCollectionConcepts(root string) ([]indexedConcept, error) {
 		if err != nil {
 			return err
 		}
+		if entry.IsDir() && entry.Name() == ".comments" {
+			return filepath.SkipDir
+		}
 		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".md") || entry.Name() == "index.md" || entry.Name() == "log.md" {
 			return nil
 		}

@@ -1,0 +1,122 @@
+{
+  "version": "2.0",
+  "documentHash": "25959b82fbefdcb549499e5f6c09dcb4351e07e106eb40b229f3522415c86c6a",
+  "lastValidated": "2026-08-26T13:24:23.867457-07:00",
+  "threads": [
+    {
+      "ID": "coqm3",
+      "Author": "codex",
+      "Timestamp": "2026-08-26T13:02:49.126219-07:00",
+      "Text": "[Q] This four-event boundary is an inference from adjacent architectures, not validated user demand. Before planning implementation, pressure-test it against one real week-long delivery trace.",
+      "Type": "Q",
+      "Line": 184,
+      "SectionID": "s12",
+      "SectionPath": "Week-Long Human-Agent Implementation Alignment \u003e Findings \u003e F8 — the smallest seam is a reviewed projection of runtime events [Q2] [Q4]",
+      "Anchor": {
+        "selected_text": "Only four event classes have lasting planning value: milestone evidence, discovered deviation, blocking human decision, and completion summary.",
+        "context_after": "Routine progress, worker identity, retries, token usage, and logs remain runtime facts."
+      },
+      "AnchorConfidence": "exact",
+      "Resolved": false,
+      "Blocking": false,
+      "Status": "active",
+      "Priority": "high",
+      "OriginalLine": 184,
+      "OrphanedReason": "",
+      "OrphanedAt": null,
+      "Replies": [
+        {
+          "ID": "crlf1",
+          "Author": "codex",
+          "Timestamp": "2026-08-26T13:24:23.853758-07:00",
+          "Text": "Human direction from chat: the four-event projection is too thin by itself. Comments should provide a lightweight plan-derived work and status view that removes mental tracking, while still excluding workers, queues, retries, logs, and remote execution.",
+          "Type": "",
+          "Line": 184,
+          "SectionID": "s12",
+          "SectionPath": "Week-Long Human-Agent Implementation Alignment \u003e Findings \u003e F8 — the smallest seam is a reviewed projection of runtime events [Q2] [Q4]",
+          "Anchor": {
+            "selected_text": "Only four event classes have lasting planning value: milestone evidence, discovered deviation, blocking human decision, and completion summary.",
+            "context_after": "Routine progress, worker identity, retries, token usage, and logs remain runtime facts."
+          },
+          "AnchorConfidence": "exact",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "active",
+          "Priority": "medium",
+          "OriginalLine": 184,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
+      "IsSuggestion": false,
+      "StartLine": 0,
+      "EndLine": 0,
+      "OriginalText": "",
+      "ProposedText": "",
+      "Accepted": null
+    },
+    {
+      "ID": "cproj",
+      "Author": "codex",
+      "Timestamp": "2026-08-26T13:02:49.140079-07:00",
+      "Text": "[Q] This choice changes the product shape. A generic event input preserves runtime neutrality; a Codex-first adapter gives the fastest end-to-end dogfood. Which outcome matters more for the first proof?",
+      "Type": "Q",
+      "Line": 222,
+      "SectionID": "s15",
+      "SectionPath": "Week-Long Human-Agent Implementation Alignment \u003e Open Questions",
+      "Anchor": {
+        "selected_text": "- First adapter: dogfood against Codex tasks, GitHub agent sessions, or a generic NDJSON event input?",
+        "context_before": "- Product fence: confirm that Comments never owns assignment, worker health, retries, scheduling, or remote execution.",
+        "context_after": "- Human surface: prefer status as anchored milestone threads, a generated read-only digest, or both?"
+      },
+      "AnchorConfidence": "exact",
+      "Resolved": false,
+      "Blocking": false,
+      "Status": "active",
+      "Priority": "high",
+      "OriginalLine": 222,
+      "OrphanedReason": "",
+      "OrphanedAt": null,
+      "Replies": [
+        {
+          "ID": "cgvwm",
+          "Author": "codex",
+          "Timestamp": "2026-08-26T13:24:23.86745-07:00",
+          "Text": "Human direction from chat: prioritize the OpenSpec-like lightweight artifact model and Factory-like emphasis on plan quality. The first proof should be native plan tracking and alignment status; runtime adapters can remain a later input surface.",
+          "Type": "",
+          "Line": 222,
+          "SectionID": "s15",
+          "SectionPath": "Week-Long Human-Agent Implementation Alignment \u003e Open Questions",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "",
+          "Priority": "",
+          "OriginalLine": 0,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
+      "IsSuggestion": false,
+      "StartLine": 0,
+      "EndLine": 0,
+      "OriginalText": "",
+      "ProposedText": "",
+      "Accepted": null
+    }
+  ],
+  "template": "research-deep"
+}

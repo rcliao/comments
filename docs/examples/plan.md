@@ -41,6 +41,13 @@ Verify: one doc edited enough to force fuzzy matches, reviewed with the sigil vi
 `threadMarkers` gains `≈` when `AnchorConfidence` is fuzzy and the thread is open.
 The walkthrough order (`P`) is unaffected; the sigil rides existing machinery.
 
+#### Status
+
+- 2026-01-15 — **active**
+  - Summary: Adding the review-time confidence marker.
+  - Evidence: thread:example
+  - Next: Exercise the fuzzy-anchor fixture.
+
 **Success Criteria**
 - automated: fuzzy fixture renders `≈`; resolved stays quiet
 - manual: sigil legible in both densities
@@ -48,6 +55,13 @@ The walkthrough order (`P`) is unaffected; the sigil rides existing machinery.
 ### Phase 2: doctor count
 
 The sidecars check reports fuzzy counts beside orphans ("2 fuzzy re-anchors").
+
+#### Status
+
+- 2026-01-15 — **pending**
+  - Summary: Waiting for the sidebar phase.
+  - Evidence: —
+  - Next: Implement after Phase 1.
 
 **Success Criteria**
 - automated: doctor fixture asserts the count

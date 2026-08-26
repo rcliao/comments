@@ -16,6 +16,7 @@ Google-Docs-style review for markdown, locally. Inline comment threads and edit 
 - **Doc templates as guardrails**: required sections, word caps, forced alternatives, human-owned zones, `[NEEDS CLARIFICATION:]` marker caps — built-ins: `design-doc`, `mini`, `research`, `plan`, `adr`, `rfc`, `as-built`
 - **OKF document bundles by default**: the first `comments new` initializes a standard `docs/artifacts` bundle, then creates frontmatter-rich concepts in template-guided folders; `comments context` exposes explicit relations, backlinks, sources, and review state without a whole-tree search
 - **RPI flow**: research docs with file:line evidence → plans citing the research → reviewed in the TUI where `f` peeks any citation and Enter opens `$EDITOR` there
+- **Plan-led implementation**: optional in-document phase status lists keep Summary/Evidence/Next visible across multi-day work; `context --for implementation` reports alignment without turning Comments into the runtime
 - **Autonomous research convergence**: draft-blind coverage scout + evidence verifier add missing `Qn` questions until clean; `comments analyze plan.md --against research.md` proves the handoff before review
 - **Watch**: `comments watch --until signoff` streams NDJSON review events so agents can wait on humans
 - **Browser review**: `comments serve` opens a rendered document and line-accurate source view beside live threads, suggestions, and verdict controls

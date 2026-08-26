@@ -305,8 +305,12 @@ type SectionWordCount struct {
 func SectionWordReport(content string, t *Template) []SectionWordCount {
 	body := markdown.MaskFrontmatter(content)
 	structure := markdown.ParseDocument(body)
-	lines := strings.Split(body, "\n")
-	report := []SectionWordCount{{Section: "(document)", Words: countWords(body), Max: t.Doc.MaxWords}}
+	countBody := body
+	if t.Name == "plan" {
+		countBody = MaskPlanStatusLog(body)
+	}
+	lines := strings.Split(countBody, "\n")
+	report := []SectionWordCount{{Section: "(document)", Words: countWords(countBody), Max: t.Doc.MaxWords}}
 	for _, ts := range t.Sections {
 		if section := findTemplateSection(structure, ts.Heading); section != nil {
 			report = append(report, SectionWordCount{
@@ -326,10 +330,15 @@ func ValidateTemplate(content string, t *Template) []Violation {
 	body := markdown.MaskFrontmatter(content)
 	structure := markdown.ParseDocument(body)
 	lines := strings.Split(body, "\n")
+	countBody := body
+	if t.Name == "plan" {
+		countBody = MaskPlanStatusLog(body)
+	}
+	countLines := strings.Split(countBody, "\n")
 
 	// Whole-doc word cap
 	if t.Doc.MaxWords > 0 {
-		total := countWords(body)
+		total := countWords(countBody)
 		if total > t.Doc.MaxWords {
 			violations = append(violations, Violation{
 				Rule:    "doc_over_length",
@@ -365,7 +374,7 @@ func ValidateTemplate(content string, t *Template) []Violation {
 			}
 		}
 		if ts.MaxWords > 0 {
-			if words := countSectionWords(lines, section); words > ts.MaxWords {
+			if words := countSectionWords(countLines, section); words > ts.MaxWords {
 				violations = append(violations, Violation{
 					Rule:    "over_length",
 					Section: ts.Heading,
@@ -395,7 +404,7 @@ func ValidateTemplate(content string, t *Template) []Violation {
 		// tells the agent to trim somewhere, which is how padding survives.
 		if ts.MaxSubsectionWords > 0 {
 			for _, child := range section.Children {
-				if words := countSectionWords(lines, child); words > ts.MaxSubsectionWords {
+				if words := countSectionWords(countLines, child); words > ts.MaxSubsectionWords {
 					violations = append(violations, Violation{
 						Rule:    "subsection_over_length",
 						Section: ts.Heading,
@@ -450,6 +459,9 @@ func ValidateTemplate(content string, t *Template) []Violation {
 			Message: fmt.Sprintf("%d %s markers exceed the cap of %d — keep only the questions that genuinely need the human; decide the rest and record them as assumptions",
 				markerCount, marker, t.Markers.Max),
 		})
+	}
+	if t.Name == "plan" {
+		violations = append(violations, ValidatePlanStatus(content)...)
 	}
 
 	return violations

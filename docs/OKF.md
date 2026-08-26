@@ -110,6 +110,7 @@ Choose the smallest role that matches the task:
 | `human-review` | prepare a human-facing review view | no tag-based expansion |
 | `coverage-scout` | find missing research questions | exposes only the Research Question as `focus`; forcibly excludes bodies, threads, and draft-derived links or backlinks |
 | `evidence-verifier` | check findings against sources | no tag-based expansion; bodies are opt-in |
+| `implementation` | resume or monitor an approved plan | plan-only; returns approval freshness, ordered phases, latest status, success criteria, warnings, and phase-scoped attention |
 
 Bodies and review threads are excluded unless explicitly requested. `--include-body` can produce a large response, so agents should start with metadata and relations, then load only what they need.
 
@@ -128,7 +129,10 @@ comments new cache-policy --template plan \
 comments context docs/artifacts/plans/cache-policy.md --for drafting --include-threads
 comments analyze docs/artifacts/plans/cache-policy.md \
   --against docs/artifacts/research/cache-policy.md --json
+comments context docs/artifacts/plans/cache-policy.md --for implementation
 ```
+
+For work spanning days, a phase may carry an H4 `Status` list. Each dated top-level entry uses a `pending`, `active`, `blocked`, or `done` state and nests `Summary`, `Evidence`, and `Next` fields; the latest entry wins. Status history is capped separately at 20 entries and 60 words per entry, and does not consume the plan's normal document or phase word budget. New plan signoffs hash both the full document and stable intent, so status-only edits preserve approval while scope or success-criteria edits make it stale.
 
 The agent validates the artifact and posts specific anchored doubts with `comments add`, `comments batch-add`, or `comments suggest`. There is no seeding step and no separate annotation command.
 

@@ -201,7 +201,7 @@ type NewDocumentRequest struct {
 // ContextRequest retrieves the relevant OKF neighborhood for an agent role.
 type ContextRequest struct {
 	FilePath       string `json:"filepath" jsonschema:"Path to the current OKF concept"`
-	For            string `json:"for,omitempty" jsonschema:"Role mode: drafting, review, coverage-scout, evidence-verifier, or human-review"`
+	For            string `json:"for,omitempty" jsonschema:"Role mode: drafting, review, coverage-scout, evidence-verifier, human-review, or implementation"`
 	IncludeBody    bool   `json:"include_body,omitempty" jsonschema:"Include document bodies"`
 	IncludeThreads bool   `json:"include_threads,omitempty" jsonschema:"Include review comment threads"`
 }

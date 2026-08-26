@@ -60,6 +60,26 @@ func TestCreateBundleDocumentAndIndexes(t *testing.T) {
 	if err != nil || !strings.Contains(string(rootIndex), `okf_version: "0.2"`) {
 		t.Fatalf("root index = %q, err %v", rootIndex, err)
 	}
+
+	baselineDir := filepath.Join(root, "docs", "research", ".comments", "baselines")
+	if err := os.MkdirAll(baselineDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	baseline := "---\ntype: Research\ntitle: Internal Baseline\n---\n# Internal Baseline\n"
+	if err := os.WriteFile(filepath.Join(baselineDir, "agent-surface.md.human.md"), []byte(baseline), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bundle, err := FindBundle(result.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteBundleIndexes(bundle); err != nil {
+		t.Fatal(err)
+	}
+	index, err = os.ReadFile(filepath.Join(root, "docs", "research", "index.md"))
+	if err != nil || strings.Contains(string(index), "Internal Baseline") || strings.Contains(string(index), ".comments") {
+		t.Fatalf("collection index exposed internal baseline = %q, err %v", index, err)
+	}
 }
 
 func TestCreateBundleDocumentBootstrapsDefaultAtRepoRoot(t *testing.T) {

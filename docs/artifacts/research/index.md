@@ -3,3 +3,5 @@
 # Research
 
 - [OKF Comments Workflow](okf-comments-workflow.md) — Dogfood record for bundle-aware agent and human document review.
+
+- [Week-Long Human-Agent Implementation Alignment](week-long-agent-alignment.md) — Adjacent-product research for keeping Comments focused on reviewed implementation intent across long-running agent execution.

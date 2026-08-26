@@ -46,7 +46,7 @@ func newCommand(name string, args []string) error {
 
 func contextCommand(filename string, args []string) error {
 	fs := flag.NewFlagSet("context", flag.ContinueOnError)
-	mode := fs.String("for", "drafting", "Context mode: drafting, review, coverage-scout, evidence-verifier, human-review")
+	mode := fs.String("for", "drafting", "Context mode: drafting, review, coverage-scout, evidence-verifier, human-review, implementation")
 	includeBody := fs.Bool("include-body", false, "Include document bodies")
 	includeThreads := fs.Bool("include-threads", false, "Include review threads")
 	jsonOut := fs.Bool("json", false, "Output machine-readable JSON")
@@ -66,6 +66,22 @@ func contextCommand(filename string, args []string) error {
 	}
 	fmt.Printf("Context for %s (%s) — %s mode\n", result.Document.Path, result.Document.Type, result.Mode)
 	fmt.Printf("  template: %s  review: %s (%d blocking)\n", result.Document.Template, result.Document.Review.Decision, result.Document.Review.Blocking)
+	if result.Implementation != nil {
+		implementation := result.Implementation
+		fmt.Printf("  implementation: %s  approval: %s\n", implementation.OverallStatus, implementation.Approval.Freshness)
+		for _, phase := range implementation.Phases {
+			fmt.Printf("  - %s: %s (%d entries)\n", phase.Title, phase.State, phase.HistoryCount)
+			if phase.Latest != nil {
+				fmt.Printf("    summary: %s\n    evidence: %s\n    next: %s\n", phase.Latest.Summary, phase.Latest.Evidence, phase.Latest.Next)
+			}
+			for _, warning := range phase.Warnings {
+				fmt.Printf("    warning: %s\n", warning)
+			}
+			if len(phase.Attention) > 0 {
+				fmt.Printf("    attention: %d high-priority or blocking thread(s)\n", len(phase.Attention))
+			}
+		}
+	}
 	printContextRelations("Related", result.Related)
 	printContextRelations("Backlinks", result.Backlinks)
 	printContextRelations("Suggested", result.Suggestions)

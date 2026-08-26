@@ -47,14 +47,15 @@ type ContextRelation struct {
 }
 
 type DocumentContext struct {
-	Mode        string            `json:"mode"`
-	Bundle      string            `json:"bundle"`
-	BundleRoot  string            `json:"bundle_root"`
-	Document    ContextDocument   `json:"document"`
-	Related     []ContextRelation `json:"related"`
-	Backlinks   []ContextRelation `json:"backlinks"`
-	Sources     []KnowledgeSource `json:"sources"`
-	Suggestions []ContextRelation `json:"suggestions"`
+	Mode           string                     `json:"mode"`
+	Bundle         string                     `json:"bundle"`
+	BundleRoot     string                     `json:"bundle_root"`
+	Document       ContextDocument            `json:"document"`
+	Implementation *PlanImplementationContext `json:"implementation,omitempty"`
+	Related        []ContextRelation          `json:"related"`
+	Backlinks      []ContextRelation          `json:"backlinks"`
+	Sources        []KnowledgeSource          `json:"sources"`
+	Suggestions    []ContextRelation          `json:"suggestions"`
 }
 
 // BuildDocumentContext returns a deterministic, explainable neighborhood. It
@@ -74,7 +75,7 @@ func BuildDocumentContext(docPath string, options ContextOptions) (*DocumentCont
 		mode = "drafting"
 	}
 	switch mode {
-	case "drafting", "review", "coverage-scout", "evidence-verifier", "human-review":
+	case "drafting", "review", "coverage-scout", "evidence-verifier", "human-review", "implementation":
 	default:
 		return nil, fmt.Errorf("unknown context mode %q", mode)
 	}
@@ -99,6 +100,17 @@ func BuildDocumentContext(docPath string, options ContextOptions) (*DocumentCont
 		Related:     []ContextRelation{},
 		Backlinks:   []ContextRelation{},
 		Suggestions: []ContextRelation{},
+	}
+	if mode == "implementation" {
+		if current.Template != "plan" && !strings.EqualFold(current.Type, "plan") {
+			return nil, fmt.Errorf("implementation context requires a plan document")
+		}
+		doc, _, err := LoadFromSidecar(absPath)
+		if err != nil {
+			return nil, err
+		}
+		implementation := BuildPlanImplementationContext(doc)
+		result.Implementation = &implementation
 	}
 
 	paths, err := bundleConceptPaths(bundle)
