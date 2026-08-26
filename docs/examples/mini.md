@@ -1,3 +1,12 @@
+---
+comments:
+  template: mini
+description: A small rendering change expressed as a bounded, reviewable brief.
+status: stable
+title: "Mini: bullet glyph substitution in the document pane"
+type: Brief
+---
+
 # Mini: bullet glyph substitution in the document pane
 
 ## Problem

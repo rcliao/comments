@@ -1,6 +1,6 @@
 # Documentation map
 
-**Audit date:** 2026-08-12
+**Audit date:** 2026-08-26
 
 The repository keeps three kinds of documentation: maintained references,
 active proposals, and point-in-time design/research records. Only the first
@@ -13,11 +13,13 @@ sections named “Current State” mean the state when that artifact was written
 |---|---|
 | [README](../README.md) | Product overview, install, and first review loop |
 | [Usage guide](../USAGE.md) | Current CLI, TUI, template, gate, and anchor workflows |
+| [OKF bundle guide](OKF.md) | OKF v0.2 boundary, Comments extensions, default taxonomy, context modes, and RPI workflow |
 | [Architecture](ARCHITECTURE.md) | Current components, schema, invariants, and durable constraints |
 | [Development guide](../CLAUDE.md) | Build gates and repository-wide implementation conventions |
 | [TUI guide](../pkg/tui/CLAUDE.md) | Bubbletea modes, composition, rendering, and TUI invariants |
 | [Review skill](../skills/review-comments/SKILL.md) | Current agent review and RPI workflow |
 | [Template examples](examples/) | Maintained examples that validate against every built-in template |
+| [Dogfood knowledge bundle](artifacts/) | Live OKF research and implementation brief used to validate bundle creation and context traversal |
 | [Eval guide](../scripts/eval/README.md) | Current template-evaluation harness and recorded runs |
 
 `comments help`, the embedded templates in `pkg/comment/templates/`, and the

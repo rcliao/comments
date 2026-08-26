@@ -81,5 +81,5 @@ That makes `context` a valuable chain-navigation command, but not a replacement 
 
 ## Open Questions
 
-- Adopt this bundle as the default for new RPI artifacts, or keep it opt-in until several projects confirm the folder map?
+- Default adoption is complete. After cross-project use, keep the standard folder map or revise the taxonomy?
 - Do these findings justify a follow-up plan for richer context ranking, or is deterministic navigation sufficient for now?

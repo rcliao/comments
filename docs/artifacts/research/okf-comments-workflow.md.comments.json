@@ -1,7 +1,7 @@
 {
   "version": "2.0",
-  "documentHash": "57d5c73240eea3c6ae875e991c5c3705ce50cdb333931d0b71de0dc67346de38",
-  "lastValidated": "2026-08-26T12:25:17.631803-07:00",
+  "documentHash": "b4ae705f52117142590d5f58a52c652eccd6fd6b150167d42b59a569e5719d92",
+  "lastValidated": "2026-08-26T12:49:04.475923-07:00",
   "threads": [
     {
       "ID": "cw9m4",
@@ -13,7 +13,7 @@
       "SectionID": "s10",
       "SectionPath": "OKF Comments Workflow \u003e Open Questions",
       "Anchor": {
-        "selected_text": "- Adopt this bundle as the default for new RPI artifacts, or keep it opt-in until several projects confirm the folder map?",
+        "selected_text": "- Default adoption is complete. After cross-project use, keep the standard folder map or revise the taxonomy?",
         "context_after": "- Do these findings justify a follow-up plan for richer context ranking, or is deterministic navigation sufficient for now?"
       },
       "AnchorConfidence": "exact",
@@ -21,10 +21,36 @@
       "Blocking": false,
       "Status": "active",
       "Priority": "high",
-      "OriginalLine": 74,
+      "OriginalLine": 84,
       "OrphanedReason": "",
       "OrphanedAt": null,
-      "Replies": [],
+      "Replies": [
+        {
+          "ID": "cmjfp",
+          "Author": "codex",
+          "Timestamp": "2026-08-26T12:48:39.297895-07:00",
+          "Text": "Adopted: comments new now initializes the standard OKF bundle by default; the docs will treat opt-out/migration as compatibility, not the primary path.",
+          "Type": "",
+          "Line": 82,
+          "SectionID": "s10",
+          "SectionPath": "OKF Comments Workflow \u003e Open Questions",
+          "AnchorConfidence": "section-level",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "active",
+          "Priority": "medium",
+          "OriginalLine": 84,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
       "IsSuggestion": false,
       "StartLine": 0,
       "EndLine": 0,

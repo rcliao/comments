@@ -214,8 +214,9 @@ OKF is the default for newly created artifacts. On its first run in a project,
 `comments new` writes `.comments/bundle.yaml` at the repository root and creates
 the standard `docs/artifacts` collections. Edit that committed config to change
 the taxonomy or knowledge root. Existing Markdown and sidecars are not moved or
-rewritten. Concept files use OKF-compatible frontmatter; `related` is a producer
-extension used for deterministic navigation.
+rewritten. Concept files use OKF-compatible frontmatter. `comments.template`
+and `related` are Comments producer extensions used for validation and
+deterministic navigation; they do not change the OKF v0.2 conformance floor.
 
 ```bash
 comments new cache-policy --template research-deep --description "Evidence for cache invalidation policy"
@@ -233,6 +234,28 @@ why it was included. `coverage-scout` exposes only the Research Question as its
 `focus` while forcibly excluding bodies, threads, and draft-derived links;
 `evidence-verifier` and review modes do not broaden the working set with tag
 suggestions.
+
+A generated concept is self-describing:
+
+```yaml
+---
+comments:
+  template: plan
+description: Implementation and verification strategy for cache invalidation.
+related:
+  - path: ../research/cache-policy.md
+    relation: informed_by
+status: draft
+title: Cache Policy
+type: Plan
+---
+```
+
+OKF v0.2 requires only `type` for a concept. Comments generates the additional
+fields because they improve navigation and review. The bundle configuration,
+template namespace, relation vocabulary, and sidecar schema belong to Comments,
+not the OKF specification. See [docs/OKF.md](docs/OKF.md) for the full boundary,
+default folder map, context-mode guarantees, and migration behavior.
 
 Gate results:
 
@@ -274,7 +297,7 @@ comments signoff doc.md --author eric --note "Ready after the cache fix"
 # Wait for either a TUI verdict or a signoff command.
 comments watch doc.md --until signoff
 
-# Durable non-blocking polling handle.
+# Compatibility polling when a caller cannot keep a watcher open.
 comments check-review doc.md --since 2026-08-12T18:30:00Z --json
 
 # Agent attention view: new replies plus unresolved blockers.
@@ -284,6 +307,15 @@ comments inbox docs/ --since 2026-08-12T18:30:00Z --json
 `watch` emits NDJSON events including `comment_added`, `reply_added`,
 `thread_resolved`, `suggestion_accepted`, `signoff`, and `gate_changed`.
 `--until` accepts a comma-separated event list.
+
+`watch --until signoff` is the normal agent handoff: it lets the human review in
+the TUI or browser without sending a separate nudge. `check-review` and the MCP
+request/check pair remain available for transports that need durable polling,
+but the review skill does not require that extra ceremony.
+
+The gate is mechanical, not proof that a person reviewed the document. A clean
+document can have gate decision `approved` before its first verdict. Treat the
+signoff event or latest review record as human authorization.
 
 ## TUI reference
 

@@ -6,7 +6,7 @@ Google-Docs-style review for markdown, locally. Inline comment threads and edit 
 
 ## Overview
 
-`comments` is built for human↔agent doc collaboration (spec-driven development). Instead of having an LLM rewrite entire documents, the agent drafts under a template that keeps docs short and reviewable, the human walks the comment threads in the TUI and signs off, and the agent addresses feedback one comment at a time until the gate opens.
+`comments` is built for human↔agent doc collaboration (spec-driven development). Instead of having an LLM rewrite entire documents, the agent creates a typed knowledge artifact, drafts under a template that keeps it short and reviewable, and annotates uncertain reasoning inline. The human walks those threads in the TUI or browser and signs off; the agent listens for that verdict and addresses feedback until the gate opens.
 
 ## Features
 
@@ -21,6 +21,18 @@ Google-Docs-style review for markdown, locally. Inline comment threads and edit 
 - **Browser review**: `comments serve` opens a rendered document and line-accurate source view beside live threads, suggestions, and verdict controls
 - **MCP server**: 23 tools over stdio for agent integration; batch operations; `@filename` text input
 - **Surface parity**: every MCP tool has a CLI equivalent backed by the same code — see `docs/ARCHITECTURE.md` decision 8
+
+## Why OKF and Comments fit together
+
+[Open Knowledge Format (OKF) v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) makes a knowledge base portable: Markdown concepts carry YAML frontmatter, folders and `index.md` files provide navigation, and optional trust fields describe provenance and lifecycle. Comments adds the collaborative layer that the format deliberately does not prescribe.
+
+| Layer | Owns | Benefit |
+|---|---|---|
+| OKF-compatible frontmatter and folders | type, title, status, provenance, relations, placement | agents can discover and traverse artifacts without guessing filenames or searching the whole repository |
+| Markdown | research, design, plan, decision, or as-built content | the durable artifact remains readable in any Markdown tool |
+| `.comments.json` sidecar | anchored threads, suggestions, verdicts, review history | agents and humans can debate and approve the artifact without polluting its content or metadata |
+
+The first `comments new` initializes a default bundle at `docs/artifacts`; no setup command is required. Comments-specific producer configuration lives in `.comments/bundle.yaml`, while `comments.template` and `related` extend otherwise portable OKF frontmatter. Existing Markdown remains supported and is never migrated automatically. See [the OKF bundle guide](docs/OKF.md) for the exact boundary and format.
 
 ## Install
 
@@ -41,23 +53,30 @@ go install github.com/rcliao/comments/cmd/comments@latest
 ## The core loop
 
 ```bash
-comments view doc.md            # TUI review; q -> a/c signs off (n adds a note)
-comments serve doc.md           # local browser review; use the one-time URL it prints
-comments add doc.md --line 10 --author eric --text "Fix this first" --blocking
-comments gate doc.md            # exit 0 = approved, 10 = changes requested
-comments signoff doc.md         # same review record, non-interactively (CI, --note)
-comments watch specs/ --until signoff     # block until signed off, either way
+comments new cache-policy --template design-doc
+comments context docs/artifacts/designs/cache-policy.md --for drafting --include-threads
+comments add docs/artifacts/designs/cache-policy.md --section "Proposed Design" \
+  --author agent --text "[Q] The repository does not yet establish the proposed TTL." --blocking
+comments validate docs/artifacts/designs/cache-policy.md
+comments watch docs/artifacts/designs/cache-policy.md --until signoff
 ```
 
-Agent-side drafting under a template:
+The human reviews the same artifact while the agent listens:
 
 ```bash
-comments template list                        # when to use which, per description
-comments template show design-doc             # the writing brief
-comments new cache-policy --template design-doc  # initializes the bundle if needed
-comments context docs/artifacts/designs/cache-policy.md --for drafting --include-threads
-comments validate docs/artifacts/designs/cache-policy.md
-comments analyze plan.md --against research.md --json  # advisory coverage manifest
+comments view docs/artifacts/designs/cache-policy.md   # q -> a/c/r records a verdict
+comments serve docs/artifacts/designs/cache-policy.md  # browser alternative
+```
+
+After the signoff event, the agent reads `comments inbox docs/artifacts/designs/cache-policy.md` first, fixes or replies to each thread, and checks `comments gate` (exit 0 = approved, 10 = changes requested). `comments signoff` is the non-interactive verdict writer for CI or scripts; a TUI/browser verdict already records the signoff.
+
+For Research → Plan, use the same slug and preserve lineage:
+
+```bash
+comments new cache-policy --template research-deep
+comments new cache-policy --template plan --from docs/artifacts/research/cache-policy.md
+comments analyze docs/artifacts/plans/cache-policy.md \
+  --against docs/artifacts/research/cache-policy.md --json
 ```
 
 ## TUI keys
@@ -66,7 +85,7 @@ comments analyze plan.md --against research.md --json  # advisory coverage manif
 
 ## What the templates produce
 
-Every template ships with a worked example under [`docs/examples/`](docs/examples/) — real subjects from this repo, written to every constraint, validating clean:
+Every template ships with a self-describing, OKF-compatible worked example under [`docs/examples/`](docs/examples/) — real subjects from this repo, written to every constraint and validating clean. These are static examples; `comments new` places live artifacts in the configured bundle.
 
 | Template | Example | Shows off |
 |---|---|---|
@@ -82,7 +101,13 @@ Review any of them in the tool itself: `comments view docs/examples/design-doc.m
 
 ## Storage
 
-Comments live in `doc.md.comments.json` sidecars: markdown stays clean, collaboration data versions independently, and a SHA-256 document hash drives staleness detection and the re-anchoring cascade (exact → text → fuzzy → section → orphan).
+The knowledge bundle and the review record are intentionally separate:
+
+- `.comments/bundle.yaml` maps templates to typed folders and generates navigational indexes;
+- `docs/artifacts/**/*.md` contains portable OKF-compatible concepts;
+- `doc.md.comments.json` contains collaboration state beside each reviewed concept.
+
+Sidecars keep Markdown clean, version collaboration independently, and use a SHA-256 document hash to drive the re-anchoring cascade (exact → text → fuzzy → section → orphan).
 
 ## Documentation
 
@@ -90,6 +115,7 @@ Comments live in `doc.md.comments.json` sidecars: markdown stays clean, collabor
 - [CLAUDE.md](CLAUDE.md) — command reference, architecture, agent workflow
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system design and data model
 - [USAGE.md](USAGE.md) — current CLI and TUI workflow guide
+- [docs/OKF.md](docs/OKF.md) — OKF v0.2 boundary, default folder map, frontmatter, context modes, and RPI example
 - [skills/review-comments/SKILL.md](skills/review-comments/SKILL.md) — the agent skill (bundled by the plugin)
 
 ## License

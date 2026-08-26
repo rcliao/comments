@@ -1,3 +1,12 @@
+---
+comments:
+  template: research
+description: Evidence for the anchor recovery cascade and its failure behavior.
+status: stable
+title: "Research: how comment anchors survive document edits"
+type: Research
+---
+
 # Research: how comment anchors survive document edits
 
 ## Research Question

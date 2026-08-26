@@ -1,3 +1,12 @@
+---
+comments:
+  template: adr
+description: The storage decision that keeps review state separate from Markdown content.
+status: stable
+title: "ADR: sidecar JSON files over inline comment annotations"
+type: Decision
+---
+
 # ADR: sidecar JSON files over inline comment annotations
 
 ## Context and Problem Statement

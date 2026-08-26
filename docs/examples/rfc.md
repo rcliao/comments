@@ -1,3 +1,12 @@
+---
+comments:
+  template: rfc
+description: A reference syntax that makes durable review decisions traversable from Markdown.
+status: stable
+title: "RFC: thread citations — thread:c1abc as a first-class reference"
+type: Design
+---
+
 # RFC: thread citations — `thread:c1abc` as a first-class reference
 
 ## Summary

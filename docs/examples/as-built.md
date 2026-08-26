@@ -1,17 +1,26 @@
+---
+comments:
+  template: as-built
+description: The shipped data flow from inline review through a human signoff event.
+status: stable
+title: "As-built: the review gate and signoff loop"
+type: AsBuilt
+---
+
 # As-built: the review gate and signoff loop
 
 ## What This Describes
 
-The gate/signoff subsystem as of main @ db63ee5: how review state becomes a machine-readable contract between a human reviewer and a drafting agent.
+The gate/signoff subsystem as of main @ da649e3: how review state becomes a machine-readable contract between a human reviewer and a drafting agent.
 Deliberately not covered: the TUI's rendering, templates/validation, and the MCP transport — only the review-state loop itself.
 
 ## Data Flow
 
-1. An **agent** finishes a draft and requests review — over MCP it blocks in `comments_request_review`; headless it arms `comments watch --until signoff` and waits on the event stream.
+1. An **agent** finishes and annotates a draft, tells the human where to review, then arms `comments watch --until signoff` and waits on the event stream.
 2. The **human** reviews in the TUI and exits through the verdict dialog (`q`): the dialog applies queued suggestion decisions, records a ReviewRecord, and quits with the decision's exit code.
-3. The **sidecar** is the shared event bus: every writer persists immediately, so the watcher and the blocked MCP call observe the same file (steps 1 and 2 are concurrent — the agent waits while the human reads).
+3. The **sidecar** is the shared event bus: every writer persists immediately, so the watcher observes the same file (steps 1 and 2 are concurrent — the agent waits while the human reads).
 4. The **watcher** diffs sidecar snapshots and emits NDJSON events; a `signoff` event carries author, decision, and the reviewer's note in one payload.
-5. The **agent** wakes, reads the inbox FIRST (replies are the payload; the decision is the envelope), then acts: `commented` → iterate; `approved` → proceed after draining; `changes_requested` → fix and re-request.
+5. The **agent** wakes, reads the inbox FIRST (replies are the payload; the decision is the envelope), then acts: `commented` → iterate; `approved` → proceed after draining; `changes_requested` → fix and listen for the next verdict.
 6. The **gate** answers "may implementation proceed" at any time: exit 0 or 10, derived from blocking threads, never from who asked.
 
 Roles are greppable: verdict in pkg/tui/keys_verdict.go, watcher in pkg/comment/watch.go, gate in pkg/comment/gate.go.

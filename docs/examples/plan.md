@@ -1,3 +1,15 @@
+---
+comments:
+  template: plan
+description: A phased implementation plan for making uncertain anchor recovery visible.
+related:
+  - path: research.md
+    relation: informed_by
+status: stable
+title: "Plan: surface fuzzy re-anchors at review time"
+type: Plan
+---
+
 # Plan: surface fuzzy re-anchors at review time
 
 ## Overview
@@ -8,7 +20,7 @@ Follows docs/examples/research.md (the anchor cascade), which left this as its o
 
 ## Current State
 
-- The cascade labels normalized matches `fuzzy` in `AnchorConfidence` (docs/examples/research.md:24-27).
+- The cascade labels normalized matches `fuzzy` in `AnchorConfidence` (docs/examples/research.md:33-35).
 - Sidebar rows show sigils for blocking/priority/suggestions but nothing for confidence.
 - `doctor` counts orphans per sidecar; fuzzy counts are invisible everywhere.
 
@@ -30,7 +42,7 @@ Verify: one doc edited enough to force fuzzy matches, reviewed with the sigil vi
 The walkthrough order (`P`) is unaffected; the sigil rides existing machinery.
 
 **Success Criteria**
-- automated: fixture with a fuzzy-confidence thread renders `≈`; resolved fuzzy threads stay quiet
+- automated: fuzzy fixture renders `≈`; resolved stays quiet
 - manual: sigil legible in both densities
 
 ### Phase 2: doctor count

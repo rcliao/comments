@@ -116,9 +116,10 @@ The gate turns review state into a machine-readable contract for agent loops and
 
 ### Model Context Protocol (MCP) Integration
 
-`./comments serve-mcp` runs an MCP server over stdio: 2 subscribable resources (`comments://doc/{filepath}`, `comments://thread/{filepath}/{thread_id}`) and 23 tools mirroring the CLI (list/get/status/analyze, add/reply/resolve, suggest/accept/reject, batch ops, gate/request_review/check_review, inbox, template get/validate, new/context/bundle index, reanchor). The tool catalog with schemas lives in `pkg/mcp/server.go`. Notable semantics:
+`./comments serve-mcp` runs an MCP server over stdio: 2 subscribable resources (`comments://doc/{filepath}`, `comments://thread/{filepath}/{thread_id}`) and 23 tools mirroring the CLI (list/get/status/analyze, add/reply/resolve, suggest/accept/reject, batch ops, gate/review compatibility, inbox, template get/validate, new/context/bundle index, reanchor). The tool catalog with schemas lives in `pkg/mcp/server.go`. Notable semantics:
 
-- **comments_request_review** — default blocks until a human signoff, then returns the decision + remaining comments. With `blocking: false` returns `{status: "requested", since: <RFC3339>}` — a durable handle polled via **comments_check_review** (survives agent restarts).
+- **comments_new / comments_context** — create a typed OKF concept, then load its explainable, role-scoped neighborhood before drafting or review. Prefer these to ad hoc repository-wide document search.
+- **comments_request_review / comments_check_review** — retained transport compatibility for blocking or durable polling. The normal skill handoff tells the human to use `comments view` or `comments serve` and listens with `comments watch --until signoff`; it does not require a separate request-review ceremony.
 - **comments_inbox** — one-call attention view: unresolved threads with replies newer than `since`, plus all unresolved blocking threads.
 - **comments_reanchor** — after editing a commented document, agents must migrate the anchors their edits displaced (batch comment_id → new line/section).
 
@@ -146,7 +147,7 @@ For feature-sized work the AUTONOMOUS CHAIN is the default: interview once, then
 1. **Agent produces doc** under a template: use `comments new` (which initializes the standard OKF bundle when absent), read the brief and `comments context`, then draft and validate until structure is clean.
 2. **Annotate and self-review**: post specific anchored callouts from the template criteria with `add`/`batch-add`; each ambiguity marker gets a blocking Q thread. Template identity lives in frontmatter, not in review threads.
 3. **Human reviews** in the TUI: `comments view <doc>` — walk threads, reply/resolve, add comments (`--blocking` for must-fix), then submit the TUI verdict, which records the signoff.
-4. **Agent processes feedback** one comment at a time (see `skills/review-comments/SKILL.md`): reply/resolve/suggest, `comments_reanchor` after edits, re-request review.
+4. **Agent processes feedback** one comment at a time (see `skills/review-comments/SKILL.md`): reply/resolve/suggest, `comments_reanchor` after edits, then continues the listen/review loop.
 5. **Iterate until the gate unblocks**: `comments gate <doc>` exit 0 → implement.
 
 ## Adding a New CLI Command

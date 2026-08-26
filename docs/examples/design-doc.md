@@ -1,3 +1,12 @@
+---
+comments:
+  template: design-doc
+description: A bounded design for measuring the quality of research and plan artifacts.
+status: stable
+title: "Design: probe-based quality eval for RPI artifacts"
+type: Design
+---
+
 # Design: probe-based quality eval for RPI artifacts
 
 ## Problem
@@ -26,11 +35,20 @@ Affected: every RPI doc in this repo, and skill tuning with no quality signal to
 
 Three probe types, run post-signoff by the skill, results appended to a log the review surface never shows.
 
-**Coverage probes**: a fresh-context subagent reads only the research QUESTION plus the repo — never the doc — and writes five questions an ideal doc would answer, each with an expected answer and file:line evidence (the answer key). A second fresh subagent answers those questions from the doc alone. A grader marks each answer against the key. A doc that quietly narrowed its scope fails here; doc-derived probes cannot detect omission.
+**Coverage probes**: a fresh-context subagent reads only the research QUESTION plus the repo, never the doc.
+It writes five questions an ideal doc would answer, each with an expected answer and file:line evidence.
+A second fresh subagent answers those questions from the doc alone.
+A grader marks each answer against the key.
+A doc that quietly narrowed its scope fails here; doc-derived probes cannot detect omission.
 
-**Faithfulness probes**: a subagent given only the doc extracts five checkable claims; the grader verifies each against the cited files, one claim at a time. Convincing-but-wrong prose fails here.
+**Faithfulness probes**: a subagent given only the doc extracts five checkable claims.
+The grader verifies each against the cited files, one claim at a time.
+Convincing-but-wrong prose fails here.
 
-**Executability probe** (plan docs): a cold subagent receives the plan alone and writes an execution brief — files it would touch, in what order, every question it cannot answer. It does not implement. Score = forced-question count plus the human's read of brief-vs-intent divergence (observed, not automated, in v1).
+**Executability probe** (plan docs): a cold subagent receives the plan alone and writes an execution brief.
+The brief names files it would touch, their order, and every question it cannot answer.
+It does not implement.
+Score = forced-question count plus the human's read of brief-vs-intent divergence, observed rather than automated in v1.
 
 Each run appends one JSON line to `.comments/evals.jsonl`, keyed by doc path and content hash.
 A revised doc re-scores as a new entry, making rewrite-not-expand checkable: same path, fewer words, higher score.
@@ -141,5 +159,5 @@ CHANGED none — `gate`, `signoff`, `validate` contracts untouched; the eval rea
 
 ## Unresolved Questions
 
-- [NEEDS CLARIFICATION: does the eval log get committed like sidecars, or stay untracked telemetry? Affects whether scores are shareable across machines.] (blocking)
+- Should the eval log be committed like sidecars or remain untracked telemetry? The choice determines whether scores are shared across machines.
 - Probe count of five is inherited from spec-kit's clarify quota, not evidence — revisit after correlation. (non-blocking)

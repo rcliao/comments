@@ -130,6 +130,21 @@ discovers a bundle upward; when none exists, it initializes the standard
 `.comments/bundle.yaml` at the repository root with `docs/artifacts` collections.
 Existing Markdown and sidecars remain valid and are never moved implicitly.
 
+The three persistence layers have separate authority:
+
+- OKF-compatible frontmatter and folder placement own durable identity,
+  provenance, lifecycle, and document relationships;
+- Markdown owns the knowledge claim or delivery intent;
+- the adjacent sidecar owns anchored discussion, suggestions, review records,
+  and the mechanical gate inputs.
+
+`comments context` reads across those layers but does not merge them. Its edges
+retain inclusion reasons, review state remains distinguishable from lifecycle
+status, and role modes constrain whether bodies, threads, backlinks, or tag
+suggestions can enter an agent's working set. The producer config,
+`comments.template`, `related`, and the sidecar are Comments extensions rather
+than OKF v0.2 fields; [OKF.md](OKF.md) documents that public boundary.
+
 ## Read and write invariants
 
 The split between markdown and sidecar writes prevents lost updates:
