@@ -210,10 +210,12 @@ threads are intentionally not generated.
 
 ### OKF bundles and agent context
 
-Projects opt in with `.comments/bundle.yaml`. The config maps templates to
-review-friendly collections under one knowledge root. Concept files use
-OKF-compatible frontmatter; `related` is a producer extension used for
-deterministic navigation.
+OKF is the default for newly created artifacts. On its first run in a project,
+`comments new` writes `.comments/bundle.yaml` at the repository root and creates
+the standard `docs/artifacts` collections. Edit that committed config to change
+the taxonomy or knowledge root. Existing Markdown and sidecars are not moved or
+rewritten. Concept files use OKF-compatible frontmatter; `related` is a producer
+extension used for deterministic navigation.
 
 ```bash
 comments new cache-policy --template research-deep --description "Evidence for cache invalidation policy"
@@ -222,8 +224,9 @@ comments context docs/artifacts/plans/cache-policy.md --for drafting --include-t
 comments bundle index
 ```
 
-`new` selects the folder from the template, emits required section headings,
-creates an empty review sidecar, and refreshes root and collection indexes.
+`new` initializes a missing default bundle, selects the folder from the
+template, emits required section headings, creates an empty review sidecar, and
+refreshes root and collection indexes.
 `context` returns explicit frontmatter relations, Markdown links, backlinks,
 sources, review state, and up to five tag-based suggestions. Every edge names
 why it was included. `coverage-scout` exposes only the Research Question as its

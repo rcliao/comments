@@ -32,7 +32,7 @@ with your input and leave the resolve to the human.
    requested. The JSON lists `blocking`, `non_blocking`, and
    `pending_suggestions`, each with document context.
 
-   In a configured bundle, first run `comments context <doc.md> --for review
+   For an OKF bundle document, first run `comments context <doc.md> --for review
    --include-threads` (MCP: `comments_context`). Read the explicit related
    concepts and backlinks it returns; do not search the whole docs tree by
    default.
@@ -103,9 +103,10 @@ with your input and leave the resolve to the human.
 When drafting a new document under a template (design-doc, adr, rfc, mini for
 small changes, or a project template):
 
-- If `.comments/bundle.yaml` exists, create the artifact with
-  `comments new <slug> --template <name> [--from <related.md>]`. This selects
-  the review-friendly folder, emits OKF frontmatter with
+- Create the artifact with `comments new <slug> --template <name>
+  [--from <related.md>]`. If needed, this initializes the standard
+  `.comments/bundle.yaml` and `docs/artifacts` collections at the repository
+  root. It then selects the review-friendly folder, emits OKF frontmatter with
   `comments.template`, creates the sidecar, and refreshes indexes. Do not hand
   assemble the folder or metadata.
 - Before writing an existing bundle concept, run
@@ -293,7 +294,7 @@ For feature-sized work, split drafting into two phase docs with the dedicated
 templates. These steps are opinionated about what makes a quality artifact,
 not a ceremony to perform: scale them to the work.
 
-In a configured bundle, start the chain with:
+Start the bundle-backed chain with:
 
 ```bash
 comments new <slug> --template research-deep

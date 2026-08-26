@@ -14,7 +14,7 @@ Google-Docs-style review for markdown, locally. Inline comment threads and edit 
 - **Edit suggestions**: multi-line proposals with preview and accept/reject; queued decisions apply atomically at review verdict
 - **Review gate**: `comments gate` exits 0 (approved) or 10 (changes requested); `signoff` records the human pass agents block on
 - **Doc templates as guardrails**: required sections, word caps, forced alternatives, human-owned zones, `[NEEDS CLARIFICATION:]` marker caps — built-ins: `design-doc`, `mini`, `research`, `plan`, `adr`, `rfc`, `as-built`
-- **OKF document bundles**: `comments new` creates frontmatter-rich concepts in template-guided folders; `comments context` exposes explicit relations, backlinks, sources, and review state without a whole-tree search
+- **OKF document bundles by default**: the first `comments new` initializes a standard `docs/artifacts` bundle, then creates frontmatter-rich concepts in template-guided folders; `comments context` exposes explicit relations, backlinks, sources, and review state without a whole-tree search
 - **RPI flow**: research docs with file:line evidence → plans citing the research → reviewed in the TUI where `f` peeks any citation and Enter opens `$EDITOR` there
 - **Autonomous research convergence**: draft-blind coverage scout + evidence verifier add missing `Qn` questions until clean; `comments analyze plan.md --against research.md` proves the handoff before review
 - **Watch**: `comments watch --until signoff` streams NDJSON review events so agents can wait on humans
@@ -54,7 +54,7 @@ Agent-side drafting under a template:
 ```bash
 comments template list                        # when to use which, per description
 comments template show design-doc             # the writing brief
-comments new cache-policy --template design-doc
+comments new cache-policy --template design-doc  # initializes the bundle if needed
 comments context docs/artifacts/designs/cache-policy.md --for drafting --include-threads
 comments validate docs/artifacts/designs/cache-policy.md
 comments analyze plan.md --against research.md --json  # advisory coverage manifest

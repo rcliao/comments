@@ -62,6 +62,71 @@ func TestCreateBundleDocumentAndIndexes(t *testing.T) {
 	}
 }
 
+func TestCreateBundleDocumentBootstrapsDefaultAtRepoRoot(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(root, "work", "agent")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	result, err := CreateBundleDocument(NewDocumentOptions{Name: "default-path", Template: "plan", StartDir: nested})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.BundleCreated {
+		t.Fatal("first comments new should report that it initialized the default bundle")
+	}
+	wantConfig := filepath.Join(root, ProjectBundleFile)
+	if result.BundleConfig != wantConfig {
+		t.Fatalf("bundle config = %s, want %s", result.BundleConfig, wantConfig)
+	}
+	wantDoc := filepath.Join(root, "docs", "artifacts", "plans", "default-path.md")
+	if result.Path != wantDoc {
+		t.Fatalf("document path = %s, want %s", result.Path, wantDoc)
+	}
+	config, err := os.ReadFile(wantConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`okf_version: "0.2"`, "root: docs/artifacts", "research-deep", "design-doc"} {
+		if !strings.Contains(string(config), want) {
+			t.Errorf("default bundle missing %q:\n%s", want, config)
+		}
+	}
+
+	second, err := CreateBundleDocument(NewDocumentOptions{Name: "second", Template: "mini", StartDir: nested})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.BundleCreated {
+		t.Fatal("existing default bundle must be reused, not rewritten")
+	}
+}
+
+func TestEnsureBundleDoesNotReplaceInvalidConfig(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, ProjectBundleFile)
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	broken := []byte("bundle: [not valid\n")
+	if err := os.WriteFile(configPath, broken, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := EnsureBundle(root); err == nil {
+		t.Fatal("invalid explicit bundle should be reported, not replaced")
+	}
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(broken) {
+		t.Fatalf("invalid bundle was overwritten: %q", after)
+	}
+}
+
 func TestResolveTemplateNameOrder(t *testing.T) {
 	root := writeTestBundle(t)
 	docPath := filepath.Join(root, "docs", "research", "one.md")

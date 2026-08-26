@@ -195,7 +195,7 @@ type NewDocumentRequest struct {
 	Title       string `json:"title,omitempty" jsonschema:"Document title; defaults to the slug"`
 	Description string `json:"description,omitempty" jsonschema:"One-sentence concept description"`
 	From        string `json:"from,omitempty" jsonschema:"Related source document to record as informed_by"`
-	BundlePath  string `json:"bundle_path,omitempty" jsonschema:"Path used to discover .comments/bundle.yaml; defaults to current directory"`
+	BundlePath  string `json:"bundle_path,omitempty" jsonschema:"Path used to discover or initialize .comments/bundle.yaml; defaults to current directory"`
 }
 
 // ContextRequest retrieves the relevant OKF neighborhood for an agent role.

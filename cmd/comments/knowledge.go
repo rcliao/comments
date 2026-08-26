@@ -15,7 +15,7 @@ func newCommand(name string, args []string) error {
 	title := fs.String("title", "", "Document title (defaults to the slug)")
 	description := fs.String("description", "", "One-sentence concept description")
 	from := fs.String("from", "", "Related source document to record as informed_by")
-	startDir := fs.String("bundle", ".", "Path used to discover .comments/bundle.yaml")
+	startDir := fs.String("bundle", ".", "Path used to discover or initialize .comments/bundle.yaml")
 	jsonOut := fs.Bool("json", false, "Output the created document as JSON")
 	if err := fs.Parse(args); err != nil {
 		return exitSilent(2)
@@ -37,6 +37,9 @@ func newCommand(name string, args []string) error {
 		rel = result.Path
 	}
 	fmt.Printf("✓ Created %s concept %s with template %q\n", result.Type, rel, result.Template)
+	if result.BundleCreated {
+		fmt.Printf("  Initialized default OKF bundle: %s\n", result.BundleConfig)
+	}
 	fmt.Printf("  Review threads: %s\n", result.Sidecar)
 	return nil
 }

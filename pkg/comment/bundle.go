@@ -1,6 +1,7 @@
 package comment
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,8 @@ import (
 
 // ProjectBundleFile is the project-local, versioned bundle configuration.
 const ProjectBundleFile = ".comments/bundle.yaml"
+
+var ErrBundleNotFound = errors.New("OKF bundle not found")
 
 // BundleConfig maps reusable document templates into a project folder shape.
 // The config lives under .comments, but unlike review baselines and view state
@@ -72,7 +75,83 @@ func FindBundle(start string) (*Bundle, error) {
 			break
 		}
 	}
-	return nil, fmt.Errorf("no %s found above %s", ProjectBundleFile, start)
+	return nil, fmt.Errorf("%w: no %s found above %s", ErrBundleNotFound, ProjectBundleFile, start)
+}
+
+// EnsureBundle returns the configured bundle or initializes the standard
+// Comments bundle at the repository root. This makes OKF the default for new
+// artifacts while leaving existing Markdown and sidecars untouched.
+func EnsureBundle(start string) (*Bundle, bool, error) {
+	bundle, err := FindBundle(start)
+	if err == nil {
+		return bundle, false, nil
+	}
+	if !errors.Is(err, ErrBundleNotFound) {
+		return nil, false, err
+	}
+
+	projectDir, err := bundleProjectDir(start)
+	if err != nil {
+		return nil, false, err
+	}
+	configPath := filepath.Join(projectDir, ProjectBundleFile)
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		return nil, false, err
+	}
+	if _, statErr := os.Stat(configPath); statErr == nil {
+		bundle, findErr := FindBundle(projectDir)
+		return bundle, false, findErr
+	} else if !os.IsNotExist(statErr) {
+		return nil, false, statErr
+	}
+	encoded, err := yaml.Marshal(DefaultBundleConfig(projectDir))
+	if err != nil {
+		return nil, false, err
+	}
+	if err := writeFileAtomic(configPath, encoded, 0o644); err != nil {
+		return nil, false, err
+	}
+	bundle, err = FindBundle(projectDir)
+	return bundle, true, err
+}
+
+func bundleProjectDir(start string) (string, error) {
+	if start == "" {
+		start = "."
+	}
+	abs, err := filepath.Abs(start)
+	if err != nil {
+		return "", err
+	}
+	if info, statErr := os.Stat(abs); statErr == nil && !info.IsDir() {
+		abs = filepath.Dir(abs)
+	} else if statErr != nil && !os.IsNotExist(statErr) {
+		return "", statErr
+	}
+	if root := FindRepoRoot(abs); root != "" {
+		return root, nil
+	}
+	return abs, nil
+}
+
+// DefaultBundleConfig is the zero-ceremony producer profile used by
+// `comments new` when a project has not customized its folder taxonomy.
+func DefaultBundleConfig(projectDir string) BundleConfig {
+	name := humanizeSlug(filepath.Base(projectDir))
+	if name == "" || name == "." {
+		name = "Project"
+	}
+	return BundleConfig{
+		Bundle: name + " Knowledge", Version: 1, OKFVersion: "0.2", Root: "docs/artifacts",
+		Collections: map[string]BundleCollection{
+			"research":  {Path: "research", Type: "Research", Templates: []string{"research", "research-deep"}, Description: "Questions, evidence, and findings that inform delivery."},
+			"plans":     {Path: "plans", Type: "Plan", Templates: []string{"plan"}, Description: "Implementation intent and verification strategy."},
+			"designs":   {Path: "designs", Type: "Design", Templates: []string{"design-doc", "rfc"}, Description: "Technical designs and proposals under review."},
+			"decisions": {Path: "decisions", Type: "Decision", Templates: []string{"adr"}, Description: "Durable decisions and their tradeoffs."},
+			"as-built":  {Path: "as-built", Type: "AsBuilt", Templates: []string{"as-built"}, Description: "What shipped and how it was verified."},
+			"briefs":    {Path: "briefs", Type: "Brief", Templates: []string{"mini"}, Description: "Small reviewable changes that do not need a full plan."},
+		},
+	}
 }
 
 func (b *Bundle) resolveAndValidate() error {
@@ -239,11 +318,13 @@ type NewDocumentOptions struct {
 }
 
 type NewDocumentResult struct {
-	Path       string `json:"path"`
-	Sidecar    string `json:"sidecar"`
-	Collection string `json:"collection"`
-	Template   string `json:"template"`
-	Type       string `json:"type"`
+	Path          string `json:"path"`
+	Sidecar       string `json:"sidecar"`
+	Collection    string `json:"collection"`
+	Template      string `json:"template"`
+	Type          string `json:"type"`
+	BundleConfig  string `json:"bundle_config"`
+	BundleCreated bool   `json:"bundle_created"`
 }
 
 // CreateBundleDocument creates the Markdown skeleton and empty review sidecar,
@@ -256,7 +337,7 @@ func CreateBundleDocument(options NewDocumentOptions) (NewDocumentResult, error)
 	if options.Template == "" {
 		return NewDocumentResult{}, fmt.Errorf("template is required")
 	}
-	bundle, err := FindBundle(options.StartDir)
+	bundle, bundleCreated, err := EnsureBundle(options.StartDir)
 	if err != nil {
 		return NewDocumentResult{}, err
 	}
@@ -296,7 +377,11 @@ func CreateBundleDocument(options NewDocumentOptions) (NewDocumentResult, error)
 	if err := WriteBundleIndexes(bundle); err != nil {
 		return NewDocumentResult{}, err
 	}
-	return NewDocumentResult{Path: path, Sidecar: GetSidecarPath(path), Collection: collectionName, Template: template.Name, Type: collection.Type}, nil
+	return NewDocumentResult{
+		Path: path, Sidecar: GetSidecarPath(path), Collection: collectionName,
+		Template: template.Name, Type: collection.Type, BundleConfig: bundle.ConfigPath,
+		BundleCreated: bundleCreated,
+	}, nil
 }
 
 func humanizeSlug(slug string) string {

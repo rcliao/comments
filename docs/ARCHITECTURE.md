@@ -125,6 +125,11 @@ unambiguous bundle collection. Built-ins are embedded from
 `pkg/comment/templates/`; project-specific templates and `.comments/bundle.yaml`
 are discovered upward from the document.
 
+OKF is the creation default, not a migration requirement. `comments new`
+discovers a bundle upward; when none exists, it initializes the standard
+`.comments/bundle.yaml` at the repository root with `docs/artifacts` collections.
+Existing Markdown and sidecars remain valid and are never moved implicitly.
+
 ## Read and write invariants
 
 The split between markdown and sidecar writes prevents lost updates:

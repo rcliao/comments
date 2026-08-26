@@ -11,7 +11,7 @@ func (s *Server) registerKnowledgeTools() {
 	s.toolNames = append(s.toolNames, "comments_new", "comments_context", "comments_bundle_index")
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name:        "comments_new",
-		Description: "Create a template-guided OKF concept in the bundle collection assigned to that template, including frontmatter, a review sidecar, and refreshed indexes",
+		Description: "Create a template-guided OKF concept with frontmatter, review sidecar, and refreshed indexes. If the project has no bundle config, initialize the standard docs/artifacts bundle automatically",
 	}, s.handleNewDocument)
 	mcp.AddTool(s.mcp, &mcp.Tool{
 		Name:        "comments_context",

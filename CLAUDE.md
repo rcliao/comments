@@ -62,7 +62,7 @@ Command surface: run `./comments` with no args for full usage. The core review-l
 ./comments signoff doc.md         # record a review pass (what agents wait on)
 ./comments watch specs/ --until signoff                 # block until a signoff (NDJSON events)
 ./comments validate draft.md --template design-doc
-./comments new cache-policy --template design-doc       # when a bundle is configured
+./comments new cache-policy --template design-doc       # initializes the default OKF bundle if needed
 ./comments context docs/artifacts/designs/cache-policy.md --for drafting
 ./comments doctor                 # install health: binary, MCP, plugin, sidecars
 ./comments serve-mcp              # MCP server over stdio
@@ -143,7 +143,7 @@ For feature-sized work the AUTONOMOUS CHAIN is the default: interview once, then
 
 ## Recommended Review Flow (the tool's core loop)
 
-1. **Agent produces doc** under a template: use `comments new` in a configured bundle, read the brief and `comments context`, then draft and validate until structure is clean.
+1. **Agent produces doc** under a template: use `comments new` (which initializes the standard OKF bundle when absent), read the brief and `comments context`, then draft and validate until structure is clean.
 2. **Annotate and self-review**: post specific anchored callouts from the template criteria with `add`/`batch-add`; each ambiguity marker gets a blocking Q thread. Template identity lives in frontmatter, not in review threads.
 3. **Human reviews** in the TUI: `comments view <doc>` — walk threads, reply/resolve, add comments (`--blocking` for must-fix), then submit the TUI verdict, which records the signoff.
 4. **Agent processes feedback** one comment at a time (see `skills/review-comments/SKILL.md`): reply/resolve/suggest, `comments_reanchor` after edits, re-request review.
