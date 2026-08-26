@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"testing"
 
 	"github.com/rcliao/comments/pkg/comment"
-	"testing"
 )
 
 func writeValidationParityFixture(t *testing.T) (string, string) {
