@@ -64,6 +64,23 @@ a thread card highlights the corresponding rendered passage and source row.
 Replies use a multiline composer: Enter or Cmd+Enter sends, while Shift+Enter
 inserts a newline.
 
+The browser also mirrors the TUI's core keyboard review loop. Use `j/k` (or the
+arrow keys) to select threads, `g/G` for first/last, `Enter` to focus the
+selected thread, `r` to reply, and `a/x` to accept or reject a suggestion (or
+resolve a regular thread). `Esc` closes the reply composer and returns focus to
+its thread; a second `Esc` leaves thread focus. `1/2/3` select open, blocking,
+or all threads. Press
+`c` to enter source line-select mode, move with `j/k`, `g/G`, or `[/]`, and
+press `Enter` to compose at the selected line. `s` toggles rendered/source, and
+`q` enters verdict mode.
+
+While composing a new comment, `Ctrl+T` cycles type, `Ctrl+P` cycles priority,
+`Ctrl+B` toggles blocking, and `Ctrl+S` or `Ctrl/⌘+Enter` saves. A leading
+`[Q]`, `[S]`, `[B]`, `[T]`, or `[E]` marker also selects the matching type as
+you type; cycling the type updates an existing leading marker.
+Press `?` in the workspace for the complete list. Shortcuts are suspended while
+typing or while a form dialog is open.
+
 Set **Commenting as** once in the top bar to use the same review name for every
 new thread, reply, and verdict across the workspace. The browser remembers that
 name. The adjacent theme control switches between light and dark mode, starts

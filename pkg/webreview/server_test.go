@@ -142,13 +142,20 @@ func TestReviewUIIncludesStickyRailAndDocumentTargetSelection(t *testing.T) {
 	}
 
 	js := readAsset("/app.js")
-	for _, want := range []string{"bindRenderedCommentTargets", "beginTargetSelection", "commentTargetLabel", "Click a passage or section"} {
+	for _, want := range []string{"bindRenderedCommentTargets", "beginTargetSelection", "commentTargetLabel", "Click a passage or section", "selectRelativeThread", "openVerdictKeyboardMode", "actOnSelectedThread", "shortcut-dialog", "beginLineSelection", "moveLineSelection", "keyboard-line-selected", "cycleCommentType", "cycleCommentPriority", "syncCommentTypeFromText", "requestSubmit", "isCommentSubmitShortcut", "NumpadEnter", "keyup", "focusSelectedThread", "closeReplyComposer", "keyboard-focused", "Esc cancels"} {
 		if !strings.Contains(js, want) {
 			t.Fatalf("review JavaScript is missing %q", want)
 		}
 	}
 	if strings.Contains(js, "rendered-add-comment") {
 		t.Fatal("review JavaScript still renders a per-passage add button")
+	}
+
+	html := readAsset("/")
+	for _, want := range []string{"shortcut-button", "Review shortcuts", "Next / previous thread", "Open verdict mode", "keyboard-mode-hint", "Enter line-select mode", "previous/next thread", "Ctrl+S", "Ctrl+T", "Type prefixes", "comment-compose-status"} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("review HTML is missing %q", want)
+		}
 	}
 }
 
@@ -195,6 +202,20 @@ func TestActionNormalizesAndLimitsAuthor(t *testing.T) {
 	}
 	if got := len(readState(t, server).Document.Threads); got != 1 {
 		t.Fatalf("threads after rejected author = %d", got)
+	}
+}
+
+func TestActionInfersTypeFromLeadingMarker(t *testing.T) {
+	server, _ := newTestServer(t, "# Review\n\nA line.\n")
+	state := readState(t, server)
+	state = postAction(t, server, http.StatusOK, actionRequest{
+		Action: "add", Revision: state.Revision, Author: "Rae", Line: 3, Text: "[S] Tighten this wording",
+	})
+	if got := state.Document.Threads[0].Type; got != comment.TypeSuggestion {
+		t.Fatalf("inferred type = %q, want %q", got, comment.TypeSuggestion)
+	}
+	if got := state.Document.Threads[0].Text; got != "💡 [S] Tighten this wording" {
+		t.Fatalf("typed text = %q", got)
 	}
 }
 

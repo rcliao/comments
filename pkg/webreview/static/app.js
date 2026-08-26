@@ -7,6 +7,13 @@ const app = {
   author: "",
   reviewEditing: false,
   selectingTarget: false,
+  selectedThreadId: "",
+  focusedThreadId: "",
+  keyboardScope: "review",
+  selectedLine: 1,
+  lineSelectionReturnMode: "rendered",
+  verdictReturnScope: "review",
+  parsedCommentType: "",
 };
 
 const AUTHOR_KEY = "comments-review-author";
@@ -62,10 +69,12 @@ function render() {
   bindRenderedCommentTargets();
   renderAuthor();
   renderReviewState();
+  renderKeyboardModeHint();
   $("#rendered-document").hidden = app.mode !== "rendered";
   $("#source-document").hidden = app.mode !== "source";
   $("#rendered-mode").classList.toggle("active", app.mode === "rendered");
   $("#source-mode").classList.toggle("active", app.mode === "source");
+  if (app.keyboardScope === "line-select") applyLineSelection({scroll: false});
 }
 
 function reviewDecision(decision) {
@@ -281,24 +290,38 @@ function renderThreads() {
   $("#thread-count").textContent = `${threads.length} ${threads.length === 1 ? "comment" : "comments"}`;
   const list = $("#thread-list");
   if (!threads.length) {
+    app.selectedThreadId = "";
     list.innerHTML = `<div class="empty">Nothing in this view.<br>The review queue is clear.</div>`;
     return;
   }
   list.innerHTML = threads.map(threadCard).join("");
   $$('[data-action="jump"]', list).forEach(button => button.addEventListener("click", () => jumpToLine(Number(button.dataset.line))));
-  $$('[data-action="reply-toggle"]', list).forEach(button => button.addEventListener("click", () => $(`#reply-${CSS.escape(button.dataset.id)}`).classList.toggle("open")));
+  $$('[data-action="reply-toggle"]', list).forEach(button => button.addEventListener("click", () => toggleReplyComposer(button.dataset.id)));
   $$('[data-action="reply"]', list).forEach(button => button.addEventListener("click", () => submitReply(button.dataset.id)));
   $$('[data-action="resolve"]', list).forEach(button => button.addEventListener("click", () => mutate({action: "resolve", thread_id: button.dataset.id})));
   $$('[data-action="reopen"]', list).forEach(button => button.addEventListener("click", () => mutate({action: "reopen", thread_id: button.dataset.id})));
   $$('[data-action="accept"]', list).forEach(button => button.addEventListener("click", () => mutate({action: "accept", thread_id: button.dataset.id})));
   $$('[data-action="reject"]', list).forEach(button => button.addEventListener("click", () => mutate({action: "reject", thread_id: button.dataset.id})));
   $$(".reply-box textarea", list).forEach(textarea => textarea.addEventListener("keydown", event => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeReplyComposer(textarea.dataset.threadId);
+      return;
+    }
     if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       submitReply(textarea.dataset.threadId);
     }
   }));
   $$(".thread-card", list).forEach(card => bindLinkedHover(card, [Number(card.dataset.threadLine)], card));
+  $$(".thread-card", list).forEach(card => card.addEventListener("click", event => {
+    if (event.target.closest("button, input, textarea, select, a")) return;
+    selectThread(card.dataset.threadId, {scroll: false, syncDocument: false});
+  }));
+  if (!threads.some(thread => thread.id === app.selectedThreadId)) app.selectedThreadId = threads[0].id;
+  if (!threads.some(thread => thread.id === app.focusedThreadId)) app.focusedThreadId = "";
+  applyThreadSelection();
 }
 
 const typeNames = {Q: "Question", S: "Suggestion", B: "Bug", T: "Task", E: "Enhancement"};
@@ -318,11 +341,11 @@ function threadCard(thread) {
   const diff = thread.is_suggestion ? `<div class="suggestion-diff"><div class="diff-del">− ${escapeHTML(thread.original_text)}</div><div class="diff-add">+ ${escapeHTML(thread.proposed_text)}</div></div>` : "";
   const suggestionActions = thread.is_suggestion && thread.accepted == null ? `<button data-action="accept" data-id="${thread.id}">Accept edit</button><button data-action="reject" data-id="${thread.id}">Reject</button>` : "";
   const resolveAction = thread.resolved ? `<button data-action="reopen" data-id="${thread.id}">Reopen</button>` : `<button data-action="resolve" data-id="${thread.id}">Resolve</button>`;
-  return `<section class="thread-card ${thread.blocking ? "blocking" : ""} ${thread.resolved ? "resolved" : ""}" id="thread-${thread.id}" data-thread-line="${thread.line}">
+  return `<section class="thread-card ${thread.blocking ? "blocking" : ""} ${thread.resolved ? "resolved" : ""}" id="thread-${thread.id}" data-thread-id="${thread.id}" data-thread-line="${thread.line}" tabindex="-1">
     <div class="thread-head"><div class="thread-meta"><span class="comment-avatar" aria-hidden="true">${escapeHTML((thread.author || "C")[0].toUpperCase())}</span><span class="thread-author">${escapeHTML(thread.author)}</span>${typeBadge}${thread.blocking ? '<span class="badge warn">Blocking</span>' : ""}</div>${stateLabel}</div>
     <div class="thread-body"><p class="thread-text">${escapeHTML(displayThreadText(thread))}</p>${diff}${replies}</div>
     <div class="thread-actions"><button data-action="jump" data-line="${thread.line}" aria-label="Show comment in source" title="Show in source">View</button><button data-action="reply-toggle" data-id="${thread.id}">Reply</button>${resolveAction}${suggestionActions}</div>
-    <div class="reply-box" id="reply-${thread.id}"><div class="reply-input-wrap"><textarea id="reply-input-${thread.id}" data-thread-id="${thread.id}" rows="2" aria-label="Reply text" placeholder="Reply to this thread"></textarea><span class="reply-hint">Enter or ⌘↵ sends · Shift+Enter adds a line</span></div><button class="primary" data-action="reply" data-id="${thread.id}">Send</button></div>
+    <div class="reply-box" id="reply-${thread.id}"><div class="reply-input-wrap"><textarea id="reply-input-${thread.id}" data-thread-id="${thread.id}" rows="2" aria-label="Reply text" placeholder="Reply to this thread"></textarea><span class="reply-hint">Enter or ⌘↵ sends · Shift+Enter adds a line · Esc cancels</span></div><button class="primary" data-action="reply" data-id="${thread.id}">Send</button></div>
   </section>`;
 }
 
@@ -330,6 +353,122 @@ function selectThreadFilter(filter) {
   app.filter = filter;
   $$('.filters button').forEach(button => button.classList.toggle("active", button.dataset.filter === filter));
   renderThreads();
+}
+
+function applyThreadSelection() {
+  $$(".thread-card").forEach(card => {
+    const selected = card.dataset.threadId === app.selectedThreadId;
+    const focused = card.dataset.threadId === app.focusedThreadId;
+    card.classList.toggle("keyboard-selected", selected);
+    card.classList.toggle("keyboard-focused", focused);
+    if (selected) card.setAttribute("aria-current", "true");
+    else card.removeAttribute("aria-current");
+  });
+}
+
+function renderedBlockAtLine(line) {
+  return $$(".rendered-block", $("#rendered-document")).find(block => {
+    const start = Number(block.dataset.startLine);
+    const end = Number(block.dataset.endLine) || start;
+    return start <= line && line <= end;
+  });
+}
+
+function selectThread(id, {scroll = true, syncDocument = true} = {}) {
+  const thread = visibleThreads().find(item => item.id === id);
+  if (!thread) return;
+  if (app.focusedThreadId && app.focusedThreadId !== id) app.focusedThreadId = "";
+  app.selectedThreadId = id;
+  applyThreadSelection();
+  const card = $(`#thread-${CSS.escape(id)}`);
+  if (scroll) card?.scrollIntoView({block: "nearest"});
+  if (!syncDocument) return;
+  const target = app.mode === "source" ? $(`#line-${thread.line}`) : renderedBlockAtLine(thread.line);
+  target?.scrollIntoView({block: "center"});
+}
+
+function selectRelativeThread(delta) {
+  const threads = visibleThreads();
+  if (!threads.length) return;
+  const current = Math.max(0, threads.findIndex(thread => thread.id === app.selectedThreadId));
+  const next = Math.max(0, Math.min(current + delta, threads.length - 1));
+  selectThread(threads[next].id);
+}
+
+function selectThreadBoundary(last) {
+  const threads = visibleThreads();
+  if (threads.length) selectThread(threads[last ? threads.length - 1 : 0].id);
+}
+
+function selectedThread() {
+  return visibleThreads().find(thread => thread.id === app.selectedThreadId);
+}
+
+function focusSelectedThread() {
+  const thread = selectedThread();
+  if (!thread) return;
+  app.focusedThreadId = thread.id;
+  applyThreadSelection();
+  const card = $(`#thread-${CSS.escape(thread.id)}`);
+  card?.scrollIntoView({behavior: "smooth", block: "center"});
+  card?.focus({preventScroll: true});
+}
+
+function clearThreadFocus() {
+  const card = app.focusedThreadId ? $(`#thread-${CSS.escape(app.focusedThreadId)}`) : null;
+  app.focusedThreadId = "";
+  applyThreadSelection();
+  card?.blur();
+}
+
+function replyToSelectedThread() {
+  const thread = selectedThread();
+  if (!thread) return;
+  app.focusedThreadId = thread.id;
+  applyThreadSelection();
+  const box = $(`#reply-${CSS.escape(thread.id)}`);
+  box?.classList.add("open");
+  $(`#reply-input-${CSS.escape(thread.id)}`)?.focus();
+}
+
+function toggleReplyComposer(id) {
+  const box = $(`#reply-${CSS.escape(id)}`);
+  if (!box) return;
+  if (box.classList.contains("open")) {
+    closeReplyComposer(id);
+    return;
+  }
+  app.selectedThreadId = id;
+  app.focusedThreadId = id;
+  applyThreadSelection();
+  box.classList.add("open");
+  $(`#reply-input-${CSS.escape(id)}`)?.focus();
+}
+
+function closeReplyComposer(id) {
+  const box = $(`#reply-${CSS.escape(id)}`);
+  const input = $(`#reply-input-${CSS.escape(id)}`);
+  box?.classList.remove("open");
+  if (input) input.value = "";
+  app.selectedThreadId = id;
+  app.focusedThreadId = id;
+  applyThreadSelection();
+  $(`#thread-${CSS.escape(id)}`)?.focus({preventScroll: true});
+}
+
+function actOnSelectedThread(action) {
+  const thread = selectedThread();
+  if (!thread || app.busy) return;
+  if (action === "accept" && thread.is_suggestion && thread.accepted == null) {
+    mutate({action: "accept", thread_id: thread.id});
+    return;
+  }
+  if (action !== "reject-or-resolve") return;
+  if (thread.is_suggestion && thread.accepted == null) {
+    mutate({action: "reject", thread_id: thread.id});
+  } else {
+    mutate({action: thread.resolved ? "reopen" : "resolve", thread_id: thread.id});
+  }
 }
 
 function bindLinkedHover(element, lines, exactCard = null) {
@@ -365,6 +504,8 @@ function focusThreadsAtLine(line, renderedBlock = null) {
     card = $(`.thread-card[data-thread-line="${line}"]`);
   }
   if (!card) return;
+  app.selectedThreadId = card.dataset.threadId;
+  applyThreadSelection();
   $$(".thread-card.focused").forEach(item => item.classList.remove("focused"));
   $$(".rendered-block.comment-selected").forEach(item => item.classList.remove("comment-selected"));
   card.classList.add("focused");
@@ -400,8 +541,78 @@ function setTargetSelection(active) {
 }
 
 function beginTargetSelection() {
+  app.keyboardScope = "review";
+  renderKeyboardModeHint();
   setTargetSelection(true);
   showNotice(app.mode === "source" ? "Click a source line to add a comment. Press Escape to cancel." : "Click a passage or section to add a comment. Press Escape to cancel.");
+}
+
+function renderKeyboardModeHint() {
+  const hint = $("#keyboard-mode-hint");
+  if (app.keyboardScope === "line-select") {
+    hint.innerHTML = `<strong>LINE SELECT</strong><span><kbd>j</kbd>/<kbd>k</kbd> move · <kbd>g</kbd>/<kbd>G</kbd> first/last · <kbd>Enter</kbd> comment · <kbd>Esc</kbd> cancel</span>`;
+    hint.hidden = false;
+    return;
+  }
+  hint.hidden = true;
+}
+
+function applyLineSelection({scroll = true, center = false, focus = scroll} = {}) {
+  const total = app.state?.lines.length || 1;
+  app.selectedLine = Math.max(1, Math.min(app.selectedLine, total));
+  let selectedRow = null;
+  $$(".source-line").forEach(row => {
+    const selected = Number(row.id.replace("line-", "")) === app.selectedLine;
+    row.classList.toggle("keyboard-line-selected", selected);
+    if (selected) {
+      row.setAttribute("aria-current", "true");
+      row.tabIndex = -1;
+      selectedRow = row;
+    } else {
+      row.removeAttribute("aria-current");
+      row.removeAttribute("tabindex");
+    }
+  });
+  if (focus) selectedRow?.focus({preventScroll: true});
+  if (scroll) selectedRow?.scrollIntoView({block: center ? "center" : "nearest"});
+}
+
+function beginLineSelection() {
+  app.lineSelectionReturnMode = app.mode;
+  app.mode = "source";
+  app.keyboardScope = "line-select";
+  setTargetSelection(false);
+  app.selectedLine = selectedThread()?.line || app.selectedLine || 1;
+  render();
+  applyLineSelection({center: true});
+}
+
+function moveLineSelection(delta) {
+  const total = app.state?.lines.length || 1;
+  app.selectedLine = Math.max(1, Math.min(app.selectedLine + delta, total));
+  applyLineSelection();
+}
+
+function selectLineBoundary(last) {
+  app.selectedLine = last ? app.state.lines.length : 1;
+  applyLineSelection({center: true});
+}
+
+function jumpLineToThread(direction) {
+  const lines = [...new Set(visibleThreads().map(thread => thread.line))].sort((a, b) => a - b);
+  const target = direction > 0
+    ? lines.find(line => line > app.selectedLine)
+    : lines.reverse().find(line => line < app.selectedLine);
+  if (target != null) {
+    app.selectedLine = target;
+    applyLineSelection({center: true});
+  }
+}
+
+function closeLineSelection() {
+  app.keyboardScope = "review";
+  app.mode = app.lineSelectionReturnMode;
+  render();
 }
 
 function openComment(line = 1, end = line) {
@@ -411,8 +622,90 @@ function openComment(line = 1, end = line) {
   $("#comment-line").value = targetLine;
   $("#comment-target-label").textContent = commentTargetLabel(targetLine, targetEnd);
   $("#comment-text").value = "";
+  $("#comment-type").value = "";
+  $("#comment-priority").value = "medium";
+  $("#comment-blocking").checked = false;
+  app.parsedCommentType = "";
+  setCommentComposerStatus("");
   $("#comment-dialog").showModal();
   $("#comment-text").focus();
+}
+
+const commentTypeOrder = ["", "Q", "S", "B", "T", "E"];
+const commentPriorityOrder = ["medium", "high", "low"];
+
+function cycleSelect(select, values) {
+  const current = Math.max(0, values.indexOf(select.value));
+  select.value = values[(current + 1) % values.length];
+}
+
+function setCommentComposerStatus(message) {
+  $("#comment-compose-status").textContent = message;
+}
+
+function leadingCommentType(text) {
+  return text.match(/^\s*\[([QSBTE])\](?:\s|$)/)?.[1] || "";
+}
+
+function replaceLeadingCommentType(type) {
+  const input = $("#comment-text");
+  const match = input.value.match(/^(\s*)\[([QSBTE])\](\s*)/);
+  if (!match) return;
+  const replacement = type ? `${match[1]}[${type}]${match[3] || " "}` : match[1];
+  const delta = replacement.length - match[0].length;
+  const start = input.selectionStart;
+  const end = input.selectionEnd;
+  input.value = replacement + input.value.slice(match[0].length);
+  input.setSelectionRange(Math.max(0, start + delta), Math.max(0, end + delta));
+}
+
+function syncCommentTypeFromText() {
+  const parsed = leadingCommentType($("#comment-text").value);
+  if (parsed) {
+    if ($("#comment-type").value !== parsed) {
+      $("#comment-type").value = parsed;
+      setCommentComposerStatus(`Type: ${typeNames[parsed]} (from [${parsed}])`);
+    }
+    app.parsedCommentType = parsed;
+    return;
+  }
+  if (app.parsedCommentType) {
+    $("#comment-type").value = "";
+    app.parsedCommentType = "";
+    setCommentComposerStatus("Type: General");
+  }
+}
+
+function cycleCommentType() {
+  const select = $("#comment-type");
+  const hadPrefix = Boolean(leadingCommentType($("#comment-text").value));
+  cycleSelect(select, commentTypeOrder);
+  if (hadPrefix) replaceLeadingCommentType(select.value);
+  app.parsedCommentType = hadPrefix ? select.value : "";
+  setCommentComposerStatus(`Type: ${select.value ? typeNames[select.value] : "General"}`);
+}
+
+function cycleCommentPriority() {
+  cycleSelect($("#comment-priority"), commentPriorityOrder);
+  setCommentComposerStatus(`Priority: ${$("#comment-priority").value}`);
+}
+
+function toggleCommentBlocking() {
+  $("#comment-blocking").checked = !$("#comment-blocking").checked;
+  setCommentComposerStatus($("#comment-blocking").checked ? "Blocks approval: on" : "Blocks approval: off");
+}
+
+function isCommentSubmitShortcut(event) {
+  const enter = event.key === "Enter" || event.code === "Enter" || event.code === "NumpadEnter";
+  return enter && (event.ctrlKey || event.metaKey);
+}
+
+function submitCommentFromShortcut(event) {
+  if (!isCommentSubmitShortcut(event)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.repeat || app.busy || !$("#comment-dialog").open) return;
+  $("#comment-form").requestSubmit($("#submit-comment"));
 }
 
 async function submitReply(id) {
@@ -457,10 +750,58 @@ function showNotice(message) {
   showNotice.timer = setTimeout(() => { notice.hidden = true; }, 6000);
 }
 
+function openShortcutHelp() {
+  if (!$("#shortcut-dialog").open) $("#shortcut-dialog").showModal();
+}
+
+function restoreLineSelectionFocus() {
+  if (app.keyboardScope === "line-select") {
+    requestAnimationFrame(() => applyLineSelection({scroll: false, focus: true}));
+  }
+}
+
+function closeShortcutHelp() {
+  $("#shortcut-dialog").close();
+  restoreLineSelectionFocus();
+}
+
+function openVerdictKeyboardMode() {
+  app.verdictReturnScope = app.keyboardScope;
+  app.keyboardScope = "verdict";
+  app.reviewEditing = true;
+  renderReviewState();
+  renderKeyboardModeHint();
+  $(".verdict-card").classList.add("keyboard-selected");
+  $(".verdict-card").scrollIntoView({block: "nearest"});
+  showNotice("Verdict mode: a approve · c request changes · r reply pass · n edit note · Esc back");
+}
+
+function closeVerdictKeyboardMode() {
+  app.keyboardScope = app.verdictReturnScope || "review";
+  $(".verdict-card").classList.remove("keyboard-selected");
+  renderKeyboardModeHint();
+  if (app.keyboardScope === "line-select") applyLineSelection({scroll: false});
+}
+
+async function submitVerdict(decision) {
+  app.reviewEditing = false;
+  closeVerdictKeyboardMode();
+  const recorded = await mutate({action: "verdict", decision, note: $("#verdict-note").value});
+  if (!recorded) {
+    app.reviewEditing = true;
+    renderReviewState();
+    return;
+  }
+  $("#verdict-note").value = "";
+  showNotice(`Review recorded: ${decision.replace("_", " ")}`);
+}
+
 $("#doc-select").addEventListener("change", event => loadState(event.target.value).catch(error => showNotice(error.message)));
 $("#rendered-mode").addEventListener("click", () => { app.mode = "rendered"; render(); });
 $("#source-mode").addEventListener("click", () => { app.mode = "source"; render(); });
 $("#theme-button").addEventListener("click", toggleTheme);
+$("#shortcut-button").addEventListener("click", openShortcutHelp);
+$("#close-shortcuts").addEventListener("click", closeShortcutHelp);
 $("#author-button").addEventListener("click", openAuthorDialog);
 $("#add-comment").addEventListener("click", beginTargetSelection);
 $("#change-comment-target").addEventListener("click", () => {
@@ -475,11 +816,51 @@ $("#review-again").addEventListener("click", () => {
 $$('.filters button').forEach(button => button.addEventListener("click", () => {
   selectThreadFilter(button.dataset.filter);
 }));
+$("#comment-text").addEventListener("input", syncCommentTypeFromText);
+$("#comment-type").addEventListener("change", () => {
+  if (leadingCommentType($("#comment-text").value)) replaceLeadingCommentType($("#comment-type").value);
+  app.parsedCommentType = leadingCommentType($("#comment-text").value);
+  setCommentComposerStatus(`Type: ${$("#comment-type").value ? typeNames[$("#comment-type").value] : "General"}`);
+});
+// Capture the chord before dialog-level handlers, and keep a keyup fallback
+// for embedded browser shells that reserve the Meta+Enter keydown. app.busy
+// and dialog.open make the two paths idempotent when both events arrive.
+$("#comment-form").addEventListener("keydown", submitCommentFromShortcut, true);
+$("#comment-form").addEventListener("keyup", submitCommentFromShortcut, true);
+$("#comment-dialog").addEventListener("keydown", event => {
+  const ctrlShortcut = event.ctrlKey && !event.metaKey && !event.altKey;
+  if (ctrlShortcut && event.key.toLowerCase() === "t") {
+    event.preventDefault();
+    cycleCommentType();
+    return;
+  }
+  if (ctrlShortcut && event.key.toLowerCase() === "p") {
+    event.preventDefault();
+    cycleCommentPriority();
+    return;
+  }
+  if (ctrlShortcut && event.key.toLowerCase() === "b") {
+    event.preventDefault();
+    toggleCommentBlocking();
+    return;
+  }
+  if (ctrlShortcut && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    $("#comment-form").requestSubmit($("#submit-comment"));
+  }
+});
 $("#comment-form").addEventListener("submit", async event => {
   event.preventDefault();
-  if (event.submitter?.value === "cancel") { $("#comment-dialog").close(); return; }
+  if (event.submitter?.value === "cancel") {
+    $("#comment-dialog").close();
+    restoreLineSelectionFocus();
+    return;
+  }
   const saved = await mutate({action: "add", line: Number($("#comment-line").value), text: $("#comment-text").value, type: $("#comment-type").value, priority: $("#comment-priority").value, blocking: $("#comment-blocking").checked});
-  if (saved) $("#comment-dialog").close();
+  if (saved) {
+    $("#comment-dialog").close();
+    restoreLineSelectionFocus();
+  }
 });
 $("#author-form").addEventListener("submit", event => {
   event.preventDefault();
@@ -492,22 +873,85 @@ $("#author-form").addEventListener("submit", event => {
   $("#author-dialog").close();
   showNotice(`Commenting as ${name}`);
 });
-$$('[data-verdict]').forEach(button => button.addEventListener("click", async () => {
-  app.reviewEditing = false;
-  const recorded = await mutate({action: "verdict", decision: button.dataset.verdict, note: $("#verdict-note").value});
-  if (!recorded) {
-    app.reviewEditing = true;
-    renderReviewState();
+$$('[data-verdict]').forEach(button => button.addEventListener("click", () => submitVerdict(button.dataset.verdict)));
+document.addEventListener("keydown", event => {
+  if ($("#shortcut-dialog").open) {
+    if (event.key === "?" || event.key === "Escape") { event.preventDefault(); closeShortcutHelp(); }
     return;
   }
-  $("#verdict-note").value = "";
-  showNotice(`Review recorded: ${button.dataset.verdict.replace("_", " ")}`);
-}));
-document.addEventListener("keydown", event => {
-  if (event.target.matches("input, textarea, select") || $("#comment-dialog").open || $("#author-dialog").open) return;
-  if (event.key === "Escape" && app.selectingTarget) { setTargetSelection(false); showNotice("Comment target selection cancelled."); }
-  if (event.key === "c") beginTargetSelection();
-  if (event.key === "s") { app.mode = app.mode === "source" ? "rendered" : "source"; render(); }
+  if ($("#comment-dialog").open) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      $("#comment-dialog").close();
+      restoreLineSelectionFocus();
+    }
+    return;
+  }
+  if ($("#author-dialog").open) {
+    if (event.key === "Escape") { event.preventDefault(); $("#author-dialog").close(); }
+    return;
+  }
+  if (event.target.matches("input, textarea, select")) {
+    if (app.keyboardScope === "verdict" && event.target === $("#verdict-note") && event.key === "Escape") {
+      event.preventDefault();
+      event.target.blur();
+      showNotice("Verdict mode: a approve · c request changes · r reply pass · n edit note · Esc back");
+    }
+    return;
+  }
+  // Keep native keyboard activation for focused controls. Letter shortcuts
+  // still work after clicking a button, but Enter/Space must click that button.
+  if (event.target.closest("button, a") && (event.key === "Enter" || event.key === " ")) return;
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+  if (app.keyboardScope === "verdict") {
+    if (event.key === "Escape" || event.key === "q") { event.preventDefault(); closeVerdictKeyboardMode(); return; }
+    if (event.key === "n") { event.preventDefault(); $("#verdict-note").focus(); return; }
+    const decision = {a: "approved", c: "changes_requested", r: "commented"}[event.key];
+    if (decision && !event.repeat) { event.preventDefault(); submitVerdict(decision); }
+    return;
+  }
+
+  if (app.keyboardScope === "line-select") {
+    if (event.key === "Escape") { event.preventDefault(); closeLineSelection(); return; }
+    if (event.key === "?") { event.preventDefault(); openShortcutHelp(); return; }
+    if (event.key === "j" || event.key === "ArrowDown") { event.preventDefault(); moveLineSelection(1); return; }
+    if (event.key === "k" || event.key === "ArrowUp") { event.preventDefault(); moveLineSelection(-1); return; }
+    if (event.key === "g") { event.preventDefault(); selectLineBoundary(false); return; }
+    if (event.key === "G") { event.preventDefault(); selectLineBoundary(true); return; }
+    if (event.key === "]") { event.preventDefault(); jumpLineToThread(1); return; }
+    if (event.key === "[") { event.preventDefault(); jumpLineToThread(-1); return; }
+    if (event.key === "Enter" || event.key === "c") { event.preventDefault(); openComment(app.selectedLine); return; }
+    if (event.key === "q") { event.preventDefault(); openVerdictKeyboardMode(); return; }
+    return;
+  }
+
+  if (event.key === "Escape" && app.selectingTarget) {
+    event.preventDefault();
+    setTargetSelection(false);
+    showNotice("Comment target selection cancelled.");
+    return;
+  }
+  if (event.key === "Escape" && app.focusedThreadId) {
+    event.preventDefault();
+    clearThreadFocus();
+    return;
+  }
+  if (event.key === "?") { event.preventDefault(); openShortcutHelp(); return; }
+  if (event.key === "j" || event.key === "ArrowDown") { event.preventDefault(); selectRelativeThread(1); return; }
+  if (event.key === "k" || event.key === "ArrowUp") { event.preventDefault(); selectRelativeThread(-1); return; }
+  if (event.key === "g") { event.preventDefault(); selectThreadBoundary(false); return; }
+  if (event.key === "G") { event.preventDefault(); selectThreadBoundary(true); return; }
+  if (event.key === "Enter") { event.preventDefault(); focusSelectedThread(); return; }
+  if (event.key === "r") { event.preventDefault(); replyToSelectedThread(); return; }
+  if (event.key === "a" && !event.repeat) { event.preventDefault(); actOnSelectedThread("accept"); return; }
+  if (event.key === "x" && !event.repeat) { event.preventDefault(); actOnSelectedThread("reject-or-resolve"); return; }
+  if (event.key === "1") { event.preventDefault(); selectThreadFilter("open"); return; }
+  if (event.key === "2") { event.preventDefault(); selectThreadFilter("blocking"); return; }
+  if (event.key === "3") { event.preventDefault(); selectThreadFilter("all"); return; }
+  if (event.key === "q") { event.preventDefault(); openVerdictKeyboardMode(); return; }
+  if (event.key === "c") { event.preventDefault(); beginLineSelection(); return; }
+  if (event.key === "s") { event.preventDefault(); app.mode = app.mode === "source" ? "rendered" : "source"; render(); }
 });
 
 applyTheme(storedPreference(THEME_KEY) || systemTheme());

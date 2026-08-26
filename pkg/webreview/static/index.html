@@ -15,6 +15,7 @@
         <button id="rendered-mode" class="active">Rendered</button>
         <button id="source-mode">Source</button>
       </div>
+      <button id="shortcut-button" class="shortcut-button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
       <button id="theme-button" class="theme-button" aria-label="Use dark mode" title="Use dark mode" aria-pressed="false">☾</button>
       <button id="author-button" class="author-button" aria-label="Change reviewer name" title="Change reviewer name">
         <span id="author-avatar" class="author-avatar" aria-hidden="true">R</span>
@@ -31,6 +32,7 @@
         <div id="document-review-state" class="document-review-state" hidden></div>
       </div>
       <div id="notice" class="notice" hidden></div>
+      <div id="keyboard-mode-hint" class="keyboard-mode-hint" hidden></div>
       <div id="gutter-legend" class="gutter-legend" hidden>
         <i class="comment-hint-icon" aria-hidden="true"></i>
         <span>Select a bubble to open its comment.</span>
@@ -90,9 +92,14 @@
       </div>
       <input id="comment-line" name="line" type="hidden">
       <label>Comment <textarea id="comment-text" name="text" rows="5" required placeholder="What should the author know?"></textarea></label>
+      <div class="compose-shortcuts">
+        <span><kbd>⌘/Ctrl+Enter</kbd> save · <kbd>Ctrl+S</kbd> save · <kbd>Ctrl+T</kbd> type · <kbd>Ctrl+P</kbd> priority · <kbd>Ctrl+B</kbd> blocking</span>
+        <span>Type prefixes: <code>[Q]</code> <code>[S]</code> <code>[B]</code> <code>[T]</code> <code>[E]</code></span>
+        <strong id="comment-compose-status" aria-live="polite"></strong>
+      </div>
       <div class="form-row">
         <label>Type
-          <select id="comment-type"><option value="">General</option><option value="Q">Question</option><option value="S">Suggestion</option><option value="B">Bug</option><option value="T">Task</option><option value="E">Evidence</option></select>
+          <select id="comment-type"><option value="">General</option><option value="Q">Question</option><option value="S">Suggestion</option><option value="B">Bug</option><option value="T">Task</option><option value="E">Enhancement</option></select>
         </label>
         <label>Priority
           <select id="comment-priority"><option>medium</option><option>high</option><option>low</option></select>
@@ -113,6 +120,30 @@
       <label>Name <input id="author-input" name="author" maxlength="80" autocomplete="name" required placeholder="Your name"></label>
       <div class="dialog-actions"><button value="cancel" formnovalidate>Cancel</button><button value="default" class="primary">Save name</button></div>
     </form>
+  </dialog>
+
+  <dialog id="shortcut-dialog" aria-labelledby="shortcut-title">
+    <div class="shortcut-dialog-content">
+      <div class="dialog-heading">
+        <div><p class="eyebrow">KEYBOARD</p><h2 id="shortcut-title">Review shortcuts</h2></div>
+        <button id="close-shortcuts" class="icon-button" aria-label="Close">×</button>
+      </div>
+      <div class="shortcut-grid">
+        <p><span><kbd>j</kbd> / <kbd>k</kbd></span><span>Next / previous thread</span></p>
+        <p><span><kbd>g</kbd> / <kbd>G</kbd></span><span>First / last thread</span></p>
+        <p><kbd>Enter</kbd><span>Focus selected thread</span></p>
+        <p><kbd>r</kbd><span>Reply to selected thread</span></p>
+        <p><kbd>a</kbd><span>Accept selected suggestion</span></p>
+        <p><kbd>x</kbd><span>Reject suggestion or resolve thread</span></p>
+        <p><span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></span><span>Open / blocking / all</span></p>
+        <p><kbd>c</kbd><span>Enter line-select mode</span></p>
+        <p><kbd>s</kbd><span>Toggle rendered / source</span></p>
+        <p><kbd>q</kbd><span>Open verdict mode</span></p>
+        <p><kbd>?</kbd><span>Show / hide this help</span></p>
+      </div>
+      <p class="shortcut-note"><strong>Line select:</strong> <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>g</kbd>/<kbd>G</kbd> first/last · <kbd>[</kbd>/<kbd>]</kbd> previous/next thread · <kbd>Enter</kbd> comment · <kbd>Esc</kbd> cancel</p>
+      <p class="shortcut-note">Verdict mode: <kbd>a</kbd> approve · <kbd>c</kbd> request changes · <kbd>r</kbd> reply pass · <kbd>n</kbd> edit note · <kbd>Esc</kbd> back</p>
+    </div>
   </dialog>
 
   <script src="/app.js" defer></script>

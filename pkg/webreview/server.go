@@ -497,8 +497,18 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 func applyAction(path string, doc *comment.DocumentWithComments, request actionRequest) error {
 	switch request.Action {
 	case "add":
-		if strings.TrimSpace(request.Text) == "" {
+		text := strings.TrimSpace(request.Text)
+		if text == "" {
 			return errors.New("comment text is required")
+		}
+		// Treat a leading marker as an input shorthand, not just decoration.
+		// The browser normally selects the type live, but inferring here keeps
+		// stale tabs and non-JavaScript clients from storing "[S] ..." as a
+		// General comment when they omit the explicit type field.
+		if request.Type == "" {
+			if inferred, ok := comment.LeadingType(text); ok {
+				request.Type = inferred
+			}
 		}
 		lineCount := len(strings.Split(doc.Content, "\n"))
 		if request.Line < 1 || request.Line > lineCount {
@@ -513,7 +523,7 @@ func applyAction(path string, doc *comment.DocumentWithComments, request actionR
 		if request.Type != "" && request.Type != "Q" && request.Type != "S" && request.Type != "B" && request.Type != "T" && request.Type != "E" {
 			return errors.New("type must be Q, S, B, T, or E")
 		}
-		created := comment.NewCommentWithType(request.Author, request.Line, comment.PrefixType(strings.TrimSpace(request.Text), request.Type), request.Type)
+		created := comment.NewCommentWithType(request.Author, request.Line, comment.PrefixType(text, request.Type), request.Type)
 		created.Priority = request.Priority
 		created.Status = comment.StatusActive
 		created.Blocking = request.Blocking
