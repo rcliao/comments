@@ -52,6 +52,31 @@ Seven experiments on the gate fixture, headline findings:
   mangles where free sentences squeezed qualifiers into falsehoods;
   omission (visible) beats corruption (invisible).
 
+## Real-template round (logs/template-guardrails-2026-08-12.json)
+
+Second fixture (`fixtures/golden-facts-anchoring.md`) is mechanism narrative
+rather than enumerable rules, so cap and format effects can be compared across
+content types.
+
+- **Format must follow section PURPOSE, not house style.** Lookup and narrative
+  select different formats and the gap is wide: a table scored 5/5 on
+  navigability where prose scored 2, but prose was the ONLY format that carried
+  forward-looking invariants ("preserve that separation or context will stop
+  winning"). Bullets carried the most facts per word and the fewest errors —
+  the right default for mixed sections.
+- **Each format loses what its shape has no slot for**, and the losses are
+  disjoint: tables drop definitional setup (a table cannot define its own
+  subject), bullets drop the failure branch of a rule whose bullet is already
+  spent, prose drops enumerable constants. A table also mangles by omission —
+  a cell must be short and unconditional, so its exceptions vanish. Prescribing
+  a table without a "what breaks if you change it" column is what loses
+  rationale.
+- **Per-subsection caps: null result, reported as such.** The 150-word
+  per-finding cap never bound (largest finding 135), so the cannibalization it
+  guards against never occurred and pooled sections self-balanced. Do not cite
+  this run as evidence for the current `max_subsection_words` values — rerun
+  with a section cap tight enough that findings actually compete.
+
 ## Rerunning / extending
 
 There is no runner script yet — experiments are orchestrated from a Claude
