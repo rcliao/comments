@@ -205,6 +205,18 @@ enforce required section order, word caps, minimum subsections, ambiguity
 markers, prose-shape rules, citations, per-section review criteria, and
 `zone: human` ownership.
 
+Sections may also carry a `tier` (1..n): a reading-depth label, not extra prose.
+`Template.ReadingPath()` groups sections by tier with a cumulative word budget,
+and `comments template show` prints it, so a one-minute reader and a ten-minute
+reader use the same document. `design-doc` leads with a human-written `Pitch`
+(tier 1, `zone: human`, written before the agent drafts) that the body must
+answer to. Every tier 1-2 section is `zone: human`, so the short read is the
+human-owned part; deeper tiers are mostly agent-drafted detail, though
+`Unresolved Questions` (3) and `Definition of Done` (4) stay `zone: human`.
+Tiers are not validated and need not follow document order. `zone: human`
+guards thread resolution only — reserving the Pitch *text* for the human is a
+skill rule and a review criterion, not an enforced check.
+
 The gate remains intentionally mechanical:
 
 - unresolved blocking root threads fail;

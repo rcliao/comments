@@ -169,3 +169,68 @@ func TestWordCapsExemptCitations(t *testing.T) {
 		t.Errorf("Design counts %d words, want 7 (citations exempt)", design.Words)
 	}
 }
+
+// Tiers are a reading path over existing sections. The cumulative budget is the
+// point — a three-minute reader has read tiers 1 AND 2. An uncapped section
+// makes the figure a floor from that tier on, until the sum reaches the
+// document cap, which is then the bound.
+func TestReadingPathAccumulatesAndClampsToDocCap(t *testing.T) {
+	tpl := &Template{
+		Doc: TemplateDocRules{MaxWords: 1000},
+		Sections: []TemplateSection{
+			{Heading: "Pitch", MaxWords: 150, Tier: 1},
+			{Heading: "Detail", MaxWords: 900, Tier: 3},
+			{Heading: "Problem", MaxWords: 300, Tier: 2},
+			{Heading: "Options", Tier: 2},
+			{Heading: "Appendix"},
+		},
+	}
+	path := tpl.ReadingPath()
+	if len(path) != 3 {
+		t.Fatalf("want 3 tiers (untiered sections excluded), got %+v", path)
+	}
+	if got := path[0]; got.Tier != 1 || got.CumulativeMaxWords != 150 || got.Uncapped {
+		t.Errorf("tier 1 = %+v", got)
+	}
+	if got := path[1]; got.Tier != 2 || got.CumulativeMaxWords != 450 || !got.Uncapped ||
+		len(got.Sections) != 2 || got.Sections[0] != "Problem" || got.Sections[1] != "Options" {
+		t.Errorf("tier 2 must accumulate tier 1 and report its uncapped section: %+v", got)
+	}
+	if got := path[2]; got.CumulativeMaxWords != 1000 || got.Uncapped {
+		t.Errorf("past the document cap the doc cap is the bound: %+v", got)
+	}
+	// With no document cap to clamp it, an uncapped section in a shallow tier
+	// must keep every deeper tier marked as a floor.
+	open := &Template{Sections: []TemplateSection{
+		{Heading: "Options", Tier: 1},
+		{Heading: "Detail", MaxWords: 900, Tier: 2},
+	}}
+	if got := open.ReadingPath()[1]; got.CumulativeMaxWords != 900 || !got.Uncapped {
+		t.Errorf("uncapped must carry into deeper tiers: %+v", got)
+	}
+	if (&Template{Sections: []TemplateSection{{Heading: "A"}}}).ReadingPath() != nil {
+		t.Error("a template with no tiers has no reading path")
+	}
+}
+
+// The design-doc Pitch is the human-written brief the body answers to. Pinned
+// because the properties that make it work are spread across four YAML keys,
+// and losing any one turns it back into an optional AI summary.
+func TestDesignDocPitchIsTheHumanTierOneBrief(t *testing.T) {
+	tpl, err := LoadTemplate("design-doc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pitch := tpl.Sections[0]
+	if pitch.Heading != "Pitch" || !pitch.Required || pitch.Zone != ZoneHuman || pitch.Tier != 1 || pitch.MaxWords == 0 {
+		t.Errorf("Pitch must lead the doc as a required, capped, human-zone tier-1 section: %+v", pitch)
+	}
+	for _, s := range tpl.Sections {
+		if s.Tier == 0 {
+			t.Errorf("section %q has no tier; an untiered section drops off the reading path", s.Heading)
+		}
+		if s.Tier <= 2 && s.Zone != ZoneHuman {
+			t.Errorf("section %q is tier %d but not zone: human; the short read is the human-owned part", s.Heading, s.Tier)
+		}
+	}
+}

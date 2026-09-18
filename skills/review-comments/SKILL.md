@@ -130,6 +130,16 @@ small changes, or a project template):
    under the template's marker cap: spend markers on the few questions that
    genuinely need the human (scope > security > UX > technical detail), make
    informed decisions on the rest, and record those as assumptions in the doc.
+   **Human-written Pitch.** `design-doc` opens with a `Pitch` the human writes
+   before you draft: why now, and the decision, in <=150 words. It is your
+   brief, not your summary. If it is empty, stop and ask for it — do not write
+   it, and do not draft the body around a Pitch you invented. You may offer
+   wording with `comments suggest` when asked; the human accepts or rejects it.
+   When the body comes to contradict the Pitch, or decides something the Pitch
+   does not license, post a thread at that body line instead of editing either
+   side. `tier` flags in the brief mark reading depth (tier 1 = one minute);
+   keep each section self-sufficient at its tier, and never restate a
+   shallower tier in a deeper one.
 2. **After drafting**, self-correct until `comments validate <doc.md> --template <name>`
    reports **no structural violations**. It separates the two kinds: structural
    defects are yours to fix, and intentional `[NEEDS CLARIFICATION]` markers are

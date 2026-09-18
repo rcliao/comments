@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -89,11 +90,17 @@ type TemplateSection struct {
 	// "Q1. ..." clauses; AnswersQuestions marks the section whose subsections
 	// claim them back with a [Q1] heading tag. Set both to make coverage a
 	// checkable property — see coverage.go for why omission needs its own check.
-	EnumeratesQuestions bool     `yaml:"enumerates_questions"`
-	AnswersQuestions    bool     `yaml:"answers_questions"`
-	Zone                string   `yaml:"zone"`              // "human" or "agent" (default agent)
-	ReviewCriteria      []string `yaml:"review_criteria"`   // agent self-review prompts
-	CriteriaBlocking    *bool    `yaml:"criteria_blocking"` // nil = default true
+	EnumeratesQuestions bool `yaml:"enumerates_questions"`
+	AnswersQuestions    bool `yaml:"answers_questions"`
+	// Tier is a reading-depth label, not new prose: a reader with one minute
+	// stops after tier 1, one with ten reads through the last tier. It marks a
+	// path over sections the doc already has, so a short version never has to be
+	// written twice and cannot drift from the long one. 0 = untiered. Nothing is
+	// validated against it — tiers need not follow document order.
+	Tier             int      `yaml:"tier"`
+	Zone             string   `yaml:"zone"`              // "human" or "agent" (default agent)
+	ReviewCriteria   []string `yaml:"review_criteria"`   // agent self-review prompts
+	CriteriaBlocking *bool    `yaml:"criteria_blocking"` // nil = default true
 }
 
 type TemplateMarkers struct {
@@ -497,4 +504,61 @@ func SectionZone(content string, t *Template, line int) string {
 		}
 	}
 	return ""
+}
+
+// ReadingTier is one depth of a template's reading path: the sections a reader
+// adds at this tier, and the word budget of everything read so far.
+type ReadingTier struct {
+	Tier     int      `json:"tier"`
+	Sections []string `json:"sections"`
+	// CumulativeMaxWords sums the caps of every section at this tier or
+	// shallower — reading time accumulates, so the per-tier figure would
+	// understate what a three-minute reader has actually read.
+	CumulativeMaxWords int `json:"cumulative_max_words"`
+	// Uncapped reports that some section counted so far has no word cap, so the
+	// cumulative figure is a floor rather than a bound.
+	Uncapped bool `json:"uncapped,omitempty"`
+}
+
+// ReadingPath groups a template's tiered sections by depth, shallowest first.
+// Untiered sections are left out; a template with no tiers returns nil.
+func (t *Template) ReadingPath() []ReadingTier {
+	byTier := map[int]*ReadingTier{}
+	var tiers []int
+	for _, s := range t.Sections {
+		if s.Tier <= 0 {
+			continue
+		}
+		rt, ok := byTier[s.Tier]
+		if !ok {
+			rt = &ReadingTier{Tier: s.Tier}
+			byTier[s.Tier] = rt
+			tiers = append(tiers, s.Tier)
+		}
+		rt.Sections = append(rt.Sections, s.Heading)
+		rt.CumulativeMaxWords += s.MaxWords
+		if s.MaxWords == 0 {
+			rt.Uncapped = true
+		}
+	}
+	sort.Ints(tiers)
+	path := make([]ReadingTier, 0, len(tiers))
+	words, uncapped := 0, false
+	for _, n := range tiers {
+		rt := byTier[n]
+		words += rt.CumulativeMaxWords
+		uncapped = uncapped || rt.Uncapped
+		rt.CumulativeMaxWords, rt.Uncapped = words, uncapped
+		// Section caps may sum past the document cap (the optional sections
+		// are rarely all present), and the document cap binds even where a
+		// section has none — so past it, the doc cap is the honest bound.
+		if docCap := t.Doc.MaxWords; docCap > 0 && words >= docCap {
+			rt.CumulativeMaxWords, rt.Uncapped = docCap, false
+		}
+		path = append(path, *rt)
+	}
+	if len(path) == 0 {
+		return nil
+	}
+	return path
 }

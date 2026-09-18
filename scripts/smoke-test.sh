@@ -16,7 +16,7 @@ workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 doc="$workdir/ci-doc.md"
 
-printf '%s\n' '---' 'comments:' '  template: design-doc' '---' '' '# Doc' '' '## Problem' '' 'It is slow.' '' '## Goals / Non-Goals' '' 'Faster. Non-goal: rewrite.' '' '## Proposed Design' '' 'Cache.' '' '## Options Considered' '' '### Option 1: Cache (recommended)' '' 'Good.' '' '### Option 2: Rewrite' '' 'Big.' '' '## Risks' '' 'Staleness: accepted.' '' '## Definition of Done' '' 'Cache hit rate measured above 90 percent in the smoke benchmark.' '' '## Unresolved Questions' '' 'None.' > "$doc"
+printf '%s\n' '---' 'comments:' '  template: design-doc' '---' '' '# Doc' '' '## Pitch' '' 'Cache it: reads are slow and a cache is the smallest fix.' '' '## Problem' '' 'It is slow.' '' '## Goals / Non-Goals' '' 'Faster. Non-goal: rewrite.' '' '## Proposed Design' '' 'Cache.' '' '## Options Considered' '' '### Option 1: Cache (recommended)' '' 'Good.' '' '### Option 2: Rewrite' '' 'Big.' '' '## Risks' '' 'Staleness: accepted.' '' '## Definition of Done' '' 'Cache hit rate measured above 90 percent in the smoke benchmark.' '' '## Unresolved Questions' '' 'None.' > "$doc"
 
 ./comments validate "$doc"
 ./comments add "$doc" --anchor 'It is slow.' --author agent --type Q --blocking --text 'Is this the right problem framing?'

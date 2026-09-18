@@ -1,5 +1,5 @@
 template: design-doc
-version: 1
+version: 2
 description: Design one-pager optimized for human review — Intent, Decisions, Data Flow, Data Model, Interfaces, Done; bounded length, forced alternatives, explicit unknowns
 doc:
   check_citations: true
@@ -14,8 +14,32 @@ doc:
   # A doc with no data model is unaffected; per-section caps hold the rest.
   max_words: 2800
 sections:
+  # The one-minute version, and the only section that is a distillation. It is
+  # written by the HUMAN, BEFORE the agent drafts: written first it is the brief
+  # the body must answer to; written after it is an AI summary that goes stale.
+  # It carries what no other section does — why now, and the decision — and
+  # points into the body rather than restating it, so there is one place for a
+  # short version to drift instead of four.
+  #
+  # `zone: human` guards thread resolution only; nothing stops an agent editing
+  # this text. The criteria below are the reservation: the agent proposes wording
+  # with `suggest` and the human accepts or rejects it.
+  #
+  # Tiers are a reading path over the sections that already exist, not extra
+  # prose: tier 1 is one minute, 1-2 about three, 1-3 five to seven, all four
+  # the full read. They need not follow document order — a five-minute reader
+  # skips the tier-4 block and resumes at Options Considered.
+  - heading: "Pitch"
+    required: true
+    max_words: 150
+    zone: human
+    tier: 1
+    review_criteria:
+      - "Was this written by the human? If it is empty or a placeholder, STOP and ask for it before drafting — never write it yourself; offer wording with `suggest` only if asked."
+      - "Does anything in the body contradict the Pitch, or decide something the Pitch does not license? Post a thread at that body line — do not quietly edit either side."
   - heading: "Problem"
     required: true
+    tier: 2
     max_words: 300
     zone: human
     review_criteria:
@@ -23,12 +47,14 @@ sections:
       - "Is it clear who is affected and how much it matters?"
   - heading: "Goals / Non-Goals"
     required: true
+    tier: 2
     max_words: 200
     zone: human
     review_criteria:
       - "Are non-goals explicit enough to prevent scope creep?"
   - heading: "Proposed Design"
     required: true
+    tier: 3
     max_words: 800
     review_criteria:
       - "Can a reviewer trace every goal to a part of the design?"
@@ -47,6 +73,7 @@ sections:
   # design; a story and a diagram of the same sequence are two tellings.
   - heading: "Data Flow"
     required: false
+    tier: 4
     max_words: 600
     review_criteria:
       - "Is every step one actor / action / work-object sentence, marked NEW, CHANGED or unchanged?"
@@ -56,6 +83,7 @@ sections:
   # Optional: only when Data Flow's cast is too large to hold in the head.
   - heading: "Components"
     required: false
+    tier: 4
     max_words: 150
     review_criteria:
       - "One line per component: the Data Flow actor's name and its home (package or file) — nothing a reader could not derive from the story, just faster."
@@ -65,6 +93,7 @@ sections:
   # relationships to tables outside the block) with the delta marked inside it.
   - heading: "Data Model"
     required: false
+    tier: 4
     max_words: 900
     review_criteria:
       - "One DBML block, one field per line, valid enough to paste whole into a visualizer — never a wide markdown table?"
@@ -80,6 +109,7 @@ sections:
   # entities it reads or writes.
   - heading: "Interfaces"
     required: false
+    tier: 4
     max_words: 300
     review_criteria:
       - "Is each interface a compact contract — name (route, command, or signature), input fields WITH their constraints, output shape, and the error/limit cases — enough that a caller could write the call without reading code?"
@@ -87,17 +117,20 @@ sections:
       - "Marked NEW / CHANGED / REMOVED, with changed contracts showing before -> after?"
   - heading: "Options Considered"
     required: true
+    tier: 3
     min_subsections: 2
     review_criteria:
       - "Is a simpler alternative listed and explicitly rejected with a reason?"
       - "Does each option (including rejected ones) list explicit pros AND cons as bullets, not prose?"
   - heading: "Risks"
     required: true
+    tier: 3
     max_words: 200
     review_criteria:
       - "Are only genuine risks listed (no boilerplate), each mitigated or explicitly accepted?"
   - heading: "Definition of Done"
     required: true
+    tier: 4
     max_words: 200
     zone: human
     review_criteria:
@@ -107,6 +140,7 @@ sections:
       - "Is it clear what is explicitly OUT of this handoff (deferred to a later phase), so done isn't argued at review time?"
   - heading: "Unresolved Questions"
     required: true
+    tier: 3
     zone: human
     review_criteria:
       - "Is each question marked blocking (must be decided before approval) or non-blocking (can be settled during implementation)?"

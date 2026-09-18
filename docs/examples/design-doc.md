@@ -9,6 +9,16 @@ type: Design
 
 # Design: probe-based quality eval for RPI artifacts
 
+## Pitch
+
+We measure how smoothly a doc gets through review, but not whether the doc is any good.
+A research doc can pass the gate and still be thin, wrong, or narrower than its question — and only a human catches it.
+
+Decision: score finished docs with small probes, run after signoff by fresh subagents.
+Coverage probes ask what the doc should answer; faithfulness probes check its claims against code.
+Probes never block the gate, and there is no "rate this 1–10" judge.
+We chose skill prose plus a JSONL log over a new Go command (→ Options Considered).
+
 ## Problem
 
 The RPI loop measures its *process* — reviewer signal, passes to gate green — but nothing measures the *artifact*.

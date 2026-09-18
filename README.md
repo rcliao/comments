@@ -13,7 +13,7 @@ Google-Docs-style review for markdown, locally. Inline comment threads and edit 
 - **Inline comments & threads**: anchored to lines or markdown sections, with nested replies and content-based re-anchoring when the doc changes
 - **Edit suggestions**: multi-line proposals with preview and accept/reject; queued decisions apply atomically at review verdict
 - **Review gate**: `comments gate` exits 0 (approved) or 10 (changes requested); `signoff` records the human pass agents block on
-- **Doc templates as guardrails**: required sections, word caps, forced alternatives, human-owned zones, `[NEEDS CLARIFICATION:]` marker caps — built-ins: `design-doc`, `mini`, `research`, `plan`, `adr`, `rfc`, `as-built`
+- **Doc templates as guardrails**: required sections, word caps, forced alternatives, human-owned zones, reading-depth `tier` labels (a 1-minute to full-read path over the same sections), `[NEEDS CLARIFICATION:]` marker caps — built-ins: `design-doc`, `mini`, `research`, `plan`, `adr`, `rfc`, `as-built`
 - **OKF document bundles by default**: the first `comments new` initializes a standard `docs/artifacts` bundle, then creates frontmatter-rich concepts in template-guided folders; `comments context` exposes explicit relations, backlinks, sources, and review state without a whole-tree search
 - **RPI flow**: research docs with file:line evidence → plans citing the research → reviewed in the TUI where `f` peeks any citation and Enter opens `$EDITOR` there
 - **Plan-led implementation**: optional in-document phase status lists keep Summary/Evidence/Next visible across multi-day work; `context --for implementation` reports alignment without turning Comments into the runtime
@@ -90,7 +90,7 @@ Every template ships with a self-describing, OKF-compatible worked example under
 
 | Template | Example | Shows off |
 |---|---|---|
-| `design-doc` | [design-doc.md](docs/examples/design-doc.md) | one-pager: data flow story, full DBML model, contract interfaces |
+| `design-doc` | [design-doc.md](docs/examples/design-doc.md) | one-pager: human-written Pitch first, data flow story, full DBML model, contract interfaces |
 | `as-built` | [as-built.md](docs/examples/as-built.md) | the gate/signoff loop as it runs today, with peekable evidence |
 | `research` | [research.md](docs/examples/research.md) | documentarian findings with file:line per claim |
 | `plan` | [plan.md](docs/examples/plan.md) | phases with automated/manual success criteria |

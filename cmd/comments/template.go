@@ -82,6 +82,9 @@ func templateCommand(args []string) error {
 			if s.Zone != "" {
 				flags = append(flags, "zone: "+s.Zone)
 			}
+			if s.Tier > 0 {
+				flags = append(flags, fmt.Sprintf("tier %d", s.Tier))
+			}
 			fmt.Printf("  ## %s", s.Heading)
 			if len(flags) > 0 {
 				fmt.Printf("  [%s]", strings.Join(flags, ", "))
@@ -91,6 +94,8 @@ func templateCommand(args []string) error {
 				fmt.Printf("     ✓ %s\n", c)
 			}
 		}
+
+		printReadingPath(t)
 
 		// Style caps shape how the doc reads; an agent that only meets word
 		// budgets will write walls unless told the shape too.
@@ -223,4 +228,22 @@ func loadTemplateForDoc(filename, templateName string) (*comment.Template, *comm
 		return nil, nil, failf("Error: no template specified; use --template, comments.template frontmatter, or a bundle collection with one template\nList templates with: comments template list")
 	}
 	return t, doc, nil
+}
+
+// printReadingPath shows a template's tiers as a path. The per-section `tier N`
+// flag says where a section sits; this says how far a reader with limited time
+// gets, which is the reason tiers exist.
+func printReadingPath(t *comment.Template) {
+	path := t.ReadingPath()
+	if len(path) == 0 {
+		return
+	}
+	fmt.Println("\nReading path (stop after any tier; each adds to the ones before):")
+	for _, rt := range path {
+		budget := fmt.Sprintf("<=%d words so far", rt.CumulativeMaxWords)
+		if rt.Uncapped {
+			budget = fmt.Sprintf("%d+ words so far, some sections uncapped", rt.CumulativeMaxWords)
+		}
+		fmt.Printf("  tier %d: %s  [%s]\n", rt.Tier, strings.Join(rt.Sections, ", "), budget)
+	}
 }
