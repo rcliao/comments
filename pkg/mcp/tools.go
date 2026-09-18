@@ -12,7 +12,7 @@ import (
 // loadDoc loads a document plus its comments and persists any re-anchoring or
 // orphan-status migrations discovered during the load — the write half of what
 // comment.LoadFromSidecar used to do internally. MCP surfaces load state via
-// the returned report (e.g. staleness in comments_status) rather than printing.
+// the returned report (staleness reaches agents as is_stale in comments_inbox) rather than printing.
 func loadDoc(absPath string) (*comment.DocumentWithComments, *comment.LoadReport, error) {
 	return comment.LoadDocument(absPath)
 }

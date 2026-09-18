@@ -38,13 +38,16 @@ func dispatchCommands(t *testing.T) []string {
 	}
 	body := string(src)
 	start := strings.Index(body, "switch command {")
-	end := strings.Index(body[start:], "default:")
-	if start < 0 || end < 0 {
+	if start < 0 {
 		t.Fatal("could not find the dispatch switch in main.go")
+	}
+	end := strings.Index(body[start:], "default:")
+	if end < 0 {
+		t.Fatal("could not find the end of the dispatch switch in main.go")
 	}
 	var names []string
 	for _, m := range regexp.MustCompile(`"([a-z-]+)"`).FindAllStringSubmatch(
-		strings.Join(regexp.MustCompile(`(?m)^\tcase .*:$`).FindAllString(body[start:start+end], -1), "\n"), -1) {
+		strings.Join(regexp.MustCompile(`(?m)^\tcase [^\n]*`).FindAllString(body[start:start+end], -1), "\n"), -1) {
 		if !strings.HasPrefix(m[1], "-") {
 			names = append(names, m[1])
 		}

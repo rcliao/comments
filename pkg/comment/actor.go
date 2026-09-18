@@ -63,14 +63,31 @@ func GuardZoneResolve(doc *DocumentWithComments, absPath, threadID string, actor
 	if thread == nil {
 		return nil // let the caller's own not-found error report this
 	}
+	if thread.IsSuggestion && !thread.IsPending() {
+		// The human already decided it. Closing the thread is housekeeping, and
+		// without this a rejected suggestion in a human zone could never leave
+		// the agent's inbox.
+		return nil
+	}
 	t, _, err := ResolveTemplateForDocument(absPath, doc.Content, "", doc.Template)
-	if err != nil || t == nil {
-		return nil // an unreadable template must not block legitimate work
+	if err != nil {
+		// Fail CLOSED. The document names a template that will not load, so its
+		// zones are unknown; a typo in frontmatter must not quietly make every
+		// human-decision thread agent-resolvable.
+		return fmt.Errorf(
+			"thread %s: the document's template could not be loaded (%v), so its human-decision zones are unknown; reply with your input and leave the resolve to the human",
+			threadID, err)
+	}
+	if t == nil {
+		return nil // no template recorded: there are no zones to enforce
 	}
 	if SectionZone(doc.Content, t, thread.Line) != ZoneHuman {
 		return nil
 	}
+	// The override is deliberately not named here: over MCP this text goes
+	// straight to the agent, and a refusal that explains how to get past itself
+	// is not a refusal.
 	return fmt.Errorf(
-		"thread %s is in a human-decision zone (template %q); reply with your input instead — the human resolves it in the TUI, or via 'comments resolve' at a terminal (set %s=human to override)",
-		threadID, t.Name, ActorEnvVar)
+		"thread %s is in a human-decision zone (template %q); reply with your input instead — the human resolves it in comments view",
+		threadID, t.Name)
 }

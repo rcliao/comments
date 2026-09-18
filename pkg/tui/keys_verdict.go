@@ -2,7 +2,7 @@ package tui
 
 // Verdict mode: the exit dialog that applies queued suggestion decisions,
 // records a signoff, and quits with an approve / request-changes decision.
-// The record it writes is the same ReviewRecord `comments signoff` writes —
+// The record it writes is the same ReviewRecord the web review writes —
 // including the optional note (n), so a human reviewing in the TUI can leave
 // the agent a message without dropping to the CLI.
 

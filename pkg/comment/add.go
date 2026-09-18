@@ -1,6 +1,9 @@
 package comment
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // NewCommentSpec locates and describes one comment to add. Exactly one of
 // Line, Section or Anchor places it.
@@ -21,7 +24,10 @@ type AddResult struct {
 	Added []CommentView `json:"added"`
 }
 
-var validCommentTypes = map[string]bool{"Q": true, "S": true, "B": true, "T": true, "E": true}
+var (
+	validCommentTypes = map[string]bool{"Q": true, "S": true, "B": true, "T": true, "E": true}
+	validPriorities   = map[string]bool{"": true, "low": true, "medium": true, "high": true}
+)
 
 // AddComments adds one or many comments to doc. It is the only add path: one
 // comment is a batch of one, so both surfaces share validation, anchoring and
@@ -32,6 +38,7 @@ func AddComments(doc *DocumentWithComments, specs []NewCommentSpec) (*AddResult,
 		return nil, fmt.Errorf("no comments given")
 	}
 	lines := make([]int, len(specs))
+	lineCount := strings.Count(doc.Content, "\n") + 1
 	for i, spec := range specs {
 		where := fmt.Sprintf("comment %d", i+1)
 		given := 0
@@ -51,6 +58,10 @@ func AddComments(doc *DocumentWithComments, specs []NewCommentSpec) (*AddResult,
 			return nil, fmt.Errorf("%s: author is required", where)
 		case spec.Type != "" && !validCommentTypes[spec.Type]:
 			return nil, fmt.Errorf("%s: invalid type %q (valid: Q, S, B, T, E)", where, spec.Type)
+		case !validPriorities[spec.Priority]:
+			return nil, fmt.Errorf("%s: invalid priority %q (valid: low, medium, high)", where, spec.Priority)
+		case spec.Line != 0 && (spec.Line < 1 || spec.Line > lineCount):
+			return nil, fmt.Errorf("%s: line %d is outside the document (1-%d)", where, spec.Line, lineCount)
 		}
 
 		lines[i] = spec.Line

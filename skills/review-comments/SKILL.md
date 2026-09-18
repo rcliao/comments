@@ -36,7 +36,8 @@ rejecting a suggestion and giving the verdict happen only in `comments view`
 (or `comments serve`). Threads in a template's `zone: human` sections cannot be
 resolved by you on either surface — the CLI detects an agent caller by the
 absence of a TTY — and a refused `--resolve` posts nothing, so reply without it
-and leave the resolve to the human. Never set `COMMENTS_ACTOR`.
+and leave the resolve to the human. For the same reason `reanchor` will not move
+a thread out of a human zone. Never set `COMMENTS_ACTOR`.
 
 ## The loop
 
@@ -52,7 +53,10 @@ and leave the resolve to the human. Never set `COMMENTS_ACTOR`.
    `violations`, `orphaned` anchors and `changes` since the reviewer's last
    verdict. You are done when `decision` is `approved` AND `items` is empty.
    Pass `--since <RFC3339 of your last pass>` to have news flagged `new_reply` /
-   `new_thread`; it never hides a thread.
+   `new_thread`; it never hides a thread. A suggestion the human rejected comes
+   back as `suggestion_rejected`: rework it as a new suggestion or accept the
+   no, then close it with `reply --resolve` (allowed even in a human zone — the
+   human already decided).
 
    For an OKF bundle document, first run `comments context <doc.md> --for review
    --include-threads` (MCP: `comments_context`). Read the explicit related
@@ -98,10 +102,16 @@ and leave the resolve to the human. Never set `COMMENTS_ACTOR`.
    Then wait on the signoff instead of asking them to tell you they are done:
 
    ```bash
-   comments watch <doc.md> --until signoff
+   comments watch <doc.md> --until signoff --since <RFC3339 time you handed off>
    # {"event":"signoff","file":"doc.md","author":"rcliao",
    #  "decision":"changes_requested","note":"pin the prompt, don't hash it"}
    ```
+
+   Always pass `--since` (MCP: `since`): a watch reports only what changes
+   after its first look, so a human who reviews between your message and your
+   watch call would otherwise be missed and you would wait on a review that
+   already happened. With `--since`, a verdict recorded after that time is
+   returned at once.
 
    `watch` exits 0 on the first matching event, so it is a blocking wait you can
    run directly; the event carries the decision and the reviewer's note. It sees
@@ -216,7 +226,7 @@ small changes, or a project template):
    collection); comments remain discussion, not configuration.
 5. Request review by asking the human to use `comments view <doc.md>` (the
    verdict on exit records the signoff), then listen without requiring a nudge:
-   `comments watch <doc.md> --until signoff`. While waiting, do not modify the
+   `comments watch <doc.md> --until signoff --since <hand-off time>`. While waiting, do not modify the
    document. On a re-request, read `files[].changes.changed_sections` from
    `comments inbox` and quote it in your message — the reviewer sees the same lines tinted in the TUI, and naming
    the sections you touched is what lets them skip the rest.
@@ -443,7 +453,7 @@ it.
    your own findings answer the disposition question with "nothing worth
    doing": then stop and hand the research to the human instead of
    manufacturing a plan. In gated mode, wait on the signoff, don't poll:
-   `comments watch <doc> --until signoff` blocks until the review lands
+   `comments watch <doc> --until signoff --since <hand-off time>` blocks until the review lands
    (run it in the background in harnesses that support it).
 2. **Plan** (brief in `comments context`): decisions only — the marker cap
    is 1 because open questions belong to the research phase. Cite the research

@@ -209,9 +209,9 @@ def run(surface, checks):
 
     def wait():
         if surface == "cli":
-            waiter["r"] = cli(ws, ["watch", DOC_REL, "--until", "signoff", "--interval", "200ms"])
+            waiter["r"] = cli(ws, ["watch", DOC_REL, "--until", "signoff", "--since", since, "--interval", "200ms"])
         else:
-            waiter["r"] = mcp.call("watch", {"filepath": DOC_REL, "timeout_seconds": 30})
+            waiter["r"] = mcp.call("watch", {"filepath": DOC_REL, "since": since, "timeout_seconds": 30})
 
     th = threading.Thread(target=wait)
     th.start()
@@ -228,7 +228,6 @@ def run(surface, checks):
         events = (jparse(r["out"]) or {}).get("events", [])
     last = events[-1] if events else {}
     check("wait returns the signoff with decision and note", last.get("event") == "signoff" and last.get("decision") == "changes_requested" and last.get("note") == "expiry must be configurable", last)
-    check("wait saw the human's reply and comment first", [e.get("event") for e in events[:-1]] and {"reply_added", "comment_added"} <= {e.get("event") for e in events})
 
     # ---- inbox first, then act
     r = agent("inbox since", ["inbox", DOC_REL, "--since", since, "--json"], "inbox", {"filepath": DOC_REL, "since": since})

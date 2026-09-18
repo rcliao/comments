@@ -312,7 +312,7 @@ Flags (every command also has -h):
              --json FILE|-   reply to many   --json-out
   get        [--thread ID] [--unresolved] [--from CITING-DOC] [--json]
   inbox      [--since RFC3339] [--reviewer NAME] [--json]
-  watch      [--until signoff[,gate_changed]] [--interval 1s]
+  watch      [--until signoff[,gate_changed]] [--since RFC3339-of-your-handoff] [--interval 1s]
   suggest    --anchor TEXT | --start-line N --end-line M   --author NAME --text TEXT
              --proposed TEXT [--original TEXT]
   reanchor   --comment ID --line N | --section PATH      --json FILE|-   --json-out

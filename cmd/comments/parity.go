@@ -64,7 +64,7 @@ Expected format:
 		return failf("Error loading document: %v", err)
 	}
 
-	results := comment.ApplyMoves(doc, moves)
+	results := comment.ApplyMoves(doc, absOrSame(filename), moves, comment.ResolveActor(comment.StdoutIsTTY()))
 
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
 		return failf("Error saving document: %v", err)
@@ -99,11 +99,11 @@ Expected format:
 	return nil
 }
 
-// inboxCommand is the one-call attention view: unresolved threads with new
-// replies, plus every unresolved blocking thread.
+// inboxCommand is the agent's single read: the gate decision, every unresolved
+// thread, pending suggestions, violations, orphans and what changed.
 func inboxCommand(target string, args []string) error {
 	fs := flag.NewFlagSet("inbox", flag.ContinueOnError)
-	since := fs.String("since", "", "RFC3339 timestamp: only threads with replies newer than this")
+	since := fs.String("since", "", "RFC3339 time of your last pass: newer replies and threads are flagged new_reply / new_thread (never hides a thread)")
 	reviewer := fs.String("reviewer", "", "Whose last verdict to diff changed lines against (default: the latest reviewer)")
 	jsonOut := fs.Bool("json", false, "Output machine-readable JSON")
 	if err := fs.Parse(args); err != nil {

@@ -92,7 +92,7 @@ func printGateText(output gateOutputJSON) {
 		}
 	}
 	printStructureUnchecked(output)
-	fmt.Printf("Resolve blocking comments (comments resolve/reply) then re-run gate. Exit code %d.\n", comment.GateExitCode)
+	fmt.Printf("Resolve blocking comments (comments reply --resolve, or the human in comments view) then re-run gate. Exit code %d.\n", comment.GateExitCode)
 }
 
 func printGateComments(label string, comments []gateCommentJSON) {

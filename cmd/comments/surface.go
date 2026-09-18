@@ -239,11 +239,19 @@ func watchCommand(target string, args []string) error {
 	fs := flag.NewFlagSet("watch", flag.ContinueOnError)
 	interval := fs.Duration("interval", time.Second, "Poll interval")
 	until := fs.String("until", "", "Exit 0 after emitting an event matching this comma-separated list of event types (e.g. signoff,gate_changed)")
+	sinceFlag := fs.String("since", "", "RFC3339 hand-off time: a verdict recorded after it is emitted at once, so a fast reviewer is never missed")
 	if err := fs.Parse(args); err != nil {
 		return exitSilent(2)
 	}
+	var since time.Time
+	if *sinceFlag != "" {
+		var err error
+		if since, err = time.Parse(time.RFC3339, *sinceFlag); err != nil {
+			return failf("Error: invalid --since timestamp (want RFC3339): %v", err)
+		}
+	}
 	encoder := json.NewEncoder(os.Stdout)
-	err := comment.Watch(context.Background(), target, comment.WatchOptions{Interval: *interval, Until: *until}, func(e comment.WatchEvent) bool {
+	err := comment.Watch(context.Background(), target, comment.WatchOptions{Interval: *interval, Until: *until, Since: since}, func(e comment.WatchEvent) bool {
 		// A failed write means stdout is gone (EPIPE: the consumer exited). Stop
 		// cleanly instead of lingering as an orphan writing into a broken pipe.
 		return encoder.Encode(e) != nil

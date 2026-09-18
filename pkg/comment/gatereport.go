@@ -64,44 +64,56 @@ func BuildGateReport(target string, strict bool, templateName string, contextSiz
 		if err != nil {
 			return nil, fmt.Errorf("loading %s: %w", file, err)
 		}
-		result := EvaluateGate(doc, strict)
-		fr := GateFileReport{
-			File:               file,
-			Decision:           result.Decision,
-			Blocking:           gateThreads(result.Blocking, doc.Content, contextSize),
-			NonBlocking:        gateThreads(result.NonBlocking, doc.Content, contextSize),
-			PendingSuggestions: gateThreads(result.PendingSuggestions, doc.Content, contextSize),
-			LastReview:         result.LastReview,
-		}
-
-		t, _, err := ResolveTemplateForDocument(file, doc.Content, templateName, doc.Template)
+		fr, err := gateFileReport(file, doc, strict, templateName, contextSize)
 		if err != nil {
 			return nil, err
 		}
-		if t != nil {
-			fr.Template = t.Name
-			fr.Violations = ValidateManagedDocument(doc.Content, file, t)
-			if len(fr.Violations) > 0 {
-				fr.Decision = DecisionChangesRequested
-			}
-		} else if len(doc.Threads) > 0 {
-			// A doc with no discoverable template passes the structural half of the
-			// gate by default, which reads identically to passing it on merit.
-			// Shipped RPI artifacts have gone out hundreds of words over their
-			// caps this way, so say it out loud.
-			fr.StructureUnchecked = true
-		}
-
-		report.Files = append(report.Files, fr)
-		report.Summary.Blocking += len(fr.Blocking)
-		report.Summary.NonBlocking += len(fr.NonBlocking)
-		report.Summary.PendingSuggestions += len(fr.PendingSuggestions)
-		report.Summary.Violations += len(fr.Violations)
-		if fr.Decision == DecisionChangesRequested {
-			report.Decision = DecisionChangesRequested
-		}
+		report.add(fr)
 	}
 	return report, nil
+}
+
+func (r *GateReport) add(fr GateFileReport) {
+	r.Files = append(r.Files, fr)
+	r.Summary.Blocking += len(fr.Blocking)
+	r.Summary.NonBlocking += len(fr.NonBlocking)
+	r.Summary.PendingSuggestions += len(fr.PendingSuggestions)
+	r.Summary.Violations += len(fr.Violations)
+	if fr.Decision == DecisionChangesRequested {
+		r.Decision = DecisionChangesRequested
+	}
+}
+
+// gateFileReport is the gate's verdict on one already-loaded document, so a
+// caller that needs the document too (the inbox) loads it once.
+func gateFileReport(file string, doc *DocumentWithComments, strict bool, templateName string, contextSize int) (GateFileReport, error) {
+	result := EvaluateGate(doc, strict)
+	fr := GateFileReport{
+		File:               file,
+		Decision:           result.Decision,
+		Blocking:           gateThreads(result.Blocking, doc.Content, contextSize),
+		NonBlocking:        gateThreads(result.NonBlocking, doc.Content, contextSize),
+		PendingSuggestions: gateThreads(result.PendingSuggestions, doc.Content, contextSize),
+		LastReview:         result.LastReview,
+	}
+	t, _, err := ResolveTemplateForDocument(file, doc.Content, templateName, doc.Template)
+	if err != nil {
+		return fr, err
+	}
+	if t != nil {
+		fr.Template = t.Name
+		fr.Violations = ValidateManagedDocument(doc.Content, file, t)
+		if len(fr.Violations) > 0 {
+			fr.Decision = DecisionChangesRequested
+		}
+	} else if len(doc.Threads) > 0 {
+		// A doc with no discoverable template passes the structural half of the
+		// gate by default, which reads identically to passing it on merit.
+		// Shipped RPI artifacts have gone out hundreds of words over their
+		// caps this way, so say it out loud.
+		fr.StructureUnchecked = true
+	}
+	return fr, nil
 }
 
 func gateThreads(comments []*Comment, docContent string, contextSize int) []GateThread {

@@ -163,8 +163,11 @@ func ReanchorComment(c *Comment, lines []string, structure *markdown.DocumentStr
 		}
 	}
 
-	// Step 4: section-path fallback
-	if c.SectionPath != "" {
+	// Step 4: section-path fallback. Not for suggestions: a comment about a
+	// section still means something at its heading, but a suggestion is a
+	// replacement for specific lines. Once that text is gone there is nothing
+	// to replace, so it orphans (step 5) and ApplySuggestion refuses it.
+	if c.SectionPath != "" && !c.IsSuggestion {
 		if section := structure.FindSection(c.SectionPath); section != nil {
 			c.AnchorConfidence = ConfidenceSectionLevel
 			if section.StartLine != oldLine {

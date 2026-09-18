@@ -134,7 +134,7 @@ Comments carry a content `Anchor` (target line text + one line of context each s
 
 ### Section-Based Operations
 
-Comments can target a markdown section instead of a line: `--section "Implementation > Architecture"` (hierarchical path, " > " separator). `--section` and `--line` are mutually exclusive; section filters on `list` include all descendant sections (tree behavior). Invalid paths error with the list of available sections.
+Comments can target a markdown section instead of a line: `--section "Implementation > Architecture"` (hierarchical path, " > " separator). `--section` and `--line` are mutually exclusive; a section path is the full path from the document title, as `comments get` prints it. Invalid paths error with the list of available sections.
 
 ## Architecture Notes
 
