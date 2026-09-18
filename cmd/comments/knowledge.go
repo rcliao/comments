@@ -91,6 +91,12 @@ func contextCommand(filename string, args []string) error {
 			fmt.Printf("  - %s\n", source.Resource)
 		}
 	}
+	if result.BriefUnavailable != "" {
+		fmt.Printf("\n⚠ No writing brief: %s\n", result.BriefUnavailable)
+	}
+	if result.Brief != nil {
+		fmt.Printf("\nWriting brief\n-------------\n%s", result.Brief.Text())
+	}
 	return nil
 }
 

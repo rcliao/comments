@@ -13,7 +13,8 @@ import (
 // InboxRequest asks "what needs my attention" across a file or directory.
 type InboxRequest struct {
 	FilePath string `json:"filepath" jsonschema:"Path to a markdown file or a directory of markdown files"`
-	Since    string `json:"since,omitempty" jsonschema:"Optional RFC3339 timestamp: include unresolved threads with replies newer than this (empty = any replies). Unresolved blocking threads are always included"`
+	Since    string `json:"since,omitempty" jsonschema:"Optional RFC3339 timestamp: replies and threads newer than this are flagged new_reply / new_thread. Never hides a thread"`
+	Reviewer string `json:"reviewer,omitempty" jsonschema:"Whose last verdict to diff changed lines against (default: the latest reviewer)"`
 }
 
 // handleInbox is the MCP wrapper over comment.BuildInbox; the CLI's `inbox`
@@ -32,14 +33,9 @@ func (s *Server) handleInbox(ctx context.Context, req *mcp.CallToolRequest, args
 		}
 	}
 
-	items, err := comment.BuildInbox(absPath, since)
+	inbox, err := comment.BuildInbox(absPath, comment.InboxOptions{Since: since, Reviewer: args.Reviewer, ContextSize: 2})
 	if err != nil {
 		return nil, nil, err
 	}
-
-	return jsonToolResult(map[string]any{
-		"since": args.Since,
-		"count": len(items),
-		"items": items,
-	})
+	return jsonToolResult(inbox)
 }

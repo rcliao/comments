@@ -20,6 +20,6 @@ func (s *Server) handleReanchor(ctx context.Context, req *mcp.CallToolRequest, a
 				Section:   m.Section,
 			})
 		}
-		return map[string]any{"results": comment.ApplyMoves(doc, moves)}, nil
+		return map[string]any{"results": comment.ApplyMoves(doc, absPath, moves, comment.ActorAgent)}, nil
 	})
 }

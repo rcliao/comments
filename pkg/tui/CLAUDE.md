@@ -182,7 +182,7 @@ TERMINAL will not match source — use the raw file text. Everything else
 
 `q` opens the verdict dialog; `a`/`c`/`r` apply the queued suggestion decisions
 and write a `ReviewRecord` through `comment.AddReviewRecord` — the SAME record
-`comments signoff` writes, note included. `r` records decision `commented`
+the web review writes (both call `comment.RecordVerdict`), note included. `r` records decision `commented`
 (reply-pass: answered threads, turn handed back, gate untouched, exit 0).
 `recordVerdict` calls `refreshDocFromDisk()` FIRST — a session open while an
 agent edits must not sign off from stale memory — and only the suggestion
@@ -193,7 +193,7 @@ not per session. `n` opens `ModeVerdictNote`, a
 separate mode so `a`/`c` are plain letters while typing; Esc/Ctrl+S returns to
 the dialog keeping the text, and `recordVerdict` trims it into
 `ReviewRecord.Note`. Keep the two writers producing identical records: agents
-waiting on `request_review`, `check_review` or `watch --until signoff` key on
+waiting on `watch --until signoff` (MCP `comments_watch`) key on
 the record, not on who wrote it. The note deliberately survives `q` → Esc →
 `q` within a session (you drafted it, going back to check a thread shouldn't
 discard it) — that is intended, not a leak.

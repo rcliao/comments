@@ -15,8 +15,9 @@ comments gate doc.md
 
 `comments view` is the terminal review surface. Press `q` to open the verdict and
 then `a` to approve, `c` to request changes, or `r` to submit a reply-only pass.
-All three choices record a review in the sidecar. Do not run `comments signoff`
-after submitting a TUI verdict; `signoff` is the non-interactive alternative.
+All three choices record a review in the sidecar. This and `comments serve` are
+the only ways to record a verdict or decide a suggestion: no command does
+either, so an agent cannot approve its own document.
 
 `comments serve` provides the same review loop in a browser. Open the one-time
 URL printed by the command; it exchanges its random token for a local HttpOnly
@@ -27,17 +28,23 @@ file under it that already has a comment sidecar.
 
 ## Command map
 
-| Area | Commands |
-|---|---|
-| Human review | `view`, `serve` |
-| Read threads | `list`, `get`, `status`, `inbox` |
-| Write threads | `add`, `batch-add`, `reply`, `batch-reply`, `resolve` |
-| Suggestions | `suggest`, `accept`, `batch-accept`, `reject` |
-| Review coordination | `gate`, `signoff`, `check-review`, `watch` |
-| Bundles and context | `new`, `context`, `bundle index` |
-| Templates and artifact analysis | `template list`, `template show`, `validate`, `analyze` |
-| Anchor maintenance | `reanchor` |
-| Diagnostics and integration | `doctor`, `serve`, `serve-mcp` |
+One command per purpose. Every agent command has an MCP tool of the same name
+(`comments inbox` = `comments_inbox`) returning the same JSON.
+
+| Purpose | Command | Who |
+|---|---|---|
+| Review and decide | `view`, `serve` | human |
+| Create a doc under a template | `new`, then `context` (carries the writing brief) | agent |
+| Check a draft | `validate` (structure), `analyze` (coverage, advisory) | agent |
+| Annotate | `add` — one comment by flags, many with `--json` | agent |
+| Wait for the human | `watch --until signoff --since <hand-off time>` | agent |
+| See what needs attention | `inbox` | agent |
+| Look up a thread, resolved ones included | `get` | agent |
+| Respond, optionally closing the thread | `reply [--resolve]` | agent |
+| Propose an edit | `suggest` | agent |
+| Fix anchors after editing | `reanchor` | agent |
+| Exit-code contract for scripts and CI | `gate` | scripts |
+| Templates, bundles, diagnostics, integration | `template list\|show`, `bundle index`, `doctor`, `serve-mcp` | maintenance |
 
 Run `comments help` for the complete flag list and examples.
 
@@ -129,29 +136,38 @@ comments reply doc.md --thread c7f3k --author claude --text @reply.txt
 ## Reading and replying to threads
 
 ```bash
-comments list doc.md
-comments list doc.md --resolved --priority high --format table
-comments list doc.md --section "Design" --with-context
-comments list doc.md --status orphaned --format json
+comments inbox doc.md                      # what needs attention, most urgent first
+comments inbox doc.md --since 2026-08-12T18:30:00Z --json
 
+comments get doc.md                        # every thread, resolved included
+comments get doc.md --unresolved --json
 comments get doc.md --thread c7f3k
 comments get 'thread:research.md#c7f3k' --from plan.md
 
-comments reply doc.md --thread c7f3k --author claude --text "Applied in the draft"
-comments resolve doc.md --thread c7f3k
+comments reply doc.md --thread c7f3k --author claude --text "Applied in the draft" --resolve
 ```
 
-`list` hides resolved roots by default. Its useful filters are `--type`,
-`--author`, `--search`, `--line-range`, `--section`, `--status`, `--priority`,
-and `--sort`; output can be `text`, `table`, or `json`.
+`inbox` is the one read an iterating agent needs. It returns the gate `decision`,
+every unresolved thread (blocking first) with replies and document context,
+suggestions awaiting the human, and per file the template `violations`,
+`orphaned` anchors, `is_stale`, and `changes` since the reviewer's last verdict.
+`--since` flags news as `new_reply` / `new_thread`; it never hides a thread. A
+suggestion the human rejected lists as `suggestion_rejected` until it is closed.
+Done means `decision: approved` and no items.
 
-`get` accepts either a document plus `--thread`, or a thread citation copied
-directly from prose. `thread:c7f3k` means the citing document; use `--from` so
-same-document and relative-path citations resolve correctly.
+`get` is for looking something up. It accepts a document plus `--thread`, or a
+thread citation copied directly from prose. `thread:c7f3k` means the citing
+document; use `--from` so same-document and relative-path citations resolve
+correctly.
 
-### Batch writes
+`reply --resolve` closes the thread after the reply lands. For an agent it is
+refused in a template's `zone: human` section, and a refused resolve posts
+nothing: reply without it and leave the resolve to the human.
 
-`batch-add` validates the whole input before writing. Each item needs `author`,
+### Many at once
+
+`add --json` and `reply --json` validate the whole input before writing; an error
+names the failing item and nothing is applied. Each comment needs `author`,
 `text`, and exactly one of `anchor`, `section`, or `line`.
 
 ```json
@@ -165,7 +181,7 @@ same-document and relative-path citations resolve correctly.
     "blocking": true
   },
   {
-    "section": "Risks",
+    "section": "Doc Title > Risks",
     "author": "claude",
     "text": "Add the rollback risk",
     "type": "S"
@@ -174,12 +190,13 @@ same-document and relative-path citations resolve correctly.
 ```
 
 ```bash
-comments batch-add doc.md --json comments.json
-comments batch-reply doc.md --json replies.json
+comments add doc.md --json comments.json
+comments reply doc.md --json replies.json
 ```
 
-Batch replies use objects shaped like
-`{"thread":"c7f3k","author":"claude","text":"Applied"}`.
+Replies are objects shaped like
+`{"thread_id":"c7f3k","author":"claude","text":"Applied","resolve":true}`.
+Section paths are full paths from the document title, as `get` prints them.
 Pass `--json -` to either command to read from standard input.
 
 ## Edit suggestions
@@ -191,19 +208,17 @@ Suggestions target a line range, a whole section, or an anchor. With
 comments suggest doc.md --anchor "The old first line" \
   --author claude --text "Clarify the contract" \
   --original @old.txt --proposed @new.txt
-
-comments accept doc.md --suggestion c91ab --preview
-comments accept doc.md --suggestion c91ab
-comments reject doc.md --suggestion c82de
 ```
 
-`accept` is the content-writing path: it updates the markdown, marks the
-suggestion accepted, shifts affected positions, and refreshes the sidecar.
-`batch-accept` accepts pending suggestions by a JSON array of IDs, `--author`,
-or `--type`.
+A suggestion is a proposal for the human. There is no `accept` or `reject`
+command: in the TUI, `a` and `x` queue accept/reject decisions, and the queue is
+applied atomically when a verdict is submitted (discarded by `Ctrl+C`). Accepting
+updates the markdown, marks the suggestion accepted, shifts affected positions,
+and refreshes the sidecar. A rejected suggestion returns to the agent's inbox.
 
-In the TUI, `a` and `x` queue accept/reject decisions. The queue is applied
-atomically when a verdict is submitted and is discarded by `Ctrl+C`.
+A suggestion's line range travels with its anchor when the document is edited.
+If its target text is removed altogether it is orphaned and can no longer be
+applied, rather than replacing whatever now sits on those lines.
 
 ## Templates and review gates
 
@@ -222,7 +237,7 @@ Templates define required sections, ordering, word caps, minimum alternatives,
 review criteria, citation checks, and human-owned zones. Template identity
 resolves in this order: explicit flag, `comments.template` frontmatter, legacy
 sidecar, then a bundle collection with exactly one template. Agents post their
-own specific self-review callouts with `add` or `batch-add`; generic criterion
+own specific self-review callouts with `add` (`--json` for many); generic criterion
 threads are intentionally not generated.
 
 ### OKF bundles and agent context
@@ -305,19 +320,13 @@ explain its findings through threads; only `gate` and human plan signoff
 authorize implementation. CLI `validate`, MCP `comments_validate`, and both
 gate surfaces share the same path-aware template and citation validator.
 
-## Signoff and waiting
+## Waiting for the verdict
 
 ```bash
-# Non-interactive review record; decision derives from the gate.
-comments signoff doc.md --author eric --note "Ready after the cache fix"
+# Block until the human's verdict; prints it with their decision and note.
+comments watch doc.md --until signoff --since 2026-08-12T18:30:00Z
 
-# Wait for either a TUI verdict or a signoff command.
-comments watch doc.md --until signoff
-
-# Compatibility polling when a caller cannot keep a watcher open.
-comments check-review doc.md --since 2026-08-12T18:30:00Z --json
-
-# Agent attention view: new replies plus unresolved blockers.
+# Then read everything that needs attention.
 comments inbox docs/ --since 2026-08-12T18:30:00Z --json
 ```
 
@@ -325,10 +334,13 @@ comments inbox docs/ --since 2026-08-12T18:30:00Z --json
 `thread_resolved`, `suggestion_accepted`, `signoff`, and `gate_changed`.
 `--until` accepts a comma-separated event list.
 
-`watch --until signoff` is the normal agent handoff: it lets the human review in
-the TUI or browser without sending a separate nudge. `check-review` and the MCP
-request/check pair remain available for transports that need durable polling,
-but the review skill does not require that extra ceremony.
+`watch --until signoff` is the agent handoff: it lets the human review in the TUI
+or browser without sending a separate nudge. Pass `--since` with the time of the
+hand-off. A watch reports only what changes after its first look, so a human who
+reviews before the watch starts would otherwise be missed; with `--since`, a
+verdict recorded after that time is returned at once. Over MCP, `comments_watch`
+runs the same loop and returns `status: timeout` after `timeout_seconds` — call
+it again, with the same `since`.
 
 The gate is mechanical, not proof that a person reviewed the document. A clean
 document can have gate decision `approved` before its first verdict. Treat the

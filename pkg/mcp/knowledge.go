@@ -7,22 +7,6 @@ import (
 	"github.com/rcliao/comments/pkg/comment"
 )
 
-func (s *Server) registerKnowledgeTools() {
-	s.toolNames = append(s.toolNames, "comments_new", "comments_context", "comments_bundle_index")
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "comments_new",
-		Description: "Create a template-guided OKF concept with frontmatter, review sidecar, and refreshed indexes. If the project has no bundle config, initialize the standard docs/artifacts bundle automatically",
-	}, s.handleNewDocument)
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "comments_context",
-		Description: "Load an explainable OKF neighborhood for an agent role: explicit relations, links, backlinks, sources, review state, and optional bodies or threads. coverage-scout is draft-blind; implementation summarizes a plan ledger",
-	}, s.handleContext)
-	mcp.AddTool(s.mcp, &mcp.Tool{
-		Name:        "comments_bundle_index",
-		Description: "Regenerate the OKF root and collection indexes for the bundle discovered from a path",
-	}, s.handleBundleIndex)
-}
-
 func (s *Server) handleNewDocument(ctx context.Context, req *mcp.CallToolRequest, args NewDocumentRequest) (*mcp.CallToolResult, any, error) {
 	result, err := comment.CreateBundleDocument(comment.NewDocumentOptions{
 		Name: args.Name, Template: args.Template, Title: args.Title,
@@ -42,15 +26,4 @@ func (s *Server) handleContext(ctx context.Context, req *mcp.CallToolRequest, ar
 		return nil, nil, err
 	}
 	return jsonToolResult(result)
-}
-
-func (s *Server) handleBundleIndex(ctx context.Context, req *mcp.CallToolRequest, args BundleIndexRequest) (*mcp.CallToolResult, any, error) {
-	bundle, err := comment.FindBundle(args.Path)
-	if err != nil {
-		return nil, nil, err
-	}
-	if err := comment.WriteBundleIndexes(bundle); err != nil {
-		return nil, nil, err
-	}
-	return jsonToolResult(map[string]any{"bundle": bundle.Config.Bundle, "root": bundle.RootPath, "indexed": true})
 }

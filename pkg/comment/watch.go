@@ -1,9 +1,11 @@
 package comment
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
+	"time"
 )
 
 // WatchEvent is one observed change in a document's review state.
@@ -52,7 +54,8 @@ type WatchSnapshot struct {
 	reviews      int
 	lastDecision string // decision of newest review
 	lastAuthor   string // author of newest review
-	lastNote     string // note on newest review (signoff --note / TUI verdict note)
+	lastNote     string // note on newest review (the verdict note)
+	lastAt       time.Time
 	gate         string
 	valid        bool // false when the sidecar was missing/unreadable
 }
@@ -87,6 +90,7 @@ func TakeSnapshot(mdPath string) WatchSnapshot {
 		snap.lastDecision = latest.Decision
 		snap.lastAuthor = latest.Author
 		snap.lastNote = latest.Note
+		snap.lastAt = latest.Timestamp
 	}
 	doc := &DocumentWithComments{Threads: storage.Threads, Reviews: storage.Reviews}
 	snap.gate = EvaluateGate(doc, false).Decision
@@ -138,4 +142,75 @@ func DiffSnapshots(file string, old, new WatchSnapshot) []WatchEvent {
 		events = append(events, WatchEvent{Event: "gate_changed", File: file, Decision: new.gate})
 	}
 	return events
+}
+
+// WatchOptions tunes Watch.
+type WatchOptions struct {
+	Interval time.Duration // poll interval; 0 means one second
+	Until    string        // comma-separated event types that end the watch
+	// Since closes the hand-off race. A watch only reports what changes after
+	// its first look, so a human who reviews between "please review" and the
+	// agent's watch call would be missed and the agent would wait forever. With
+	// Since set to the hand-off time, a verdict already recorded after it is
+	// emitted on the first look.
+	Since time.Time
+}
+
+// Watch polls the sidecars under target and hands every review-state change to
+// emit, in order. It returns nil once an event matches opts.Until, when emit
+// reports stop, or when ctx ends. The sidecar is the shared event bus — every
+// writer (TUI, web, CLI, MCP) persists there — so one loop observes them all,
+// and both surfaces wait on a review the same way.
+func Watch(ctx context.Context, target string, opts WatchOptions, emit func(WatchEvent) (stop bool)) error {
+	interval := opts.Interval
+	if interval <= 0 {
+		interval = time.Second
+	}
+	type watched struct {
+		mtime time.Time
+		snap  WatchSnapshot
+	}
+	state := map[string]watched{}
+	for {
+		files, err := FindGateTargets(target)
+		if err != nil {
+			return err
+		}
+		for _, file := range files {
+			info, err := os.Stat(GetSidecarPath(file))
+			if err != nil {
+				// No sidecar yet is an EMPTY baseline, not an invisible file:
+				// otherwise the review that creates it is the first sighting,
+				// and its comments and verdict are swallowed as the baseline.
+				if _, seen := state[file]; !seen {
+					state[file] = watched{snap: WatchSnapshot{threads: map[string]threadState{}, valid: true}}
+				}
+				continue
+			}
+			prev, seen := state[file]
+			if seen && !info.ModTime().After(prev.mtime) {
+				continue
+			}
+			snap := TakeSnapshot(file)
+			var events []WatchEvent
+			switch {
+			case seen:
+				events = DiffSnapshots(file, prev.snap, snap)
+			case !opts.Since.IsZero() && snap.lastAt.After(opts.Since):
+				events = []WatchEvent{{Event: "signoff", File: file,
+					Author: snap.lastAuthor, Decision: snap.lastDecision, Note: snap.lastNote}}
+			}
+			for _, e := range events {
+				if emit(e) || MatchesUntil(e.Event, opts.Until) {
+					return nil
+				}
+			}
+			state[file] = watched{mtime: info.ModTime(), snap: snap}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(interval):
+		}
+	}
 }

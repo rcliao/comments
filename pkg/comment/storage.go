@@ -133,7 +133,7 @@ func FormatLoadReport(report *LoadReport) string {
 	if report.OrphanedCount > 0 {
 		fmt.Fprintf(&b, "Warning: %d comment(s) marked as orphaned due to document changes\n", report.OrphanedCount)
 		fmt.Fprintf(&b, "%s\n", FormatValidationIssues(report.Issues))
-		fmt.Fprintf(&b, "Use './comments list --status orphaned' to view orphaned comments\n")
+		fmt.Fprintf(&b, "Run 'comments inbox <file>' for the orphan count, then 'comments reanchor' to migrate them\n")
 		return b.String()
 	}
 	// Report non-orphaning issues (like section moves)

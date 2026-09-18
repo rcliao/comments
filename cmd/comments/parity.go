@@ -64,7 +64,7 @@ Expected format:
 		return failf("Error loading document: %v", err)
 	}
 
-	results := comment.ApplyMoves(doc, moves)
+	results := comment.ApplyMoves(doc, absOrSame(filename), moves, comment.ResolveActor(comment.StdoutIsTTY()))
 
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
 		return failf("Error saving document: %v", err)
@@ -99,11 +99,12 @@ Expected format:
 	return nil
 }
 
-// inboxCommand is the one-call attention view: unresolved threads with new
-// replies, plus every unresolved blocking thread.
+// inboxCommand is the agent's single read: the gate decision, every unresolved
+// thread, pending suggestions, violations, orphans and what changed.
 func inboxCommand(target string, args []string) error {
 	fs := flag.NewFlagSet("inbox", flag.ContinueOnError)
-	since := fs.String("since", "", "RFC3339 timestamp: only threads with replies newer than this")
+	since := fs.String("since", "", "RFC3339 time of your last pass: newer replies and threads are flagged new_reply / new_thread (never hides a thread)")
+	reviewer := fs.String("reviewer", "", "Whose last verdict to diff changed lines against (default: the latest reviewer)")
 	jsonOut := fs.Bool("json", false, "Output machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
 		return exitSilent(2)
@@ -122,36 +123,51 @@ func inboxCommand(target string, args []string) error {
 		}
 	}
 
-	items, err := comment.BuildInbox(absPath, sinceTime)
+	inbox, err := comment.BuildInbox(absPath, comment.InboxOptions{Since: sinceTime, Reviewer: *reviewer, ContextSize: 2})
 	if err != nil {
 		return failf("Error: %v", err)
 	}
 
 	if *jsonOut {
-		encoded, err := json.MarshalIndent(map[string]any{
-			"since": *since,
-			"count": len(items),
-			"items": items,
-		}, "", "  ")
+		encoded, err := json.MarshalIndent(inbox, "", "  ")
 		if err != nil {
 			return failf("Error encoding JSON: %v", err)
 		}
 		fmt.Println(string(encoded))
 		return nil
 	}
+	printInbox(target, absPath, inbox)
+	return nil
+}
 
-	if len(items) == 0 {
-		fmt.Printf("Inbox empty — nothing waiting in %s\n", target)
-		return nil
-	}
-
-	fmt.Printf("%d thread(s) need attention in %s\n\n", len(items), target)
-	for i, item := range items {
-		rel := item.File
-		if r, err := filepath.Rel(absPath, item.File); err == nil && !strings.HasPrefix(r, "..") {
-			rel = r
+// printInbox renders the inbox for a terminal: the verdict first, then what
+// stands between the document and approval.
+func printInbox(target, absPath string, inbox *comment.Inbox) {
+	rel := func(file string) string {
+		if r, err := filepath.Rel(absPath, file); err == nil && r != "." && !strings.HasPrefix(r, "..") {
+			return r
 		}
-		fmt.Printf("[%d] %s (line %d) • %s\n", i+1, rel, item.Thread.Line, strings.Join(item.Reasons, ", "))
+		return filepath.Base(file)
+	}
+	fmt.Printf("Decision: %s — %d open thread(s), %d pending suggestion(s) in %s\n", inbox.Decision, inbox.Count, len(inbox.PendingSuggestions), target)
+	for _, f := range inbox.Files {
+		for _, v := range f.Violations {
+			fmt.Printf("  ✗ %s [%s] %s\n", rel(f.File), v.Rule, v.Message)
+		}
+		if f.Orphaned > 0 {
+			fmt.Printf("  ⚠ %s: %d orphaned comment(s) — run comments reanchor\n", rel(f.File), f.Orphaned)
+		}
+		if c := f.Changes; c != nil && (c.Lines > 0 || c.Deleted > 0) {
+			fmt.Printf("  Δ %s: %d line(s), %d deletion(s) since @%s's last verdict\n", rel(f.File), c.Lines, c.Deleted, c.Reviewer)
+		}
+	}
+	if inbox.Count == 0 && len(inbox.PendingSuggestions) == 0 {
+		fmt.Println("\nInbox empty — nothing waiting.")
+		return
+	}
+	fmt.Println()
+	for i, item := range inbox.Items {
+		fmt.Printf("[%d] %s (line %d) • %s\n", i+1, rel(item.File), item.Thread.Line, strings.Join(item.Reasons, ", "))
 		// item.Thread is a CommentView, whose Text is already decorated
 		fmt.Printf("    %s: %s\n", item.Thread.Author, item.Thread.Text)
 		if item.LastReply != nil {
@@ -159,249 +175,9 @@ func inboxCommand(target string, args []string) error {
 		}
 		fmt.Printf("    Thread ID: %s\n\n", item.Thread.ID)
 	}
-	return nil
-}
-
-// statusCommand reports document-level review statistics.
-func statusCommand(filename string, args []string) error {
-	fs := flag.NewFlagSet("status", flag.ContinueOnError)
-	jsonOut := fs.Bool("json", false, "Output machine-readable JSON")
-	reviewer := fs.String("author", os.Getenv("USER"), "Reviewer whose last-verdict baseline to diff against (defaults to $USER)")
-	if err := fs.Parse(args); err != nil {
-		return exitSilent(2)
+	for _, sg := range inbox.PendingSuggestions {
+		fmt.Printf("[suggestion] line %d • awaiting the human's decision in comments view\n    %s: %s\n    Suggestion ID: %s\n\n", sg.Line, sg.Author, sg.Text, sg.ID)
 	}
-
-	absPath, err := filepath.Abs(filename)
-	if err != nil {
-		return failf("Error: invalid path: %v", err)
-	}
-	doc, report, err := comment.LoadDocument(absPath)
-	if err != nil {
-		return failf("Error loading document: %v", err)
-	}
-
-	var resolved, unresolved, blocking int
-	for _, t := range doc.Threads {
-		if t.Resolved {
-			resolved++
-			continue
-		}
-		unresolved++
-		if t.Blocking {
-			blocking++
-		}
-	}
-
-	all := doc.GetAllComments()
-	var pendingSuggestions, orphaned int
-	for _, c := range all {
-		if c.Status == "orphaned" {
-			orphaned++
-		}
-		if c.IsSuggestion && c.Accepted == nil {
-			pendingSuggestions++
-		}
-	}
-
-	status := map[string]any{
-		"filepath":            absPath,
-		"total_threads":       len(doc.Threads),
-		"total_comments":      len(all),
-		"resolved_threads":    resolved,
-		"unresolved_threads":  unresolved,
-		"blocking_threads":    blocking,
-		"pending_suggestions": pendingSuggestions,
-		"orphaned_comments":   orphaned,
-		"is_stale":            report.Stale,
-		"template":            doc.Template,
-		"document_hash":       doc.DocumentHash,
-	}
-	// What moved since this reviewer's last verdict: present only when a
-	// baseline exists, so "no key" means "never signed off", not "unchanged"
-	changes, hasBaseline := comment.ChangedSince(absPath, *reviewer, doc.Content)
-	if hasBaseline {
-		sections := changes.Sections
-		if sections == nil {
-			sections = []string{}
-		}
-		status["changed_lines"] = changes.Count()
-		status["deletions"] = changes.Deletions()
-		status["changed_sections"] = sections
-	}
-
-	if *jsonOut {
-		encoded, err := json.MarshalIndent(status, "", "  ")
-		if err != nil {
-			return failf("Error encoding JSON: %v", err)
-		}
-		fmt.Println(string(encoded))
-		return nil
-	}
-
-	fmt.Printf("Status: %s\n\n", filename)
-	fmt.Printf("  Threads         %d total — %d unresolved (%d blocking), %d resolved\n",
-		len(doc.Threads), unresolved, blocking, resolved)
-	fmt.Printf("  Comments        %d including replies\n", len(all))
-	fmt.Printf("  Suggestions     %d pending\n", pendingSuggestions)
-	fmt.Printf("  Orphaned        %d\n", orphaned)
-	if doc.Template != "" {
-		fmt.Printf("  Template        %s\n", doc.Template)
-	}
-	if report.Stale {
-		fmt.Printf("  ⚠ Document changed since the sidecar was written — anchors were revalidated\n")
-	}
-	if hasBaseline {
-		if changes.Count() == 0 && changes.Deletions() == 0 {
-			fmt.Printf("  Changed         nothing since @%s's last verdict\n", *reviewer)
-		} else {
-			fmt.Printf("  Changed         %d line(s), %d deletion(s) since @%s's last verdict, in %d section(s):\n", changes.Count(), changes.Deletions(), *reviewer, len(changes.Sections))
-			for _, sec := range changes.Sections {
-				fmt.Printf("                    - %s\n", sec)
-			}
-		}
-	}
-	return nil
-}
-
-// checkReviewCommand polls for a signoff landed after --since. It is the
-// non-blocking counterpart to `watch --until signoff`, and survives restarts
-// because the handle is just a timestamp.
-func checkReviewCommand(filename string, args []string) error {
-	fs := flag.NewFlagSet("check-review", flag.ContinueOnError)
-	since := fs.String("since", "", "RFC3339 timestamp to check for reviews after (required)")
-	strict := fs.Bool("strict", false, "Fail on any unresolved comment or pending suggestion")
-	jsonOut := fs.Bool("json", false, "Output machine-readable JSON")
-	if err := fs.Parse(args); err != nil {
-		return exitSilent(2)
-	}
-	if *since == "" {
-		return failf("Error: --since is required (RFC3339)\n" +
-			"Usage: comments check-review <file> --since 2026-08-08T09:00:00Z")
-	}
-	sinceTime, err := time.Parse(time.RFC3339, *since)
-	if err != nil {
-		return failf("Error: invalid --since timestamp (want RFC3339): %v", err)
-	}
-
-	absPath, err := filepath.Abs(filename)
-	if err != nil {
-		return failf("Error: invalid path: %v", err)
-	}
-	if _, err := os.Stat(absPath); err != nil {
-		return failf("Error: document not found: %v", err)
-	}
-
-	review := comment.LatestReviewSince(absPath, sinceTime)
-	if review == nil {
-		if *jsonOut {
-			encoded, _ := json.MarshalIndent(map[string]any{
-				"status": "pending", "since": *since,
-			}, "", "  ")
-			fmt.Println(string(encoded))
-		} else {
-			fmt.Printf("Pending — no signoff on %s since %s\n", filename, *since)
-		}
-		// Pending is not a failure: exit 0 so a polling loop can distinguish
-		// "no review yet" from the gate's 10 (changes requested).
-		return nil
-	}
-
-	doc, err := loadDocument(filename)
-	if err != nil {
-		return failf("Error loading document: %v", err)
-	}
-	result := comment.EvaluateGate(doc, *strict)
-
-	if *jsonOut {
-		encoded, err := json.MarshalIndent(map[string]any{
-			"status":        "review_completed",
-			"review":        review,
-			"gate_decision": result.Decision,
-		}, "", "  ")
-		if err != nil {
-			return failf("Error encoding JSON: %v", err)
-		}
-		fmt.Println(string(encoded))
-	} else {
-		fmt.Printf("Review completed by @%s: %s\n", review.Author, review.Decision)
-		if review.Note != "" {
-			fmt.Printf("  Note: %s\n", review.Note)
-		}
-		fmt.Printf("  Gate: %s\n", result.Decision)
-	}
-	if result.Decision != comment.DecisionApproved {
-		return exitSilent(comment.GateExitCode)
-	}
-	return nil
-}
-
-// batchAcceptCommand accepts several suggestions in one call. The usage text
-// has advertised these flags since before the command was wired up.
-func batchAcceptCommand(filename string, args []string) error {
-	fs := flag.NewFlagSet("batch-accept", flag.ContinueOnError)
-	jsonInput := fs.String("json", "", "JSON file path with suggestion IDs (use '-' for stdin)")
-	author := fs.String("author", "", "Accept all pending suggestions from this author")
-	typeFilter := fs.String("type", "", "Accept all pending suggestions of this type")
-	if err := fs.Parse(args); err != nil {
-		return exitSilent(2)
-	}
-	if *jsonInput == "" && *author == "" && *typeFilter == "" {
-		return failf("Error: one of --json, --author or --type is required\n" +
-			"Usage: comments batch-accept <file> --author claude\n" +
-			"       comments batch-accept <file> --json ids.json")
-	}
-
-	doc, err := loadDocument(filename)
-	if err != nil {
-		return failf("Error loading document: %v", err)
-	}
-
-	var ids []string
-	if *jsonInput != "" {
-		input, err := readJSONInput(*jsonInput)
-		if err != nil {
-			return failf("%v", err)
-		}
-		if err := json.Unmarshal(input, &ids); err != nil {
-			return failf("Error parsing JSON: %v\nExpected format: [\"c7f3k\", \"c9b21\"]", err)
-		}
-	} else {
-		ids = comment.SelectPendingSuggestions(doc, *author, *typeFilter)
-	}
-
-	if len(ids) == 0 {
-		fmt.Println("No matching pending suggestions.")
-		return nil
-	}
-
-	accepted, skipped := 0, 0
-	for _, r := range comment.AcceptSuggestions(doc, ids) {
-		if r.Accepted {
-			fmt.Printf("  ✓ %s accepted\n", r.ID)
-			accepted++
-		} else {
-			fmt.Printf("  ✗ %s: %s\n", r.ID, r.Error)
-			skipped++
-		}
-	}
-
-	// Accept is a content-changing path, so the markdown is written too
-	if err := comment.SaveDocumentContent(filename, doc); err != nil {
-		return failf("Error saving document: %v", err)
-	}
-	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		return failf("Error saving document: %v", err)
-	}
-
-	fmt.Printf("Accepted %d suggestion(s)", accepted)
-	if skipped > 0 {
-		fmt.Printf(", skipped %d", skipped)
-	}
-	fmt.Printf(" in %s\n", filename)
-	if skipped > 0 {
-		return exitSilent(1)
-	}
-	return nil
 }
 
 // readJSONInput reads a JSON payload from a file path or stdin ("-").

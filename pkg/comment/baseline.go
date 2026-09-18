@@ -4,7 +4,7 @@ package comment
 //
 // Thread-level round memory (NEW badges) already tells a reviewer which
 // CONVERSATIONS moved since their pass; nothing told them which DOCUMENT
-// LINES moved. Both signoff writers (TUI verdict, `comments signoff`) store
+// LINES moved. Both verdict writers (the TUI and the web review, through RecordVerdict) store
 // the reviewed content here, and readers diff the current document against
 // it to mark changed lines and name the sections they fall in.
 //

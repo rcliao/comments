@@ -13,55 +13,87 @@ a time** — never batch-dismiss feedback.
 ## Prerequisites
 
 The `comments` binary must be on PATH, or the `comments` MCP server connected
-(`comments serve-mcp`). Every MCP tool has a CLI equivalent backed by the same
-code, so the two are genuinely interchangeable; examples below show CLI.
+(`comments serve-mcp`). Every MCP tool is the twin of a CLI command of the same
+name (`comments_inbox` = `comments inbox`), backed by the same code and
+returning the same JSON; a test enforces the pairing. Examples below show CLI.
 
-Threads in a template's `zone: human` sections cannot be resolved by you on
-either surface — the CLI detects an agent caller by the absence of a TTY. Reply
-with your input and leave the resolve to the human.
+There is ONE command per purpose. Do not look for a second way:
+
+| You want to | Use |
+|---|---|
+| create a doc under a template | `new`, then `context` (it carries the writing brief) |
+| check your draft | `validate` (structure), `analyze` (coverage, advisory) |
+| annotate | `add` — one comment by flags, many with `--json` |
+| wait for the human | `watch --until signoff` |
+| see what needs you | `inbox` — the only read you need while iterating |
+| look up a specific or resolved thread | `get` |
+| respond | `reply`, with `--resolve` once a fix is applied and explained |
+| propose an edit | `suggest` |
+| fix anchors after your edits | `reanchor` |
+
+**Decisions are the human's, and you have no command for them.** Accepting or
+rejecting a suggestion and giving the verdict happen only in `comments view`
+(or `comments serve`). Threads in a template's `zone: human` sections cannot be
+resolved by you on either surface — the CLI detects an agent caller by the
+absence of a TTY — and a refused `--resolve` posts nothing, so reply without it
+and leave the resolve to the human. For the same reason `reanchor` will not move
+a thread out of a human zone. Never set `COMMENTS_ACTOR`.
 
 ## The loop
 
-1. **Check the gate** to see what needs attention:
+1. **Read your inbox** — the one call that says what needs attention:
 
    ```bash
-   comments gate <doc.md> --json
+   comments inbox <doc.md> --json
    ```
 
-   Exit code 0 means approved (nothing blocking); exit code 10 means changes are
-   requested. The JSON lists `blocking`, `non_blocking`, and
-   `pending_suggestions`, each with document context.
+   It returns the gate `decision`, every unresolved thread in `items`
+   (blocking first, each with its replies, `last_reply` and document context),
+   `pending_suggestions` awaiting the human, and per file the template
+   `violations`, `orphaned` anchors and `changes` since the reviewer's last
+   verdict. You are done when `decision` is `approved` AND `items` is empty.
+   Pass `--since <RFC3339 of your last pass>` to have news flagged `new_reply` /
+   `new_thread`; it never hides a thread. A suggestion the human rejected comes
+   back as `suggestion_rejected`: rework it as a new suggestion or accept the
+   no, then close it with `reply --resolve` (allowed even in a human zone — the
+   human already decided).
 
    For an OKF bundle document, first run `comments context <doc.md> --for review
    --include-threads` (MCP: `comments_context`). Read the explicit related
    concepts and backlinks it returns; do not search the whole docs tree by
    default.
 
-2. **Process each unresolved comment individually**, blocking comments first,
-   then non-blocking. For each comment, choose exactly one action:
+2. **Process each item individually**, in the order given (blocking first).
+   For each thread, choose exactly one action:
 
    - **Answer it**: if it is a question, reply with the answer:
      `comments reply <doc.md> --thread <id> --author <you> --text "..."`
-     Do NOT resolve a question thread unless the answer fully settles it —
+     Do NOT add `--resolve` to a question unless the answer fully settles it —
      leave resolution to the human when in doubt.
-   - **Apply it**: if the fix is unambiguous, edit the document, then reply
-     explaining what changed and resolve:
-     `comments resolve <doc.md> --thread <id>`
+   - **Apply it**: if the fix is unambiguous, edit the document, then say what
+     changed and close it in one call:
+     `comments reply <doc.md> --thread <id> --author <you> --text "Fixed: ..." --resolve`
    - **Propose it**: if the fix is a judgment call, create a suggestion instead
      of editing directly, and reply linking it:
-     `comments suggest <doc.md> --start-line N --end-line M --author <you> --text "..." --original "..." --proposed "..."`
-     The human accepts or rejects it; do not accept your own suggestions.
+     `comments suggest <doc.md> --anchor "first target line" --author <you> --text "..." --original "..." --proposed "..."`
+     The human accepts or rejects it in `comments view`; you cannot.
    - **Push back**: if you believe the comment is mistaken, reply with your
      reasoning and leave the thread unresolved for the human to decide.
 
-   Never mark a blocking comment resolved without either applying the fix or
-   getting human agreement in the thread.
+   Several replies at once: `comments reply <doc.md> --json replies.json` with
+   `[{"thread_id","author","text","resolve"}]`. It is atomic — one refused
+   resolve applies nothing — so keep human-zone threads out of a resolving batch.
 
-3. **Re-check the gate** after processing all comments (`comments gate <doc.md>`).
+   Never resolve a blocking comment without either applying the fix or getting
+   human agreement in the thread.
+
+3. **Re-read the inbox** after processing (`comments inbox <doc.md>`). Scripts
+   and CI use `comments gate <doc.md>` for the same decision as an exit code
+   (0 approved, 10 changes requested).
 
 4. **Hand off and listen for another human pass** when you have addressed
    everything or need decisions. Ask the human for **one** command — the TUI
-   review ends in a signoff, so do not also ask them to run `comments signoff`:
+   review ends in the verdict, and it is the only way to give one:
 
    ```bash
    comments view <doc.md>     # review, then q -> a/c (n adds a note for you)
@@ -70,23 +102,30 @@ with your input and leave the resolve to the human.
    Then wait on the signoff instead of asking them to tell you they are done:
 
    ```bash
-   comments watch <doc.md> --until signoff
+   comments watch <doc.md> --until signoff --since <RFC3339 time you handed off>
    # {"event":"signoff","file":"doc.md","author":"rcliao",
    #  "decision":"changes_requested","note":"pin the prompt, don't hash it"}
    ```
 
+   Always pass `--since` (MCP: `since`): a watch reports only what changes
+   after its first look, so a human who reviews between your message and your
+   watch call would otherwise be missed and you would wait on a review that
+   already happened. With `--since`, a verdict recorded after that time is
+   returned at once.
+
    `watch` exits 0 on the first matching event, so it is a blocking wait you can
    run directly; the event carries the decision and the reviewer's note. It sees
-   every writer of the sidecar, so it fires whether the human signed off from
-   the TUI verdict or from `comments signoff`. Point it at a directory to wait on
+   every writer of the sidecar, so it fires whether the human reviewed in the
+   TUI or in the browser (`comments serve`). Over MCP, `comments_watch` returns
+   the same events and comes back with `status: timeout` after
+   `timeout_seconds` — call it again to keep waiting. Point it at a directory to wait on
    a whole spec folder, and `--until signoff,gate_changed` to also wake on gate
    flips.
 
 5. **When the signoff arrives: inbox FIRST, decision second.** Humans answer
    threads and then pick whichever verdict is nearest — their replies are the
    payload, the decision is the envelope. Before acting on any decision, run
-   `comments_inbox` (or read replies since your last pass) and process every
-   reply. Then interpret the decision:
+   `comments inbox` and process every item. Then interpret the decision:
 
    - `commented` — a reply-pass: the human answered your threads and handed
      the turn back without judging the doc. Process replies, iterate,
@@ -123,8 +162,9 @@ small changes, or a project template):
    Answer a "what would it take" clause as what is currently ABSENT; designing
    past it is the plan phase's job.
 
-1. **Before writing**, read the template as your writing brief:
-   `comments template show <name>` (CLI) or `comments_get_template` (MCP).
+1. **Before writing**, read your writing brief: it is the `brief` in
+   `comments context <doc.md> --for drafting` (sections, word budgets, zones,
+   review criteria, reading path) — the same call that loads related concepts.
    Respect section order, word budgets, and use `[NEEDS CLARIFICATION: ...]`
    markers where you would otherwise guess at the human's intent — but stay
    under the template's marker cap: spend markers on the few questions that
@@ -148,8 +188,9 @@ small changes, or a project template):
 3. **Self-review, then post SPECIFIC callouts** — never dump the template's
    generic criteria on the human. For each template criterion, judge your own
    draft against it and post a comment about what YOU actually did, anchored at
-   the exact line it concerns (batch-add is ideal; use `anchor` — quote the
-   target line — instead of grepping for line numbers):
+   the exact line it concerns (`comments add <doc.md> --json` posts them all in
+   one atomic call; use `anchor` — quote the target line — instead of grepping
+   for line numbers):
 
    - Weakest reasoning: "I rejected option B mainly on argument X — my least
      confident step, please check" (type Q, blocking)
@@ -178,22 +219,20 @@ small changes, or a project template):
      opening it puts the relevant detail beside it as the backdrop.
    - High-priority is a walkthrough slot, not emphasis — if six threads are
      high, none are.
-4. **Annotate ambiguity markers yourself** with the existing `comments add`
-   or `comments_batch_add` surface. Each marker gets a specific anchored,
+4. **Annotate ambiguity markers yourself** with `comments add`. Each marker gets a specific anchored,
    blocking Q comment that states the decision needed. Do not generate generic
    template-criterion threads. Template identity belongs in
    `comments.template` frontmatter (or is inferred from an unambiguous bundle
    collection); comments remain discussion, not configuration.
 5. Request review by asking the human to use `comments view <doc.md>` (the
    verdict on exit records the signoff), then listen without requiring a nudge:
-   `comments watch <doc.md> --until signoff`. While waiting, do not modify the
-   document. On a re-request, first call `comments_status` with the
-   reviewer's name and quote its `changed_since.changed_sections` in your
-   message — the reviewer sees the same lines tinted in the TUI, and naming
+   `comments watch <doc.md> --until signoff --since <hand-off time>`. While waiting, do not modify the
+   document. On a re-request, read `files[].changes.changed_sections` from
+   `comments inbox` and quote it in your message — the reviewer sees the same lines tinted in the TUI, and naming
    the sections you touched is what lets them skip the rest.
 
 Zone rule: threads in sections the template marks `zone: human` cannot be
-resolved by you over MCP — reply with your input and leave resolution to the
+resolved by you on either surface — reply with your input and leave resolution to the
 human. Address agent-authored annotations the same way as human threads: update
 the document or reply with the decision, but leave human-zone resolution to the
 human.
@@ -264,12 +303,14 @@ comments reanchor doc.md --json moves.json   # batch
 ```json
 {"filepath": "doc.md", "moves": [
   {"comment_id": "c7f3k", "line": 42},
-  {"comment_id": "c9b21", "section": "Proposed Design"}
+  {"comment_id": "c9b21", "section": "Doc Title > Proposed Design"}
 ]}
 ```
 
-Check your work with `comments status <doc>` — a non-zero orphan count means
-an anchor you displaced still needs migrating.
+Section paths are full paths from the document title, as `comments get` prints
+them. Check your work with `comments inbox <doc>` — a non-zero `orphaned` count
+means an anchor you displaced still needs migrating. A suggestion the human
+accepts rewrites its lines, so re-anchor sibling threads on those lines too.
 
 Only list comments whose target text you moved, rewrote, or deleted-and-replaced;
 untouched comments keep their anchors. The load-time re-anchor cascade is a
@@ -400,7 +441,7 @@ it.
    searches to subagents; when the human corrects you, verify the correction
    in code before building on it — do not just accept it.
 
-1. **Research** (`comments template show research` is your brief): produce a
+1. **Research** (`comments context <doc> --for drafting` carries your brief): produce a
    documentarian findings doc — discrete findings (F1, F2, ...) each carrying
    file:line evidence, a Code References section a plan can cite, and every
    open question in Open Questions (zone: human). Open questions are
@@ -412,9 +453,9 @@ it.
    your own findings answer the disposition question with "nothing worth
    doing": then stop and hand the research to the human instead of
    manufacturing a plan. In gated mode, wait on the signoff, don't poll:
-   `comments watch <doc> --until signoff` blocks until the review lands
+   `comments watch <doc> --until signoff --since <hand-off time>` blocks until the review lands
    (run it in the background in harnesses that support it).
-2. **Plan** (`comments template show plan`): decisions only — the marker cap
+2. **Plan** (brief in `comments context`): decisions only — the marker cap
    is 1 because open questions belong to the research phase. Cite the research
    doc by `file:line` (e.g. `research-foo.md:23`) for every Current State and
    design claim: the human reviews the plan in the TUI and peeks each citation
@@ -430,7 +471,7 @@ it.
 Your context wrote the doc, so it finds the doc's prose convincing — that is
 the failure mode, not a safeguard. After your self-review callouts, spawn a
 reviewer with fresh context and a strict input allowlist: the doc path, its
-template criteria (`comments template show <name>`), and — for a plan — the
+template criteria (the `brief` from `comments context <doc> --for review`), and — for a plan — the
 research doc path. Nothing else; a reviewer that inherits your drafting
 context is theater, and if you cannot spawn subagents, a fresh session given
 the same allowlist is an equally valid reviewer.
@@ -439,10 +480,10 @@ The reviewer posts findings as comments under its own author (blocking only
 for what would mislead implementation), including the coverage question you
 structurally cannot ask yourself: which research findings does the plan
 silently drop, and which claims cite nothing. Process its findings through
-the normal comment loop (apply / propose / push back), then re-run
-`comments gate`:
+the normal comment loop (apply / propose / push back), then re-read
+`comments inbox`:
 
-- **Terminate on gate green** — a clean doc converges in one pass; this is
+- **Terminate on `decision: approved` with no items** — a clean doc converges in one pass; this is
   not a fixed number of rounds.
 - **Cap at 2 reviewer passes** (provisional default, tuned by dogfood
   metrics); leave survivors open for the human rather than spinning.

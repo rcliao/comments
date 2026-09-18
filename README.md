@@ -12,7 +12,7 @@ Google-Docs-style review for markdown, locally. Inline comment threads and edit 
 
 - **Inline comments & threads**: anchored to lines or markdown sections, with nested replies and content-based re-anchoring when the doc changes
 - **Edit suggestions**: multi-line proposals with preview and accept/reject; queued decisions apply atomically at review verdict
-- **Review gate**: `comments gate` exits 0 (approved) or 10 (changes requested); `signoff` records the human pass agents block on
+- **Review gate**: `comments gate` exits 0 (approved) or 10 (changes requested); the human's verdict in `comments view` is what waiting agents block on
 - **Doc templates as guardrails**: required sections, word caps, forced alternatives, human-owned zones, reading-depth `tier` labels (a 1-minute to full-read path over the same sections), `[NEEDS CLARIFICATION:]` marker caps — built-ins: `design-doc`, `mini`, `research`, `plan`, `adr`, `rfc`, `as-built`
 - **OKF document bundles by default**: the first `comments new` initializes a standard `docs/artifacts` bundle, then creates frontmatter-rich concepts in template-guided folders; `comments context` exposes explicit relations, backlinks, sources, and review state without a whole-tree search
 - **RPI flow**: research docs with file:line evidence → plans citing the research → reviewed in the TUI where `f` peeks any citation and Enter opens `$EDITOR` there
@@ -20,7 +20,7 @@ Google-Docs-style review for markdown, locally. Inline comment threads and edit 
 - **Autonomous research convergence**: draft-blind coverage scout + evidence verifier add missing `Qn` questions until clean; `comments analyze plan.md --against research.md` proves the handoff before review
 - **Watch**: `comments watch --until signoff` streams NDJSON review events so agents can wait on humans
 - **Browser review**: `comments serve` opens a rendered document and line-accurate source view beside live threads, suggestions, and verdict controls
-- **MCP server**: 23 tools over stdio for agent integration; batch operations; `@filename` text input
+- **MCP server**: the agent commands as tools, one per purpose and each the twin of a CLI command (`new`, `context`, `validate`, `analyze`, `add`, `watch`, `inbox`, `get`, `reply`, `suggest`, `reanchor`); human decisions are deliberately not tools; `@filename` text input
 - **Surface parity**: every MCP tool has a CLI equivalent backed by the same code — see `docs/ARCHITECTURE.md` decision 8
 
 ## Why OKF and Comments fit together
@@ -69,7 +69,7 @@ comments view docs/artifacts/designs/cache-policy.md   # q -> a/c/r records a ve
 comments serve docs/artifacts/designs/cache-policy.md  # browser alternative
 ```
 
-After the signoff event, the agent reads `comments inbox docs/artifacts/designs/cache-policy.md` first, fixes or replies to each thread, and checks `comments gate` (exit 0 = approved, 10 = changes requested). `comments signoff` is the non-interactive verdict writer for CI or scripts; a TUI/browser verdict already records the signoff.
+After the signoff event, the agent reads `comments inbox docs/artifacts/designs/cache-policy.md` first, fixes or replies to each thread, and checks `comments gate` (exit 0 = approved, 10 = changes requested). The verdict is recorded only by the human, in `comments view` or `comments serve` — no command writes one, so an agent cannot approve its own document.
 
 For Research → Plan, use the same slug and preserve lineage:
 

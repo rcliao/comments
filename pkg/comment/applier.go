@@ -12,6 +12,10 @@ func ApplySuggestion(content string, suggestion *Comment) (string, error) {
 		return "", fmt.Errorf("comment is not a suggestion")
 	}
 
+	if suggestion.IsOrphaned() {
+		return "", fmt.Errorf("suggestion %s can no longer be applied: %s", suggestion.ID, suggestion.OrphanedReason)
+	}
+
 	if suggestion.StartLine < 1 {
 		return "", fmt.Errorf("invalid start line: %d", suggestion.StartLine)
 	}

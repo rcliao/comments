@@ -30,30 +30,6 @@ func (s *Server) handleValidate(ctx context.Context, req *mcp.CallToolRequest, a
 			return nil, err
 		}
 
-		violations := comment.ValidateManagedDocument(doc.Content, absPath, t)
-		return map[string]any{
-			"template":      t.Name,
-			"conforms":      len(violations) == 0,
-			"violations":    violations,
-			"section_words": comment.SectionWordReport(doc.Content, t),
-		}, nil
+		return comment.BuildValidationReport(doc.Content, absPath, t), nil
 	})
-}
-
-// handleGetTemplate returns a template definition (the agent's writing brief),
-// or lists available templates when no name is given.
-func (s *Server) handleGetTemplate(ctx context.Context, req *mcp.CallToolRequest, args GetTemplateRequest) (*mcp.CallToolResult, any, error) {
-	if args.Name == "" {
-		templates, err := comment.ListTemplates()
-		if err != nil {
-			return nil, nil, err
-		}
-		return jsonToolResult(map[string]any{"templates": templates})
-	}
-
-	t, err := comment.LoadTemplate(args.Name)
-	if err != nil {
-		return nil, nil, err
-	}
-	return jsonToolResult(t)
 }

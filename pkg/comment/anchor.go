@@ -147,14 +147,27 @@ func ReanchorComment(c *Comment, lines []string, structure *markdown.DocumentStr
 			if r.line != oldLine {
 				c.OriginalLine = oldLine
 				c.Line = r.line
+				// A suggestion's range travels with its anchor. Left behind, an
+				// accept after any edit above it would replace the wrong lines —
+				// silently, whenever no original text was given to verify against.
+				// Only a text match moves it: the section fallback below re-locates
+				// the comment to a heading, which says nothing about the range.
+				if c.IsSuggestion && c.StartLine > 0 {
+					delta := r.line - oldLine
+					c.StartLine += delta
+					c.EndLine += delta
+				}
 				return true, ""
 			}
 			return false, ""
 		}
 	}
 
-	// Step 4: section-path fallback
-	if c.SectionPath != "" {
+	// Step 4: section-path fallback. Not for suggestions: a comment about a
+	// section still means something at its heading, but a suggestion is a
+	// replacement for specific lines. Once that text is gone there is nothing
+	// to replace, so it orphans (step 5) and ApplySuggestion refuses it.
+	if c.SectionPath != "" && !c.IsSuggestion {
 		if section := structure.FindSection(c.SectionPath); section != nil {
 			c.AnchorConfidence = ConfidenceSectionLevel
 			if section.StartLine != oldLine {

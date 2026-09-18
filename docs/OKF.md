@@ -134,7 +134,7 @@ comments context docs/artifacts/plans/cache-policy.md --for implementation
 
 For work spanning days, a phase may carry an H4 `Status` list. Each dated top-level entry uses a `pending`, `active`, `blocked`, or `done` state and nests `Summary`, `Evidence`, and `Next` fields; the latest entry wins. Status history is capped separately at 20 entries and 60 words per entry, and does not consume the plan's normal document or phase word budget. New plan signoffs hash both the full document and stable intent, so status-only edits preserve approval while scope or success-criteria edits make it stale.
 
-The agent validates the artifact and posts specific anchored doubts with `comments add`, `comments batch-add`, or `comments suggest`. There is no seeding step and no separate annotation command.
+The agent validates the artifact and posts specific anchored doubts with `comments add` (`--json` for many) or `comments suggest`. There is no seeding step and no separate annotation command.
 
 For handoff, the human opens `comments view <doc>` or `comments serve <doc>`. The agent can remain active with:
 

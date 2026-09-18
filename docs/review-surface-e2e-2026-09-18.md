@@ -9,7 +9,7 @@ CLI and through a live `comments serve-mcp` process, on twin copies of one
 workspaces, because humans never use MCP. Binary: branch
 `feat/design-doc-pitch-tiers`, built from the working tree.
 
-Driver and raw results (session scratchpad, not in the repo):
+Driver at the time (session scratchpad; its successor is `scripts/eval/surface-parity/drive.py`):
 `scratchpad/e2e/drive.py`, `scratchpad/e2e-run/results.json`.
 
 ## Workflows, ranked by how much breaks if they fail
@@ -148,3 +148,40 @@ which item failed (the CLI says "Error in comment 1").
    runs this driver's comparison in Go, so shapes cannot drift again.
 4. Decide the wait step: one mechanism on both surfaces (finding 3).
 5. Only then trim tool descriptions or remove tools.
+
+## Addendum: a second authority hole
+
+Found after the review above, with the same method. With no TTY and no override:
+
+```
+comments signoff doc.md --author eric --decision approved --note "agent pretending to be eric"
+✓ Review recorded: approved by @eric
+```
+
+The record is what every waiting agent keys on, so an agent could approve its
+own document under the human's name.
+
+## Resolution (plugin 3.0.0)
+
+The surface was redesigned around one rule: one command per purpose, the same
+on both surfaces. See "CLI and MCP surfaces" in `docs/ARCHITECTURE.md`.
+
+| Finding | Resolution |
+|---|---|
+| 1. Agent accepts its own suggestion into a human zone | `accept`, `reject`, `batch-accept` removed as commands and tools. Decisions happen only in `view` / `serve`. |
+| Addendum. Agent records a verdict as the human | `signoff` removed. `view` / `serve` write the verdict through `comment.RecordVerdict`; tests call it directly. |
+| 2. `list` defaults differ | `list` folded into `get`; one core `ListThreads`, resolved included unless `--unresolved`. |
+| 3. Two different wait tools | One `comment.Watch` loop behind `watch` and `comments_watch`; `request_review` / `check-review` removed. |
+| 4. Same command, different JSON | Every result is one `pkg/comment` type marshalled by both adapters. `status` and `gate`-as-a-read folded into `inbox`. |
+| 5. MCP brief bigger and poorer | One `TemplateBrief` with one text renderer; agents get it inside `context`. |
+| 6. `--section` needs the full path | Unchanged; documented in the skill and the help text. |
+| 7. Accept leaves sibling anchors at section level | Skill now says to re-anchor after an accept. |
+
+Found while building the parity check, and fixed: a suggestion made over MCP
+skipped section metadata and so re-located differently from a CLI one; and
+re-anchoring moved a suggestion's `Line` but not its `StartLine`/`EndLine`, so
+an accept after any edit above it replaced the wrong lines — silently when no
+original text was given (`TestSuggestionRangeTravelsWithItsAnchor`).
+
+The driver now lives at `scripts/eval/surface-parity/drive.py`, asserts instead
+of reporting, and runs from `scripts/smoke-test.sh` in CI.
