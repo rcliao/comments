@@ -182,7 +182,7 @@ TERMINAL will not match source — use the raw file text. Everything else
 
 `q` opens the verdict dialog; `a`/`c`/`r` apply the queued suggestion decisions
 and write a `ReviewRecord` through `comment.AddReviewRecord` — the SAME record
-`comments signoff` writes, note included. `r` records decision `commented`
+the web review writes (both call `comment.RecordVerdict`), note included. `r` records decision `commented`
 (reply-pass: answered threads, turn handed back, gate untouched, exit 0).
 `recordVerdict` calls `refreshDocFromDisk()` FIRST — a session open while an
 agent edits must not sign off from stale memory — and only the suggestion

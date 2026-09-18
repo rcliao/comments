@@ -4,44 +4,17 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/rcliao/comments/pkg/comment"
 )
 
 // gateCommentJSON is the canonical comment view plus gate-specific document
 // context lines.
-type gateCommentJSON struct {
-	comment.CommentView
-	Context []string `json:"context,omitempty"`
-}
-
-type gateFileJSON struct {
-	File               string                `json:"file"`
-	Decision           string                `json:"decision"`
-	Blocking           []gateCommentJSON     `json:"blocking"`
-	NonBlocking        []gateCommentJSON     `json:"non_blocking"`
-	PendingSuggestions []gateCommentJSON     `json:"pending_suggestions"`
-	Template           string                `json:"template,omitempty"`
-	Violations         []comment.Violation   `json:"violations,omitempty"`
-	LastReview         *comment.ReviewRecord `json:"last_review,omitempty"`
-	// StructureUnchecked marks a commented doc with no template recorded: the
-	// gate checked comment state only, so a silent pass is not a structural pass.
-	StructureUnchecked bool `json:"structure_unchecked,omitempty"`
-}
-
-type gateOutputJSON struct {
-	Decision string         `json:"decision"`
-	Strict   bool           `json:"strict"`
-	Files    []gateFileJSON `json:"files"`
-	Summary  struct {
-		Blocking           int `json:"blocking"`
-		NonBlocking        int `json:"non_blocking"`
-		PendingSuggestions int `json:"pending_suggestions"`
-		Violations         int `json:"violations"`
-	} `json:"summary"`
-}
+// The gate's shapes live in pkg/comment so every surface reports one decision.
+type (
+	gateCommentJSON = comment.GateThread
+	gateOutputJSON  = comment.GateReport
+)
 
 // gateCommand evaluates the review gate for a file or directory of markdown files.
 // Exit codes: 0 = approved, 10 = changes requested, 1 = error.
@@ -55,59 +28,11 @@ func gateCommand(target string, args []string) error {
 		return exitSilent(2)
 	}
 
-	files, err := comment.FindGateTargets(target)
+	report, err := comment.BuildGateReport(target, *strict, *templateName, *contextSize)
 	if err != nil {
 		return failf("Error: %v", err)
 	}
-	if len(files) == 0 {
-		return failf("Error: no markdown files with comment sidecars found under %s", target)
-	}
-
-	output := gateOutputJSON{Decision: comment.DecisionApproved, Strict: *strict}
-
-	for _, file := range files {
-		doc, err := loadDocument(file)
-		if err != nil {
-			return failf("Error loading %s: %v", file, err)
-		}
-		result := comment.EvaluateGate(doc, *strict)
-
-		fileJSON := gateFileJSON{
-			File:               file,
-			Decision:           result.Decision,
-			Blocking:           toGateJSON(result.Blocking, doc.Content, *contextSize),
-			NonBlocking:        toGateJSON(result.NonBlocking, doc.Content, *contextSize),
-			PendingSuggestions: toGateJSON(result.PendingSuggestions, doc.Content, *contextSize),
-			LastReview:         result.LastReview,
-		}
-
-		// Explicit flag wins; otherwise frontmatter, legacy sidecar, then bundle.
-		t, _, err := comment.ResolveTemplateForDocument(file, doc.Content, *templateName, doc.Template)
-		if err != nil {
-			return failf("Error: %v", err)
-		}
-		if t != nil {
-			fileJSON.Template = t.Name
-			fileJSON.Violations = comment.ValidateManagedDocument(doc.Content, file, t)
-			if len(fileJSON.Violations) > 0 {
-				fileJSON.Decision = comment.DecisionChangesRequested
-			}
-		} else if len(doc.Threads) > 0 {
-			// A doc with no discoverable template passes the structural half of the
-			// gate by default, which reads identically to passing it on merit.
-			// Shipped RPI artifacts have gone out hundreds of words over their
-			// caps this way, so say it out loud.
-			fileJSON.StructureUnchecked = true
-		}
-		output.Files = append(output.Files, fileJSON)
-		output.Summary.Blocking += len(result.Blocking)
-		output.Summary.NonBlocking += len(result.NonBlocking)
-		output.Summary.PendingSuggestions += len(result.PendingSuggestions)
-		output.Summary.Violations += len(fileJSON.Violations)
-		if fileJSON.Decision == comment.DecisionChangesRequested {
-			output.Decision = comment.DecisionChangesRequested
-		}
-	}
+	output := *report
 
 	if *jsonOut {
 		encoded, err := json.MarshalIndent(output, "", "  ")
@@ -123,74 +48,6 @@ func gateCommand(target string, args []string) error {
 		return exitSilent(comment.GateExitCode)
 	}
 	return nil
-}
-
-// signoffCommand records a completed human review pass on a document.
-func signoffCommand(filename string, args []string) error {
-	fs := flag.NewFlagSet("signoff", flag.ContinueOnError)
-	author := fs.String("author", os.Getenv("USER"), "Reviewer name (defaults to $USER)")
-	decision := fs.String("decision", "", "Override decision: approved or changes_requested (default: derived from gate)")
-	note := fs.String("note", "", "Optional review note")
-	strict := fs.Bool("strict", false, "Derive decision using strict gate rules")
-	if err := fs.Parse(args); err != nil {
-		return exitSilent(2)
-	}
-
-	if *author == "" {
-		return failf("Error: --author is required (or set $USER)")
-	}
-	if *decision != "" && *decision != comment.DecisionApproved && *decision != comment.DecisionChangesRequested && *decision != comment.DecisionCommented {
-		return failf("Error: invalid --decision %q (use %s, %s or %s)", *decision, comment.DecisionApproved, comment.DecisionChangesRequested, comment.DecisionCommented)
-	}
-
-	doc, err := loadDocument(filename)
-	if err != nil {
-		return failf("Error loading document: %v", err)
-	}
-
-	record := comment.AddReviewRecord(doc, *author, *decision, *note, *strict)
-	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		return failf("Error saving document: %v", err)
-	}
-
-	// A verdict also stores the reviewed content as this reviewer's baseline
-	// (what "changed since your signoff" marks diff against). Best-effort: the
-	// signoff is already in the sidecar, so a baseline failure must not report
-	// a landed signoff as failed. Gate on the RECORD's decision — the flag may
-	// be empty and derived by the gate.
-	if comment.BaselineUpdatesOn(record.Decision) {
-		if err := comment.SaveReviewBaseline(filename, record.Author, doc.Content); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not save review baseline: %v\n", err)
-		}
-	}
-
-	fmt.Printf("✓ Review recorded: %s by @%s\n", record.Decision, record.Author)
-	if record.Decision == comment.DecisionChangesRequested {
-		result := comment.EvaluateGate(doc, *strict)
-		fmt.Printf("  %d blocking comment(s) remain — agents waiting on request_review will now see this feedback\n", len(result.Blocking))
-	}
-	return nil
-}
-
-func toGateJSON(comments []*comment.Comment, docContent string, contextSize int) []gateCommentJSON {
-	out := []gateCommentJSON{}
-	lines := strings.Split(docContent, "\n")
-	for _, c := range comments {
-		item := gateCommentJSON{CommentView: comment.NewCommentView(c)}
-		if contextSize > 0 {
-			start := max(1, c.Line-contextSize)
-			end := min(len(lines), c.Line+contextSize)
-			for i := start; i <= end; i++ {
-				marker := "  "
-				if i == c.Line {
-					marker = "► "
-				}
-				item.Context = append(item.Context, fmt.Sprintf("%s%d │ %s", marker, i, lines[i-1]))
-			}
-		}
-		out = append(out, item)
-	}
-	return out
 }
 
 // printStructureUnchecked names docs whose structure the gate never checked, so

@@ -1,9 +1,11 @@
 package comment
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
+	"time"
 )
 
 // WatchEvent is one observed change in a document's review state.
@@ -138,4 +140,57 @@ func DiffSnapshots(file string, old, new WatchSnapshot) []WatchEvent {
 		events = append(events, WatchEvent{Event: "gate_changed", File: file, Decision: new.gate})
 	}
 	return events
+}
+
+// WatchOptions tunes Watch.
+type WatchOptions struct {
+	Interval time.Duration // poll interval; 0 means one second
+	Until    string        // comma-separated event types that end the watch
+}
+
+// Watch polls the sidecars under target and hands every review-state change to
+// emit, in order. It returns nil once an event matches opts.Until, when emit
+// reports stop, or when ctx ends. The sidecar is the shared event bus — every
+// writer (TUI, web, CLI, MCP) persists there — so one loop observes them all,
+// and both surfaces wait on a review the same way.
+func Watch(ctx context.Context, target string, opts WatchOptions, emit func(WatchEvent) (stop bool)) error {
+	interval := opts.Interval
+	if interval <= 0 {
+		interval = time.Second
+	}
+	type watched struct {
+		mtime time.Time
+		snap  WatchSnapshot
+	}
+	state := map[string]watched{}
+	for {
+		files, err := FindGateTargets(target)
+		if err != nil {
+			return err
+		}
+		for _, file := range files {
+			info, err := os.Stat(GetSidecarPath(file))
+			if err != nil {
+				continue
+			}
+			prev, seen := state[file]
+			if seen && !info.ModTime().After(prev.mtime) {
+				continue
+			}
+			snap := TakeSnapshot(file)
+			if seen {
+				for _, e := range DiffSnapshots(file, prev.snap, snap) {
+					if emit(e) || MatchesUntil(e.Event, opts.Until) {
+						return nil
+					}
+				}
+			}
+			state[file] = watched{mtime: info.ModTime(), snap: snap}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(interval):
+		}
+	}
 }

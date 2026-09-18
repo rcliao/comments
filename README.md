@@ -20,7 +20,7 @@ Google-Docs-style review for markdown, locally. Inline comment threads and edit 
 - **Autonomous research convergence**: draft-blind coverage scout + evidence verifier add missing `Qn` questions until clean; `comments analyze plan.md --against research.md` proves the handoff before review
 - **Watch**: `comments watch --until signoff` streams NDJSON review events so agents can wait on humans
 - **Browser review**: `comments serve` opens a rendered document and line-accurate source view beside live threads, suggestions, and verdict controls
-- **MCP server**: 23 tools over stdio for agent integration; batch operations; `@filename` text input
+- **MCP server**: the agent commands as tools, one per purpose and each the twin of a CLI command (`new`, `context`, `validate`, `analyze`, `add`, `watch`, `inbox`, `get`, `reply`, `suggest`, `reanchor`); human decisions are deliberately not tools; `@filename` text input
 - **Surface parity**: every MCP tool has a CLI equivalent backed by the same code — see `docs/ARCHITECTURE.md` decision 8
 
 ## Why OKF and Comments fit together

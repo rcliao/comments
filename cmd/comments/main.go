@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -27,29 +26,19 @@ func dispatch(args []string) error {
 
 	// Commands that take a positional <file> argument and its usage line
 	fileUsage := map[string]string{
-		"list":         "Usage: comments list <file> [flags]",
-		"get":          "Usage: comments get <file> [flags]",
-		"add":          "Usage: comments add <file> [flags]",
-		"batch-add":    "Usage: comments batch-add <file> [flags]",
-		"reply":        "Usage: comments reply <file> [flags]",
-		"batch-reply":  "Usage: comments batch-reply <file> [flags]",
-		"resolve":      "Usage: comments resolve <file> [flags]",
-		"suggest":      "Usage: comments suggest <file> [flags]",
-		"accept":       "Usage: comments accept <file> [flags]",
-		"reject":       "Usage: comments reject <file> [flags]",
-		"validate":     "Usage: comments validate <file> --template <name>",
-		"analyze":      "Usage: comments analyze <file> [--against <research.md>] [--json]",
-		"context":      "Usage: comments context <file> [flags]",
-		"new":          "Usage: comments new <name> --template <name> [flags]",
-		"gate":         "Usage: comments gate <file-or-dir> [flags]",
-		"signoff":      "Usage: comments signoff <file> [flags]",
-		"watch":        "Usage: comments watch <file-or-dir> [flags]",
-		"reanchor":     "Usage: comments reanchor <file> --comment ID --line N | --json <file|->",
-		"inbox":        "Usage: comments inbox <file-or-dir> [flags]",
-		"status":       "Usage: comments status <file> [flags]",
-		"check-review": "Usage: comments check-review <file> --since <RFC3339>",
-		"batch-accept": "Usage: comments batch-accept <file> [flags]",
-		"serve":        "Usage: comments serve <file-or-dir> [flags]",
+		"get":      "Usage: comments get <file> [flags]",
+		"add":      "Usage: comments add <file> [flags]",
+		"reply":    "Usage: comments reply <file> [flags]",
+		"suggest":  "Usage: comments suggest <file> [flags]",
+		"validate": "Usage: comments validate <file> --template <name>",
+		"analyze":  "Usage: comments analyze <file> [--against <research.md>] [--json]",
+		"context":  "Usage: comments context <file> [flags]",
+		"new":      "Usage: comments new <name> --template <name> [flags]",
+		"gate":     "Usage: comments gate <file-or-dir> [flags]",
+		"watch":    "Usage: comments watch <file-or-dir> [flags]",
+		"reanchor": "Usage: comments reanchor <file> --comment ID --line N | --json <file|->",
+		"inbox":    "Usage: comments inbox <file-or-dir> [flags]",
+		"serve":    "Usage: comments serve <file-or-dir> [flags]",
 	}
 	if usage, needsFile := fileUsage[command]; needsFile && len(args) < 2 {
 		return failf("%s", usage)
@@ -59,26 +48,14 @@ func dispatch(args []string) error {
 	case "view":
 		// View command can be called with or without a filename
 		return viewCommand(args[1:])
-	case "list":
-		return listCommand(args[1], args[2:])
 	case "get":
 		return getCommand(args[1], args[2:])
 	case "add":
 		return addCommand(args[1], args[2:])
-	case "batch-add":
-		return batchAddCommand(args[1], args[2:])
 	case "reply":
 		return replyCommand(args[1], args[2:])
-	case "batch-reply":
-		return batchReplyCommand(args[1], args[2:])
-	case "resolve":
-		return resolveCommand(args[1], args[2:])
 	case "suggest":
 		return suggestCommand(args[1], args[2:])
-	case "accept":
-		return acceptCommand(args[1], args[2:])
-	case "reject":
-		return rejectCommand(args[1], args[2:])
 	case "template":
 		return templateCommand(args[1:])
 	case "validate":
@@ -93,20 +70,12 @@ func dispatch(args []string) error {
 		return bundleCommand(args[1:])
 	case "gate":
 		return gateCommand(args[1], args[2:])
-	case "signoff":
-		return signoffCommand(args[1], args[2:])
 	case "watch":
 		return watchCommand(args[1], args[2:])
 	case "reanchor":
 		return reanchorCommand(args[1], args[2:])
 	case "inbox":
 		return inboxCommand(args[1], args[2:])
-	case "status":
-		return statusCommand(args[1], args[2:])
-	case "check-review":
-		return checkReviewCommand(args[1], args[2:])
-	case "batch-accept":
-		return batchAcceptCommand(args[1], args[2:])
 	case "doctor":
 		return doctorCommand(args[1:])
 	case "serve":
@@ -187,399 +156,6 @@ func viewCommand(args []string) error {
 	return nil
 }
 
-func listCommand(filename string, args []string) error {
-	// Parse flags
-	fs := flag.NewFlagSet("list", flag.ContinueOnError)
-	typeFilter := fs.String("type", "", "Filter by comment type: Q, S, B, T, E")
-	showResolved := fs.Bool("resolved", false, "Show resolved comments (default: false, only show unresolved)")
-	authorFilter := fs.String("author", "", "Filter by author name")
-	searchText := fs.String("search", "", "Search comment text (case-insensitive)")
-	lineRange := fs.String("line-range", "", "Filter by line range (e.g., 10-30)")
-	sectionFilter := fs.String("section", "", "Filter by section path (includes nested sections)")
-	statusFilter := fs.String("status", "", "Filter by status: active, orphaned, resolved, completed")
-	priorityFilter := fs.String("priority", "", "Filter by priority: low, medium, high")
-	sortBy := fs.String("sort", "line", "Sort by: line, timestamp, author")
-	format := fs.String("format", "text", "Output format: text, json, table")
-	withContext := fs.Bool("with-context", false, "Include document context for each comment")
-
-	if err := fs.Parse(args); err != nil {
-		return exitSilent(2)
-	}
-
-	// Load document
-	doc, err := loadDocument(filename)
-	if err != nil {
-		return failf("Error loading document: %v", err)
-	}
-
-	// Compute section metadata for all comments if not already present
-	comment.ComputeSectionsForComments(doc)
-
-	// Filter by resolved status (only show root comments based on resolved flag)
-	filteredComments := comment.GetVisibleComments(doc.Threads, *showResolved)
-
-	// Filter comments by type if specified
-	if *typeFilter != "" {
-		filteredComments = filterCommentsByType(filteredComments, *typeFilter)
-	}
-
-	// Apply author filter
-	if *authorFilter != "" {
-		filteredComments = filterByAuthor(filteredComments, *authorFilter)
-	}
-
-	// Apply text search filter
-	if *searchText != "" {
-		filteredComments = filterBySearch(filteredComments, *searchText)
-	}
-
-	// Apply line range filter
-	if *lineRange != "" {
-		filtered, err := filterByLineRange(filteredComments, *lineRange)
-		if err != nil {
-			return failf("Error: %v", err)
-		}
-		filteredComments = filtered
-	}
-
-	// Apply section filter
-	if *sectionFilter != "" {
-		// Validate section exists
-		if err := comment.ValidateSectionPath(doc.Content, *sectionFilter); err != nil {
-			return failf("Error: %v", err)
-		}
-
-		// Get all comments in this section (including nested sections)
-		sectionComments := comment.GetCommentsInSection(doc, *sectionFilter)
-
-		// Intersect with filtered comments (preserve other filters)
-		commentSet := make(map[string]bool)
-		for _, c := range sectionComments {
-			commentSet[c.ID] = true
-		}
-
-		filtered := []*comment.Comment{}
-		for _, c := range filteredComments {
-			if commentSet[c.ID] {
-				filtered = append(filtered, c)
-			}
-		}
-		filteredComments = filtered
-	}
-
-	// Apply status filter
-	if *statusFilter != "" {
-		filtered := []*comment.Comment{}
-		for _, c := range filteredComments {
-			if c.GetStatus() == *statusFilter {
-				filtered = append(filtered, c)
-			}
-		}
-		filteredComments = filtered
-	}
-
-	// Apply priority filter
-	if *priorityFilter != "" {
-		filtered := []*comment.Comment{}
-		for _, c := range filteredComments {
-			if c.GetPriority() == *priorityFilter {
-				filtered = append(filtered, c)
-			}
-		}
-		filteredComments = filtered
-	}
-
-	// Sort comments
-	sortComments(filteredComments, *sortBy)
-
-	// Output based on format
-	switch *format {
-	case "json":
-		if err := outputJSON(filteredComments, doc.Threads, doc.Content, *withContext); err != nil {
-			return failf("Error outputting JSON: %v", err)
-		}
-		return nil
-
-	case "table":
-		outputTable(filteredComments, doc.Threads)
-		return nil
-
-	case "text":
-		// If --with-context is specified with text format, use context format
-		if *withContext {
-			output := formatListWithContext(filteredComments, doc.Content)
-			fmt.Print(output)
-			return nil
-		}
-		// Original text format (below)
-
-	default:
-		return failf("Error: Unknown format '%s'. Valid formats: text, json, table", *format)
-	}
-
-	// List comments (original text format)
-	statusText := "unresolved"
-	if *showResolved {
-		statusText = "total"
-	}
-
-	// Build filter description
-	filterDesc := ""
-	if *typeFilter != "" {
-		filterDesc += fmt.Sprintf(" with type [%s]", *typeFilter)
-	}
-	if *authorFilter != "" {
-		filterDesc += fmt.Sprintf(" by @%s", *authorFilter)
-	}
-	if *searchText != "" {
-		filterDesc += fmt.Sprintf(" matching '%s'", *searchText)
-	}
-	if *lineRange != "" {
-		filterDesc += fmt.Sprintf(" in lines %s", *lineRange)
-	}
-	if *sectionFilter != "" {
-		filterDesc += fmt.Sprintf(" in section '%s'", *sectionFilter)
-	}
-	if *statusFilter != "" {
-		filterDesc += fmt.Sprintf(" with status [%s]", *statusFilter)
-	}
-	if *priorityFilter != "" {
-		filterDesc += fmt.Sprintf(" with priority [%s]", *priorityFilter)
-	}
-
-	fmt.Printf("Found %d %s thread(s)%s in %s\n\n", len(filteredComments), statusText, filterDesc, filename)
-
-	for i, thread := range filteredComments {
-		// Build location string (show section path if available, otherwise just line)
-		locationStr := fmt.Sprintf("Line %d", thread.Line)
-		if thread.SectionPath != "" {
-			locationStr = fmt.Sprintf("%s (Line %d)", thread.SectionPath, thread.Line)
-		}
-
-		// Priority indicator
-		priorityIndicator := ""
-		switch thread.GetPriority() {
-		case "high":
-			priorityIndicator = " [HIGH]"
-		case "low":
-			priorityIndicator = " [LOW]"
-			// medium is default, no indicator needed
-		}
-
-		// Status indicator
-		statusIndicator := ""
-		status := thread.GetStatus()
-		switch status {
-		case "orphaned":
-			statusIndicator = " ⚠️  ORPHANED"
-			if thread.OrphanedReason != "" {
-				statusIndicator += fmt.Sprintf(" (%s)", thread.OrphanedReason)
-			}
-		case "completed":
-			statusIndicator = " ✓ COMPLETED"
-		}
-
-		// Show thread info with priority and status
-		fmt.Printf("[%d] %s • @%s • %s%s%s\n", i+1, locationStr, thread.Author, thread.Timestamp.Format("2006-01-02 15:04"), priorityIndicator, statusIndicator)
-		fmt.Printf("    Type: Root | Thread ID: %s | Status: %s\n", thread.ID, thread.GetStatus())
-
-		// Show reply count and resolved status
-		replyCount := thread.CountReplies()
-		resolvedStatus := ""
-		if thread.Resolved {
-			resolvedStatus = " [RESOLVED]"
-		}
-		fmt.Printf("    Replies: %d%s\n", replyCount, resolvedStatus)
-
-		fmt.Printf("    %s\n\n", comment.DecorateType(thread.Text))
-	}
-	return nil
-}
-
-func getCommand(filename string, args []string) error {
-	// Parse flags
-	fs := flag.NewFlagSet("get", flag.ContinueOnError)
-	threadID := fs.String("thread", "", "Thread ID to get (required unless a thread: citation is given)")
-	fromDoc := fs.String("from", "", "Citing document, for resolving a citation's relative path / same-doc form")
-	withReplies := fs.Bool("with-replies", true, "Include replies in output (default: true)")
-
-	if err := fs.Parse(args); err != nil {
-		return exitSilent(2)
-	}
-
-	// Citation-literal form: `comments get thread:research.md#c1abc [--from plan.md]`
-	// — accept the syntax exactly as it appears in docs, so agents following a
-	// citation paste it instead of translating it
-	if strings.HasPrefix(filename, "thread:") {
-		path, id, err := comment.ResolveThreadCitation(filename, *fromDoc)
-		if err != nil {
-			return failf("Error: %v", err)
-		}
-		filename, *threadID = path, id
-	}
-
-	if *threadID == "" {
-		return failf("Error: --thread flag is required\nUsage: comments get <file> --thread <thread-id>\n   or: comments get thread:path.md#c1abc [--from citing-doc.md]")
-	}
-
-	// Load document
-	doc, err := loadDocument(filename)
-	if err != nil {
-		return failf("Error loading document: %v", err)
-	}
-
-	// Compute section metadata for all comments if not already present
-	comment.ComputeSectionsForComments(doc)
-
-	// Find the comment anywhere in the nested thread tree (root, reply,
-	// or reply-to-reply at any depth)
-	foundComment := doc.FindCommentByID(*threadID)
-
-	if foundComment == nil {
-		var b strings.Builder
-		fmt.Fprintf(&b, "Error: Thread with ID '%s' not found\n", *threadID)
-		b.WriteString("\nAvailable threads:")
-		for i, thread := range doc.Threads {
-			fmt.Fprintf(&b, "\n  [%d] %s (Line %d) - @%s", i+1, thread.ID, thread.Line, thread.Author)
-		}
-		return failf("%s", b.String())
-	}
-
-	// Get context and format output
-	ctx := getCommentContext(foundComment, doc.Content)
-	output := formatCommentWithContext(foundComment, ctx, *withReplies)
-
-	fmt.Print(output)
-	return nil
-}
-
-// filterCommentsByType filters comments by type prefix ([Q], [S], [B], [T], [E])
-func filterCommentsByType(comments []*comment.Comment, typePrefix string) []*comment.Comment {
-	filtered := make([]*comment.Comment, 0)
-	targetPrefix := "[" + typePrefix + "]"
-
-	for _, c := range comments {
-		if strings.HasPrefix(c.Text, targetPrefix) {
-			filtered = append(filtered, c)
-		}
-	}
-
-	return filtered
-}
-
-func addCommand(filename string, args []string) error {
-	// Parse flags
-	fs := flag.NewFlagSet("add", flag.ContinueOnError)
-	text := fs.String("text", "", "Comment text (required)")
-	line := fs.Int("line", 0, "Line number (use --line, --section or --anchor)")
-	section := fs.String("section", "", "Section path (use --line, --section or --anchor)")
-	anchor := fs.String("anchor", "", "Anchor by quoting the target line (or a unique substring of it)")
-	author := fs.String("author", "", "Author name (required)")
-	commentType := fs.String("type", "", "Comment type: Q, S, B, T, E (auto-prefixes text)")
-	priority := fs.String("priority", "medium", "Priority: low, medium, high (default: medium)")
-	blocking := fs.Bool("blocking", false, "Mark comment as blocking (must be resolved before gate passes)")
-
-	if err := fs.Parse(args); err != nil {
-		return exitSilent(2)
-	}
-
-	const addUsage = "Usage: comments add <file> --line N --author \"name\" --text \"your comment\"\n" +
-		"   or: comments add <file> --section \"Section Path\" --author \"name\" --text \"your comment\"\n" +
-		"   or: comments add <file> --anchor \"quoted target line\" --author \"name\" --text \"your comment\""
-
-	if *text == "" {
-		return failf("Error: --text flag is required\n%s", addUsage)
-	}
-
-	if *author == "" {
-		return failf("Error: --author flag is required\n%s", addUsage)
-	}
-
-	// Exactly one of line / section / anchor locates the comment
-	given := 0
-	for _, ok := range []bool{*line != 0, *section != "", *anchor != ""} {
-		if ok {
-			given++
-		}
-	}
-	if given == 0 {
-		return failf("Error: one of --line, --section or --anchor is required\n%s", addUsage)
-	}
-	if given > 1 {
-		return failf("Error: --line, --section and --anchor are mutually exclusive")
-	}
-
-	// Resolve text input (supports @filename)
-	resolvedText, err := resolveTextInput(*text)
-	if err != nil {
-		return failf("Error: %v", err)
-	}
-
-	// Auto-prefix text with type if specified
-	commentText := comment.PrefixType(resolvedText, *commentType)
-
-	// Load document
-	doc, err := loadDocument(filename)
-	if err != nil {
-		return failf("Error loading document: %v", err)
-	}
-
-	// Determine the line number to use
-	targetLine := *line
-	if *section != "" {
-		// Validate section exists
-		if err := comment.ValidateSectionPath(doc.Content, *section); err != nil {
-			return failf("Error: %v", err)
-		}
-
-		// Resolve section to line number (use section start line)
-		startLine, _, err := comment.ResolveSectionToLines(doc.Content, *section, false)
-		if err != nil {
-			return failf("Error resolving section: %v", err)
-		}
-		targetLine = startLine
-	}
-	if *anchor != "" {
-		resolved, err := comment.ResolveAnchorText(doc.Content, *anchor)
-		if err != nil {
-			return failf("Error: %v", err)
-		}
-		targetLine = resolved
-	}
-
-	// Create new comment with type metadata
-	var newComment *comment.Comment
-	if *commentType != "" {
-		newComment = comment.NewCommentWithType(*author, targetLine, commentText, *commentType)
-	} else {
-		newComment = comment.NewComment(*author, targetLine, commentText)
-	}
-
-	// Set priority
-	newComment.Priority = *priority
-	newComment.Status = "active"
-	newComment.Blocking = *blocking
-
-	// Compute section metadata for the new comment
-	comment.UpdateCommentSection(newComment, doc.Content)
-
-	doc.Threads = append(doc.Threads, newComment)
-
-	// Save to sidecar
-	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		return failf("Error saving document: %v", err)
-	}
-
-	// Display success message
-	if newComment.SectionPath != "" {
-		fmt.Printf("✓ Comment added to %s (Line %d) by @%s\n", newComment.SectionPath, targetLine, *author)
-	} else {
-		fmt.Printf("✓ Comment added to line %d by @%s\n", targetLine, *author)
-	}
-	fmt.Printf("  Comment ID: %s\n", newComment.ID)
-	return nil
-}
-
 // availableThreadsMsg lists a document's root threads for not-found error messages
 func availableThreadsMsg(doc *comment.DocumentWithComments) string {
 	var b strings.Builder
@@ -588,100 +164,6 @@ func availableThreadsMsg(doc *comment.DocumentWithComments) string {
 		fmt.Fprintf(&b, "\n  %s (Line %d, %d replies)", t.ID, t.Line, t.CountReplies())
 	}
 	return b.String()
-}
-
-func replyCommand(filename string, args []string) error {
-	// Parse flags
-	fs := flag.NewFlagSet("reply", flag.ContinueOnError)
-	text := fs.String("text", "", "Reply text (required)")
-	thread := fs.String("thread", "", "Thread ID (required)")
-	author := fs.String("author", "", "Author name (required)")
-
-	if err := fs.Parse(args); err != nil {
-		return exitSilent(2)
-	}
-
-	const replyUsage = "Usage: comments reply <file> --thread ID --author \"name\" --text \"your reply\""
-
-	if *text == "" {
-		return failf("Error: --text flag is required\n%s", replyUsage)
-	}
-
-	if *thread == "" {
-		return failf("Error: --thread flag is required\n%s", replyUsage)
-	}
-
-	if *author == "" {
-		return failf("Error: --author flag is required\n%s", replyUsage)
-	}
-
-	// Resolve text input (supports @filename)
-	resolvedText, err := resolveTextInput(*text)
-	if err != nil {
-		return failf("Error: %v", err)
-	}
-
-	// Load document
-	doc, err := loadDocument(filename)
-	if err != nil {
-		return failf("Error loading document: %v", err)
-	}
-
-	// Add reply to thread using helper
-	if err := comment.AddReplyToThread(doc.Threads, *thread, *author, resolvedText); err != nil {
-		return failf("Error: %v\n%s", err, availableThreadsMsg(doc))
-	}
-
-	// Save to sidecar
-	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		return failf("Error saving document: %v", err)
-	}
-
-	fmt.Printf("✓ Reply added to thread %s by @%s\n", *thread, *author)
-	return nil
-}
-
-func resolveCommand(filename string, args []string) error {
-	// Parse flags
-	fs := flag.NewFlagSet("resolve", flag.ContinueOnError)
-	thread := fs.String("thread", "", "Thread ID (required)")
-
-	if err := fs.Parse(args); err != nil {
-		return exitSilent(2)
-	}
-
-	if *thread == "" {
-		return failf("Error: --thread flag is required\nUsage: comments resolve <file> --thread ID")
-	}
-
-	// Load document
-	doc, err := loadDocument(filename)
-	if err != nil {
-		return failf("Error loading document: %v", err)
-	}
-
-	// Zone enforcement: same guard the MCP server applies, so an agent cannot
-	// close a human-decision thread just by switching surfaces
-	absPath, err := filepath.Abs(filename)
-	if err != nil {
-		return failf("Error resolving path: %v", err)
-	}
-	if err := comment.GuardZoneResolve(doc, absPath, *thread, comment.ResolveActor(comment.StdoutIsTTY())); err != nil {
-		return failf("Error: %v", err)
-	}
-
-	// Resolve the thread
-	if err := comment.ResolveThread(doc.Threads, *thread); err != nil {
-		return failf("Error: %v\n%s", err, availableThreadsMsg(doc))
-	}
-
-	// Save to sidecar
-	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		return failf("Error saving document: %v", err)
-	}
-
-	fmt.Printf("✓ Thread %s marked as resolved\n", *thread)
-	return nil
 }
 
 func suggestCommand(filename string, args []string) error {
@@ -695,6 +177,7 @@ func suggestCommand(filename string, args []string) error {
 	text := fs.String("text", "", "Suggestion description (required)")
 	original := fs.String("original", "", "Original text to replace")
 	proposed := fs.String("proposed", "", "Proposed replacement text (required)")
+	jsonOut := fs.Bool("json-out", false, "Output machine-readable JSON")
 
 	if err := fs.Parse(args); err != nil {
 		return exitSilent(2)
@@ -745,170 +228,28 @@ func suggestCommand(filename string, args []string) error {
 		return failf("Error resolving --proposed: %v", err)
 	}
 
-	// Load document
 	doc, err := loadDocument(filename)
 	if err != nil {
 		return failf("Error loading document: %v", err)
 	}
-
-	// Determine the line range to use
-	targetStartLine := *startLine
-	targetEndLine := *endLine
-	if *section != "" {
-		// Validate section exists
-		if err := comment.ValidateSectionPath(doc.Content, *section); err != nil {
-			return failf("Error: %v", err)
-		}
-
-		// Resolve section to line range
-		start, end, err := comment.ResolveSectionToLines(doc.Content, *section, false)
-		if err != nil {
-			return failf("Error resolving section: %v", err)
-		}
-		targetStartLine = start
-		targetEndLine = end
-	}
-	if *anchorFlag != "" {
-		start, err := comment.ResolveAnchorText(doc.Content, *anchorFlag)
-		if err != nil {
-			return failf("Error: %v", err)
-		}
-		targetStartLine = start
-		// --original's line count defines the range; single line otherwise
-		targetEndLine = start
-		if resolvedOriginal != "" {
-			targetEndLine = start + strings.Count(strings.TrimRight(resolvedOriginal, "\n"), "\n")
-		}
-	}
-
-	// Validate line range
-	if targetEndLine == 0 {
-		targetEndLine = targetStartLine
-	}
-	if targetStartLine > targetEndLine {
-		return failf("Error: start line (%d) must be <= end line (%d)", targetStartLine, targetEndLine)
-	}
-
-	// Create suggestion using helper
-	suggestion := comment.NewSuggestion(*author, targetStartLine, targetEndLine, resolvedText, resolvedOriginal, resolvedProposed)
-
-	// Compute section metadata
-	comment.UpdateCommentSection(suggestion, doc.Content)
-
-	// Add to document
-	doc.Threads = append(doc.Threads, suggestion)
-
-	// Save
-	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		return failf("Error saving document: %v", err)
-	}
-
-	if suggestion.SectionPath != "" {
-		fmt.Printf("✓ Suggestion added to %s (Lines %d-%d) by @%s\n", suggestion.SectionPath, targetStartLine, targetEndLine, *author)
-	} else {
-		fmt.Printf("✓ Suggestion added to lines %d-%d by @%s\n", targetStartLine, targetEndLine, *author)
-	}
-	fmt.Printf("  Suggestion ID: %s\n", suggestion.ID)
-	return nil
-}
-
-func acceptCommand(filename string, args []string) error {
-	// Parse flags
-	fs := flag.NewFlagSet("accept", flag.ContinueOnError)
-	suggestionID := fs.String("suggestion", "", "Suggestion ID (required)")
-	preview := fs.Bool("preview", false, "Preview changes without applying")
-
-	if err := fs.Parse(args); err != nil {
-		return exitSilent(2)
-	}
-
-	if *suggestionID == "" {
-		return failf("Error: --suggestion flag is required")
-	}
-
-	// Load document
-	doc, err := loadDocument(filename)
+	result, err := comment.AddSuggestion(doc, comment.SuggestionSpec{
+		Author: *author, Text: resolvedText, StartLine: *startLine, EndLine: *endLine,
+		Section: *section, Anchor: *anchorFlag, OriginalText: resolvedOriginal, ProposedText: resolvedProposed,
+	})
 	if err != nil {
-		return failf("Error loading document: %v", err)
-	}
-
-	// Find suggestion in all comments (threads + replies)
-	allComments := doc.GetAllComments()
-	var suggestion *comment.Comment
-	for _, c := range allComments {
-		if c.ID == *suggestionID {
-			suggestion = c
-			break
-		}
-	}
-
-	if suggestion == nil {
-		return failf("Error: Suggestion '%s' not found", *suggestionID)
-	}
-
-	if !suggestion.IsSuggestion {
-		return failf("Error: Comment '%s' is not a suggestion", *suggestionID)
-	}
-
-	// Preview if requested
-	if *preview {
-		newContent, err := comment.ApplySuggestion(doc.Content, suggestion)
-		if err != nil {
-			return failf("Error applying suggestion: %v", err)
-		}
-		fmt.Println("Preview of changes:")
-		fmt.Println("==================")
-		fmt.Println(newContent)
-		return nil
-	}
-
-	// Apply, mark accepted, and shift displaced comment/suggestion lines
-	if _, err := comment.ApplyAndAcceptSuggestion(doc, *suggestionID); err != nil {
-		return failf("Error accepting suggestion: %v", err)
-	}
-
-	// Save: accept is a content-changing path, so it writes the markdown too
-	if err := comment.SaveDocumentContent(filename, doc); err != nil {
-		return failf("Error saving document: %v", err)
+		return failf("Error: %v\n%s", err, suggestUsage)
 	}
 	if err := comment.SaveToSidecar(filename, doc); err != nil {
 		return failf("Error saving document: %v", err)
 	}
-
-	fmt.Printf("✓ Suggestion %s accepted and applied\n", *suggestionID)
-	return nil
-}
-
-func rejectCommand(filename string, args []string) error {
-	// Parse flags
-	fs := flag.NewFlagSet("reject", flag.ContinueOnError)
-	suggestionID := fs.String("suggestion", "", "Suggestion ID (required)")
-
-	if err := fs.Parse(args); err != nil {
-		return exitSilent(2)
+	if *jsonOut {
+		return printJSON(result)
 	}
-
-	if *suggestionID == "" {
-		return failf("Error: --suggestion flag is required")
+	where := fmt.Sprintf("lines %d-%d", result.StartLine, result.EndLine)
+	if result.SectionPath != "" {
+		where = fmt.Sprintf("%s (Lines %d-%d)", result.SectionPath, result.StartLine, result.EndLine)
 	}
-
-	// Load document
-	doc, err := loadDocument(filename)
-	if err != nil {
-		return failf("Error loading document: %v", err)
-	}
-
-	// Mark suggestion as rejected using helper
-	if err := comment.RejectSuggestion(doc.Threads, *suggestionID); err != nil {
-		return failf("Error: %v", err)
-	}
-
-	// Save
-	if err := comment.SaveToSidecar(filename, doc); err != nil {
-		return failf("Error saving document: %v", err)
-	}
-
-	fmt.Printf("✓ Suggestion %s rejected\n", *suggestionID)
+	fmt.Printf("✓ Suggestion added to %s by @%s\n  Suggestion ID: %s\n", where, *author, result.SuggestionID)
 	return nil
 }
 
@@ -916,280 +257,93 @@ func printUsage() {
 	fmt.Print(usageText)
 }
 
-const usageText = `comments - CLI tool for collaborative document commenting
+const usageText = `comments - review agent-written markdown like a Google Doc, from the terminal
 
 Usage:
   comments <command> [arguments]
 
-Commands:
-  view <file> [flags]         Open interactive TUI viewer (q submits the review: records
-                              the signoff — a approve / c request changes / r reply-pass)
-  list <file> [flags]         List all comments in a file
-  get <file> [flags]          Get detailed comment with context
-  add <file> [flags]          Add a comment by quoted anchor, section or line
-  batch-add <file> [flags]    Add multiple comments from JSON
-  reply <file> [flags]        Reply to a comment thread
-  batch-reply <file> [flags]  Reply to multiple threads from JSON
-  resolve <file> [flags]      Mark a thread as resolved
-  suggest <file> [flags]      Add an edit suggestion to a specific line
-  accept <file> [flags]       Accept a suggestion and apply changes
-  batch-accept <file> [flags] Accept several suggestions by ID, author or type
-  reject <file> [flags]       Reject a suggestion
-  reanchor <file> [flags]     Migrate anchors your edits displaced (run after editing
-                              a commented document; the load-time cascade is the net)
-  status <file> [flags]       Thread/suggestion/orphan counts; --author <reviewer> adds lines/sections changed since their last verdict
-  inbox <file-or-dir> [flags] What needs attention: new replies + unresolved blockers
-  gate <file-or-dir> [flags]  Evaluate review gate (exit 0 = approved, 10 = changes requested)
-  check-review <file> [flags] Poll for a signoff landed after --since (non-blocking
-                              counterpart to 'watch --until signoff')
-  signoff <file> [flags]      Record a review pass non-interactively (view's verdict
-                              already records one; use this for CI/scripts/--note)
-  template list|show <name>   List or inspect doc templates (guardrails for agent-written docs)
-  validate <file> [flags]     Check document structure against a template (exit 1 on violations)
-  analyze <file> [flags]      Report question, evidence, and research-to-plan coverage (advisory)
-  new <name> [flags]          Create an OKF concept in its template-guided bundle folder
-  context <file> [flags]      Discover related bundle concepts, backlinks, sources and review state
+The loop: an agent drafts a doc under a template and annotates it; a human
+reviews it in 'comments view' and gives a verdict on exit; the agent reads its
+inbox, responds, and waits again — until the gate passes.
+
+Human — review and decide:
+  view <file>                 Interactive TUI. Reply, resolve, accept or reject suggestions;
+                              q submits the verdict (a approve / c request changes / r reply-pass,
+                              n adds a note). The verdict is only ever written here or in 'serve'.
+  serve <file-or-dir>         The same review in a token-protected local browser workspace
+
+Agent — create a document under a template:
+  new <name> --template T     Create an OKF concept in its template-guided bundle folder
+  context <file>              The writing brief's neighborhood: related concepts, backlinks,
+                              sources and review state (--for drafting|review|implementation|...)
+  template list|show <name>   List templates, or print one as a writing brief
+  validate <file>             Check structure against the template (exit 1 on violations)
+  analyze <file>              Advisory question / evidence / research-to-plan coverage
+
+Agent — annotate the draft:
+  add <file>                  Add one comment (flags) or many (--json), placed by quoted
+                              anchor, section path or line. Atomic. --blocking marks must-fix.
+
+Agent — iterate with the human:
+  watch <file-or-dir>         Emit review events as NDJSON; '--until signoff' blocks until the
+                              human's verdict and prints it with their decision and note
+  inbox <file-or-dir>         THE read: gate decision, every open thread (blocking first) with
+                              replies and context, pending suggestions, template violations,
+                              orphaned anchors, and lines changed since the last verdict
+  get <file>                  Look something up: one comment with context (--thread ID), or
+                              every thread including resolved ones. Also: get thread:doc.md#c1abc
+  reply <file>                Reply to a thread; --resolve also closes it (refused for an agent
+                              in a zone: human section). --json replies to many.
+  suggest <file>              Propose an edit for the human to accept or reject in 'view'
+  reanchor <file>             After editing a commented doc, migrate the anchors you displaced
+
+Scripts and maintenance:
+  gate <file-or-dir>          Exit-code contract: 0 = approved, 10 = changes requested
+  doctor [path]               Install health: binary, MCP server, plugin, sidecars
   bundle index [path]         Regenerate OKF root and collection indexes
-  watch <file-or-dir> [flags] Emit review-state change events as NDJSON (poll-based; --until
-                              exits 0 on a match, e.g. --until signoff to block until reviewed)
-  doctor [path] [flags]       Check install health: binary, MCP server, plugin, sidecars
-                              (exit 0 = sound, 1 = broken; warnings alone stay 0)
-  serve <file-or-dir> [flags] Open a token-protected local browser review workspace
-  serve-mcp                   Start Model Context Protocol server (for LLM integration)
-  help                        Show this help message
+  serve-mcp                   MCP server over stdio: the agent commands above, as tools
+  help                        Show this help
 
-View Command Flags:
-  --theme <name>              Color theme: nord (default), dracula, gruvbox, ansi
-                              (COMMENTS_THEME env var also works; the flag wins)
-
-List Command Flags:
-  --type <type>               Filter by comment type: Q, S, B, T, E
-  --resolved                  Show resolved comments (default: false, only shows unresolved)
-  --author <name>             Filter by author name
-  --search <text>             Search comment text (case-insensitive)
-  --line-range <range>        Filter by line range (e.g., 10-30)
-  --section <path>            Filter by section path (includes nested sections)
-  --status <status>           Filter by status: active, orphaned, resolved, completed
-  --priority <priority>       Filter by priority: low, medium, high
-  --sort <field>              Sort by: line (default), timestamp, author, priority
-  --format <format>           Output format: text (default), json, table
-  --with-context              Include document context for each comment
-
-Get Command Flags:
-  --thread <id>               Thread ID to retrieve (required)
-  --from <file>               Citing document for resolving a thread: citation
-  --with-replies              Include replies in output (default: true)
-
-Add Command Flags:
-  --line <number>             Line number (use one of --line, --section or --anchor)
-  --section <path>            Section path (use one of --line, --section or --anchor)
-  --anchor <text>             Quote the target line or a unique substring (preferred for agents)
-  --text <text>               Comment text (required, supports @filename)
-  --author <name>             Author name (required)
-  --type <type>               Comment type: Q, S, B, T, E (auto-prefixes text)
-  --priority <priority>       Priority: low, medium, high (default: medium)
-  --blocking                  Mark as blocking (must be resolved before gate passes)
-
-Gate Command Flags:
-  --json                      Output machine-readable JSON decision
-  --strict                    Fail on any unresolved comment or pending suggestion
-  --context <n>               Lines of context around each comment (default: 2)
-  --template <name>           Also validate structure (defaults to frontmatter, sidecar, or bundle)
-
-Validate Command Flags:
-  --template <name>           Template name (defaults to frontmatter, sidecar, or bundle)
-  --json                      Output violations as JSON
-
-New/Context Command Flags:
-  --template <name>           (new) Template that selects the bundle collection
-  --title <text>              (new) Document title; defaults to the slug
-  --description <text>        (new) One-sentence concept description
-  --from <file>               (new) Record an informed_by relationship
-  --for <mode>                (context) drafting, review, coverage-scout,
-                              evidence-verifier, human-review, or implementation
-  --include-body              (context) Include document bodies
-  --include-threads           (context) Include review threads
-  --json                      Machine-readable output
-
-Analyze Command Flags:
-  --against <research.md>     Classify every research finding as cited, excluded, or uncovered
-  --template <name>           Template name (defaults to frontmatter, sidecar, or bundle)
-  --json                      Output machine-readable JSON; ready=false never changes exit status
-
-Signoff Command Flags:
-  --author <name>             Reviewer name (defaults to $USER)
-  --decision <decision>       Override: approved or changes_requested (default: derived from gate)
-  --note <text>               Optional review note
-  --strict                    Derive decision using strict gate rules
-
-Doctor Command Flags:
-  --json                      Machine-readable output
-  --skip-mcp                  Skip the MCP handshake (avoids spawning a subprocess)
-
-Watch Command Flags:
-  --interval <duration>       Poll interval (default: 1s)
-  --until <events>            Exit 0 after emitting a matching event; comma-separated event
-                              types (e.g. signoff or signoff,gate_changed)
-
-Batch-Add Command Flags:
-  --json <file|->             JSON file path or '-' for stdin (required)
-                              Note: Each comment in JSON must include "author" field
-
-Reply Command Flags:
-  --thread <id>               Thread ID (required)
-  --text <text>               Reply text (required)
-  --author <name>             Author name (required)
-
-Batch-Reply Command Flags:
-  --json <file|->             JSON file path or '-' for stdin (required)
-                              Note: Each reply in JSON must include "thread" and "author" fields
-
-Resolve Command Flags:
-  --thread <id>               Thread ID (required)
-
-Suggest Command Flags:
-  --start-line <number>       Start line of the edit (required)
-  --end-line <number>         End line of the edit (required)
-  --author <name>             Author name (required)
-  --text <text>               Suggestion description (required, supports @filename)
-  --original <text>           Original text being replaced (optional verification, supports @filename)
-  --proposed <text>           Proposed replacement text (required, supports @filename)
-  --section <path>            Target a section instead of a line range
-  --anchor <text>             Quote the first target line; --original sets range length
-
-Accept Command Flags:
-  --suggestion <id>           Suggestion ID (required)
-  --preview                   Preview changes without applying
-
-Reject Command Flags:
-  --suggestion <id>           Suggestion ID (required)
-
-Batch-Accept Command Flags:
-  --json <file|->             JSON file path or '-' for stdin: ["c7f3k", "c9b21"]
-  --author <name>             Accept all pending suggestions from this author
-  --type <type>               Accept all pending suggestions of this type
-
-Reanchor Command Flags:
-  --comment <id>              Comment to move (or use --json for a batch)
-  --line <number>             New line number
-  --section <path>            New section path (used when --line is absent)
-  --json <file|->             Batch of moves as JSON
-  --json-out                  Machine-readable results
-
-Inbox Command Flags:
-  --since <RFC3339>           Only threads with replies newer than this
-  --json                      Machine-readable output
-
-Status Command Flags:
-  --json                      Machine-readable output
-
-Check-Review Command Flags:
-  --since <RFC3339>           Check for signoffs after this time (required)
-  --strict                    Fail on any unresolved comment or pending suggestion
-  --json                      Machine-readable output
+Flags (every command also has -h):
+  add        --anchor TEXT | --section PATH | --line N   --author NAME --text TEXT
+             [--type Q|S|B|T|E] [--priority low|medium|high] [--blocking]
+             --json FILE|-   add many        --json-out   machine-readable result
+  reply      --thread ID --author NAME --text TEXT [--resolve]
+             --json FILE|-   reply to many   --json-out
+  get        [--thread ID] [--unresolved] [--from CITING-DOC] [--json]
+  inbox      [--since RFC3339] [--reviewer NAME] [--json]
+  watch      [--until signoff[,gate_changed]] [--interval 1s]
+  suggest    --anchor TEXT | --start-line N --end-line M   --author NAME --text TEXT
+             --proposed TEXT [--original TEXT]
+  reanchor   --comment ID --line N | --section PATH      --json FILE|-   --json-out
+  gate       [--json] [--strict] [--template NAME] [--context N]
+  validate   [--template NAME] [--json]
+  analyze    [--against research.md] [--template NAME] [--json]
+  new        --template NAME [--title T] [--description D] [--from related.md] [--json]
+  context    [--for MODE] [--include-body] [--include-threads] [--json]
+  view       [--theme nord|dracula|gruvbox|ansi]
+  doctor     [--json] [--skip-mcp]
+  --text, --original and --proposed accept @filename to read content from a file.
 
 Examples:
-  # Interactive mode
-  comments view document.md
+  comments new cache-policy --template design-doc
+  comments add doc.md --anchor "Page loads take four seconds" --author claude \
+    --type Q --blocking --text "Measured or estimated?"
+  comments add doc.md --json annotations.json
+  comments view doc.md                          # the human reviews; q gives the verdict
+  comments watch doc.md --until signoff         # the agent waits on it
+  comments inbox doc.md --json                  # then reads everything that needs it
+  comments reply doc.md --thread c7f3k --author claude --text "Fixed: cites the dashboard." --resolve
+  comments gate doc.md                          # exit 0 = approved
 
-  # List with filters (can combine multiple filters!)
-  comments list document.md                              # Show only unresolved comments
-  comments list document.md --resolved                   # Show all comments (including resolved)
-  comments list document.md --type Q                     # Show only unresolved questions
-  comments list document.md --author claude              # Show comments by claude
-  comments list document.md --search "API"               # Search for "API" in comment text
-  comments list document.md --line-range 10-50           # Comments between lines 10-50
-  comments list document.md --author alice --type Q      # Alice's questions
-  comments list document.md --format table               # Pretty table output
-  comments list document.md --format json > output.json  # Export filtered results
-  comments list document.md --with-context               # Show all comments with document context
-  comments list document.md --type Q --with-context      # Show questions with context (great for LLMs!)
-
-  # Get detailed comment with context
-  comments get document.md --thread c123                 # Get comment with full context
-  comments get document.md --thread c456 --with-replies=false  # Get without replies
-
-  # Single comment (author required for CLI)
-  comments add document.md --line 10 --author "claude" --text "This needs review"
-  comments add document.md --line 15 --author "bot" --text "Great point!"
-  comments add document.md --line 20 --author "reviewer" --type Q --text "Is this correct?"
-
-  # Batch add comments from JSON (each comment must have author)
-  comments batch-add document.md --json reviews.json
-  echo '[{"line":10,"author":"claude","text":"Fix this"},{"line":20,"author":"bot","text":"Add example","type":"S"}]' | \
-    comments batch-add document.md --json -
-
-  # Thread operations (author required for CLI)
-  comments reply document.md --thread c123 --author "claude" --text "I agree"
-  comments batch-reply document.md --json replies.json
-  echo '[{"thread":"c123","author":"claude","text":"LGTM"}]' | \
-    comments batch-reply document.md --json -
-  comments resolve document.md --thread c123
-
-
-  # Suggestions - propose edits with track-changes workflow
-  comments suggest document.md --start-line 5 --end-line 8 \
-    --author "claude" --text "Restructure intro" \
-    --original "old text" --proposed "new text"
-
-  # Accept/reject suggestions
-  comments accept document.md --suggestion c123 --preview  # Preview changes first
-  comments accept document.md --suggestion c123            # Apply the changes
-  comments reject document.md --suggestion c456            # Reject suggestion
-
-  # Status management - track TODOs and handle document changes
-  comments list document.md --status orphaned              # View comments orphaned by edits
-  comments list document.md --priority high                # View high-priority TODOs
-  comments list document.md --status active --priority high # Active high-priority items
-
-Batch-Add JSON Format:
-  Target a comment with exactly ONE of "line", "section" or "anchor".
-  Prefer "anchor" — quote the target line and skip grepping for line numbers.
-  [
-    {
-      "anchor": "the exact line this comment is about",
-      "author": "claude",      // Required
-      "text": "Add examples",
-      "type": "S",             // Optional: Q, S, B, T, E
-      "priority": "high",      // Optional: low, medium, high
-      "blocking": true         // Optional: gate fails until resolved
-    },
-    {
-      "line": 25,
-      "author": "bob",         // Required
-      "text": "Great point!"
-    },
-    {
-      "section": "Implementation > Architecture",
-      "author": "alice",       // Required
-      "text": "Cite the research here"
-    }
-  ]
-
-Reanchor JSON Format (moves array):
-  [
-    {"comment_id": "c7f3k", "line": 42},
-    {"comment_id": "c9b21", "section": "Proposed Design"}
-  ]
-
-Batch-Reply JSON Format:
-  [
-    {
-      "thread": "c123",        // Required: Thread ID
-      "author": "claude",      // Required
-      "text": "This looks good to me"
-    },
-    {
-      "thread": "c456",
-      "author": "alice",
-      "text": "I agree with this approach"
-    }
-  ]
-
-Keyboard shortcuts (in view mode):
-  j/k or ↓/↑      Navigate comments
-  c               Enter line selection mode
-  q or Ctrl+C     Quit
+JSON formats:
+  add --json       [{"anchor": "quoted target line", "author": "claude", "text": "...",
+                     "type": "Q", "priority": "high", "blocking": true},
+                    {"section": "Doc Title > Proposed Design", "author": "claude", "text": "..."}]
+                   Each comment takes exactly one of anchor, section or line. Prefer anchor.
+  reply --json     [{"thread_id": "c7f3k", "author": "claude", "text": "...", "resolve": true}]
+  reanchor --json  [{"comment_id": "c7f3k", "line": 42},
+                    {"comment_id": "c9b21", "section": "Doc Title > Proposed Design"}]
 
 For more information, visit: https://github.com/rcliao/comments
 `

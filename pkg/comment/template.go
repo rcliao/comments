@@ -562,3 +562,25 @@ func (t *Template) ReadingPath() []ReadingTier {
 	}
 	return path
 }
+
+// ValidationReport is `validate`'s result on every surface.
+type ValidationReport struct {
+	File         string             `json:"file"`
+	Template     string             `json:"template"`
+	Conforms     bool               `json:"conforms"`
+	Violations   []Violation        `json:"violations"`
+	SectionWords []SectionWordCount `json:"section_words"`
+}
+
+// BuildValidationReport checks a managed document against its template.
+// Word counts ride along on success and failure: trimming is informed, not blind.
+func BuildValidationReport(content, file string, t *Template) *ValidationReport {
+	violations := ValidateManagedDocument(content, file, t)
+	if violations == nil {
+		violations = []Violation{}
+	}
+	return &ValidationReport{
+		File: file, Template: t.Name, Conforms: len(violations) == 0,
+		Violations: violations, SectionWords: SectionWordReport(content, t),
+	}
+}

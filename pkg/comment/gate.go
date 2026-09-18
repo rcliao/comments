@@ -126,3 +126,23 @@ func AddReviewRecord(doc *DocumentWithComments, author, decision, note string, s
 	doc.Reviews = append(doc.Reviews, record)
 	return record
 }
+
+// RecordVerdict is a human's review pass, written in full: the review record,
+// the sidecar, and — for a real verdict — the reviewer's changed-since
+// baseline (a reply-pass leaves the baseline accumulating). The human surfaces
+// (`comments view`, `comments serve`) are its only callers; there is
+// deliberately no CLI command or MCP tool for it, because a non-interactive
+// signoff let an agent record an approval under the human's name.
+//
+// The baseline write is best-effort: the record has already landed, so a
+// baseline failure must not report a landed verdict as failed.
+func RecordVerdict(path string, doc *DocumentWithComments, author, decision, note string) (ReviewRecord, error) {
+	record := AddReviewRecord(doc, author, decision, note, false)
+	if err := SaveToSidecar(path, doc); err != nil {
+		return record, err
+	}
+	if BaselineUpdatesOn(record.Decision) {
+		_ = SaveReviewBaseline(path, record.Author, doc.Content)
+	}
+	return record, nil
+}

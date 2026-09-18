@@ -1,11 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/rcliao/comments/pkg/comment"
 )
@@ -45,82 +43,7 @@ func templateCommand(args []string) error {
 		if err != nil {
 			return failf("Error: %v", err)
 		}
-		fmt.Printf("Template: %s\n%s\n\n", t.Name, t.Description)
-		if t.Doc.MaxWords > 0 {
-			fmt.Printf("Document cap: %d words\n\n", t.Doc.MaxWords)
-		}
-		fmt.Println("Sections:")
-		for _, s := range t.Sections {
-			flags := []string{}
-			if s.Required {
-				flags = append(flags, "required")
-			}
-			if s.MaxWords > 0 {
-				flags = append(flags, fmt.Sprintf("max %d words", s.MaxWords))
-			}
-			// Subsection bounds belong in the brief, not only in the validator:
-			// an agent cannot follow a cap it is never shown, and a rule that
-			// only surfaces as a late violation gets satisfied by trimming
-			// rather than by writing tighter in the first place.
-			switch {
-			case s.MinSubsections > 0 && s.MaxSubsections > 0:
-				flags = append(flags, fmt.Sprintf("%d-%d subsections", s.MinSubsections, s.MaxSubsections))
-			case s.MinSubsections > 0:
-				flags = append(flags, fmt.Sprintf(">=%d subsections", s.MinSubsections))
-			case s.MaxSubsections > 0:
-				flags = append(flags, fmt.Sprintf("<=%d subsections", s.MaxSubsections))
-			}
-			if s.MaxSubsectionWords > 0 {
-				flags = append(flags, fmt.Sprintf("max %d words each", s.MaxSubsectionWords))
-			}
-			if s.EnumeratesQuestions {
-				flags = append(flags, "enumerate sub-questions Q1., Q2., ...")
-			}
-			if s.AnswersQuestions {
-				flags = append(flags, "tag each subsection [Q1]")
-			}
-			if s.Zone != "" {
-				flags = append(flags, "zone: "+s.Zone)
-			}
-			if s.Tier > 0 {
-				flags = append(flags, fmt.Sprintf("tier %d", s.Tier))
-			}
-			fmt.Printf("  ## %s", s.Heading)
-			if len(flags) > 0 {
-				fmt.Printf("  [%s]", strings.Join(flags, ", "))
-			}
-			fmt.Println()
-			for _, c := range s.ReviewCriteria {
-				fmt.Printf("     ✓ %s\n", c)
-			}
-		}
-
-		printReadingPath(t)
-
-		// Style caps shape how the doc reads; an agent that only meets word
-		// budgets will write walls unless told the shape too.
-		if st := t.Doc.Style; st.MaxSentenceWords > 0 || st.MaxParagraphWords > 0 {
-			fmt.Println("\nWriting style (checked by validate):")
-			if st.MaxParagraphWords > 0 {
-				fmt.Printf("  Paragraphs: at most %d words, one purpose each — separate ideas into\n", st.MaxParagraphWords)
-				fmt.Println("  their own blocks, and use bullet lists where you are listing things.")
-			}
-			if st.MaxSentenceWords > 0 {
-				fmt.Printf("  Sentences: at most %d words. Lead with the claim.\n", st.MaxSentenceWords)
-			}
-			fmt.Println("  Line breaks: break at sentence or clause boundaries, never at column")
-			fmt.Println("  width. The tool is line-addressed, so one sentence per line means a")
-			fmt.Println("  comment anchors to a sentence and an edit does not reflow the lines below.")
-		}
-
-		// The marker budget is enforced by validate but was invisible here, so
-		// agents guessed at it. Spend markers on what genuinely needs the human.
-		if t.Markers.Max > 0 {
-			fmt.Printf("\nAmbiguity markers: at most %d %s ...] per document.\n",
-				t.Markers.Max, t.MarkerPrefix())
-			fmt.Println("  Each marker is reported by validate; add an explicit blocking comment")
-			fmt.Println("  for the human, then decide the rest and record assumptions in the doc.")
-		}
+		fmt.Print(t.Brief().Text())
 
 	default:
 		return failf("Unknown template subcommand: %s (use list or show)", args[0])
@@ -142,19 +65,13 @@ func validateCommand(filename string, args []string) error {
 	if err != nil {
 		return err
 	}
-	violations := comment.ValidateManagedDocument(doc.Content, filename, t)
-	wordReport := comment.SectionWordReport(doc.Content, t)
+	report := comment.BuildValidationReport(doc.Content, filename, t)
+	violations, wordReport := report.Violations, report.SectionWords
 
 	if *jsonOut {
-		payload := map[string]any{
-			"file":          filename,
-			"template":      t.Name,
-			"conforms":      len(violations) == 0,
-			"violations":    violations,
-			"section_words": wordReport,
+		if err := printJSON(report); err != nil {
+			return err
 		}
-		encoded, _ := json.MarshalIndent(payload, "", "  ")
-		fmt.Println(string(encoded))
 	} else {
 		// Markers are deliberate: an agent flags an ambiguity it refuses to
 		// guess at, then adds a blocking comment at that line. Lumping them in
@@ -228,22 +145,4 @@ func loadTemplateForDoc(filename, templateName string) (*comment.Template, *comm
 		return nil, nil, failf("Error: no template specified; use --template, comments.template frontmatter, or a bundle collection with one template\nList templates with: comments template list")
 	}
 	return t, doc, nil
-}
-
-// printReadingPath shows a template's tiers as a path. The per-section `tier N`
-// flag says where a section sits; this says how far a reader with limited time
-// gets, which is the reason tiers exist.
-func printReadingPath(t *comment.Template) {
-	path := t.ReadingPath()
-	if len(path) == 0 {
-		return
-	}
-	fmt.Println("\nReading path (stop after any tier; each adds to the ones before):")
-	for _, rt := range path {
-		budget := fmt.Sprintf("<=%d words so far", rt.CumulativeMaxWords)
-		if rt.Uncapped {
-			budget = fmt.Sprintf("%d+ words so far, some sections uncapped", rt.CumulativeMaxWords)
-		}
-		fmt.Printf("  tier %d: %s  [%s]\n", rt.Tier, strings.Join(rt.Sections, ", "), budget)
-	}
 }

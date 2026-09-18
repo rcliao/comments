@@ -47,15 +47,20 @@ type ContextRelation struct {
 }
 
 type DocumentContext struct {
-	Mode           string                     `json:"mode"`
-	Bundle         string                     `json:"bundle"`
-	BundleRoot     string                     `json:"bundle_root"`
-	Document       ContextDocument            `json:"document"`
-	Implementation *PlanImplementationContext `json:"implementation,omitempty"`
-	Related        []ContextRelation          `json:"related"`
-	Backlinks      []ContextRelation          `json:"backlinks"`
-	Sources        []KnowledgeSource          `json:"sources"`
-	Suggestions    []ContextRelation          `json:"suggestions"`
+	Mode       string          `json:"mode"`
+	Bundle     string          `json:"bundle"`
+	BundleRoot string          `json:"bundle_root"`
+	Document   ContextDocument `json:"document"`
+	// Brief is the document's template as a writing brief, present while the
+	// document is being written or judged. Drafting used to take a second call
+	// to fetch it; an agent that skipped the call drafted blind.
+	Brief            *TemplateBrief             `json:"brief,omitempty"`
+	BriefUnavailable string                     `json:"brief_unavailable,omitempty"`
+	Implementation   *PlanImplementationContext `json:"implementation,omitempty"`
+	Related          []ContextRelation          `json:"related"`
+	Backlinks        []ContextRelation          `json:"backlinks"`
+	Sources          []KnowledgeSource          `json:"sources"`
+	Suggestions      []ContextRelation          `json:"suggestions"`
 }
 
 // BuildDocumentContext returns a deterministic, explainable neighborhood. It
@@ -100,6 +105,17 @@ func BuildDocumentContext(docPath string, options ContextOptions) (*DocumentCont
 		Related:     []ContextRelation{},
 		Backlinks:   []ContextRelation{},
 		Suggestions: []ContextRelation{},
+	}
+	if mode == "drafting" || mode == "review" || mode == "human-review" {
+		if current.Template != "" {
+			// A brief that fails to load must be loud: an agent handed a
+			// context with no brief and no reason drafts blind.
+			if t, err := LoadTemplateForDoc(current.Template, absPath); err != nil {
+				result.BriefUnavailable = fmt.Sprintf("template %q could not be loaded: %v", current.Template, err)
+			} else {
+				result.Brief = t.Brief()
+			}
+		}
 	}
 	if mode == "implementation" {
 		if current.Template != "plan" && !strings.EqualFold(current.Type, "plan") {

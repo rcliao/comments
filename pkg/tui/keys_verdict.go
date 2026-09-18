@@ -61,17 +61,10 @@ func (m Model) recordVerdict(decision string) (tea.Model, tea.Cmd) {
 		m.err = err
 		return m, nil
 	}
-	comment.AddReviewRecord(m.doc, m.author, decision, strings.TrimSpace(m.verdictNote.Value()), false)
-	if err := comment.SaveToSidecar(m.filename, m.doc); err != nil {
+	// Post-accept, so the baseline is what the reviewer actually approved.
+	if _, err := comment.RecordVerdict(m.filename, m.doc, m.author, decision, strings.TrimSpace(m.verdictNote.Value())); err != nil {
 		m.err = err
 		return m, nil
-	}
-	// A verdict stores the reviewed content (post-accept, so the baseline is
-	// what the reviewer actually approved) as their baseline — the same write
-	// `comments signoff` does. A reply-pass leaves it alone. Best-effort, like
-	// view state: the signoff has already landed.
-	if comment.BaselineUpdatesOn(decision) {
-		_ = comment.SaveReviewBaseline(m.filename, m.author, m.doc.Content)
 	}
 	m.saveViewStateNow()
 	m.VerdictDecision = decision

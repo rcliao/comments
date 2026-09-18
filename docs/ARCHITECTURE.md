@@ -106,17 +106,17 @@ A verdict (`approved` or `changes_requested`) also stores the reviewed content
 as the reviewer's **review baseline** at
 `<docdir>/.comments/baselines/<doc>.<author>.md` — one file per document per
 reviewer, latest verdict only, in the same gitignored local-state directory as
-the TUI view state. A `commented` pass does not touch it. Both signoff writers
-(TUI verdict, `comments signoff`) call `SaveReviewBaseline` after the record
-lands; the write is best-effort so a baseline failure never reports a landed
+the TUI view state. A `commented` pass does not touch it. The human surfaces
+(TUI verdict, web review) save it after the record
+lands (`comment.RecordVerdict`); the write is best-effort so a baseline failure never reports a landed
 signoff as failed. Readers diff the current document against it
 (`comment.ChangedSince`: line-level LCS, then innermost-section rollup) to
 answer "what moved since my last verdict". Edited lines are marked directly;
 a pure deletion marks the line before the gap (so the blame stays in the
 section that lost content), and a removal beside an edit counts once. The TUI tints changed line numbers in the gutter (or shows a bar
-column when numbers are hidden); `comments status --author <reviewer>` and
-MCP `comments_status {reviewer}` report `changed_lines`, `deletions` and
-`changed_sections` (omitted entirely when no baseline exists, so absence means
+column when numbers are hidden); `comments inbox` (MCP `comments_inbox`)
+reports `changed_lines`, `deletions` and `changed_sections` per file under
+`changes`, against `--reviewer` or the latest reviewer (omitted entirely when no baseline exists, so absence means
 "never signed off", not "unchanged").
 
 Template identity is durable without creating review noise. Resolution is:
@@ -269,10 +269,40 @@ committed.
 ## CLI and MCP surfaces
 
 The CLI router is `cmd/comments/main.go`; `comments help` is its current command
-catalog. The MCP server registers 23 tools and two resources from
-`pkg/mcp/server.go`. It covers thread reads/writes, batch operations,
-suggestions, templates, gate/review coordination, inbox/status, deterministic
-artifact analysis, OKF bundle/context operations, and explicit re-anchoring.
+catalog. The MCP server registers two resources and the agent surface as tools
+from `pkg/mcp/server.go`.
+
+The surface follows one rule: **one command per purpose, the same on both
+surfaces.** Each agent command has an MCP tool of the same name, and each
+result is a single type in `pkg/comment` that both adapters marshal
+(`GateReport`, `Inbox`, `ThreadList`/`ThreadDetail`, `AddResult`, `ReplyResult`,
+`TemplateBrief`, `WatchEvent`), so neither the catalog nor the shapes can drift.
+
+| Purpose | Command and tool | Core entry point |
+|---|---|---|
+| Create a doc under a template | `new`, `context` (carries the brief) | `CreateBundleDocument`, `BuildDocumentContext` |
+| Check a draft | `validate`, `analyze` | `ValidateManagedDocument`, `AnalyzeDocument` |
+| Annotate | `add` | `AddComments` |
+| Wait for the human | `watch` | `Watch` |
+| See what needs attention | `inbox` | `BuildInbox` |
+| Look up a thread | `get` | `ListThreads`, `GetThread` |
+| Respond, optionally resolving | `reply` | `ReplyToThreads` (carries `GuardZoneResolve`) |
+| Propose an edit | `suggest` | `NewSuggestion` |
+| Fix anchors after edits | `reanchor` | `ApplyMoves` |
+
+CLI-only by design: `view` and `serve` (the human surfaces), `gate` (exit-code
+contract for scripts), `template`, `doctor`, `bundle`, `serve-mcp`, `help`.
+
+**Human decisions have no command.** Accepting or rejecting a suggestion and
+recording a verdict happen only inside `view` and `serve`, which call the core
+helpers directly (`AcceptSuggestion`, `RejectSuggestion`, `RecordVerdict`). An
+end-to-end review (`docs/review-surface-e2e-2026-09-18.md`) showed an agent
+rewriting a `zone: human` section by accepting its own suggestion, and recording
+an approval under the human's name with `signoff`; removing the commands closes
+both without new enforcement. `cmd/comments/parity_test.go` reads the tool
+catalog from registration and the command catalog from the dispatch switch and
+fails if a tool lacks a twin, a command lacks a twin or a recorded reason, or
+one of those decisions becomes reachable again.
 
 `comment.ValidateManagedDocument` is the shared path-aware entry point.
 CLI validate/gate and MCP validate/gate all call it, so citation resolution and
@@ -295,7 +325,7 @@ It is a human adapter over the same `pkg/comment` operations as the TUI: add,
 reply, resolve/reopen, suggestion accept/reject, and verdict records. Goldmark
 renders GFM without enabling raw HTML; a separate source view keeps line
 anchors exact. Approved and changes-requested verdicts also update the same
-per-reviewer baseline used by the TUI and `comments signoff`.
+per-reviewer baseline used by the TUI and the web review.
 
 The renderer wraps each top-level Goldmark block with its source-line range.
 The client assigns every root thread to the containing (or nearest) block and

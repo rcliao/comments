@@ -151,21 +151,40 @@ func writeTestDoc(t *testing.T) string {
 // listedIDs runs `list --format json` and returns the thread IDs from stdout.
 func listedIDs(t *testing.T, doc string) []string {
 	t.Helper()
-	code, stdout, _ := runCapture(t, "list", doc, "--format", "json")
+	code, stdout, _ := runCapture(t, "get", doc, "--json")
 	if code != 0 {
-		t.Fatalf("list --format json exited %d", code)
+		t.Fatalf("get --json exited %d", code)
 	}
-	var comments []struct {
-		ID string `json:"id"`
+	var list struct {
+		Comments []struct {
+			ID string `json:"id"`
+		} `json:"comments"`
 	}
-	if err := json.Unmarshal([]byte(stdout), &comments); err != nil {
-		t.Fatalf("list --format json stdout is not valid JSON: %v\nstdout: %s", err, stdout)
+	if err := json.Unmarshal([]byte(stdout), &list); err != nil {
+		t.Fatalf("get --json stdout is not valid JSON: %v\nstdout: %s", err, stdout)
 	}
-	ids := make([]string, 0, len(comments))
-	for _, c := range comments {
+	ids := make([]string, 0, len(list.Comments))
+	for _, c := range list.Comments {
 		ids = append(ids, c.ID)
 	}
 	return ids
+}
+
+// recordVerdict is the test-only stand-in for a human's review pass. There is
+// deliberately no CLI command for it: a non-interactive signoff let an agent
+// record an approval under the human's name, so the verdict is written only by
+// `comments view` / `comments serve` — and, here, by the same core call they use.
+func recordVerdict(t *testing.T, doc, author, decision string) comment.ReviewRecord {
+	t.Helper()
+	loaded, _, err := comment.LoadDocument(doc)
+	if err != nil {
+		t.Fatalf("load %s: %v", doc, err)
+	}
+	record, err := comment.RecordVerdict(doc, loaded, author, decision, "")
+	if err != nil {
+		t.Fatalf("record verdict: %v", err)
+	}
+	return record
 }
 
 // TestAddGateSignoffRoundTrip exercises the add -> gate(10) -> resolve ->
@@ -214,29 +233,32 @@ func TestAddGateSignoffRoundTrip(t *testing.T) {
 	if len(ids) != 1 {
 		t.Fatalf("expected 1 thread, got %v", ids)
 	}
-	code, _, stderr = runCapture(t, "resolve", doc, "--thread", ids[0])
+	code, _, stderr = runCapture(t, "reply", doc, "--thread", ids[0], "--author", "eric", "--text", "fixed", "--resolve")
 	if code != 0 {
-		t.Fatalf("resolve exited %d, stderr: %s", code, stderr)
+		t.Fatalf("reply --resolve exited %d, stderr: %s", code, stderr)
 	}
 	code, _, _ = runCapture(t, "gate", doc)
 	if code != 0 {
 		t.Fatalf("gate after resolve exited %d, want 0", code)
 	}
 
-	// Signoff records the derived (approved) decision
-	code, stdout, stderr = runCapture(t, "signoff", doc, "--author", "eric")
-	if code != 0 {
-		t.Fatalf("signoff exited %d, stderr: %s", code, stderr)
+	// An empty decision derives from the gate: approved once nothing blocks
+	if record := recordVerdict(t, doc, "eric", ""); record.Decision != comment.DecisionApproved {
+		t.Errorf("derived verdict = %q, want %q", record.Decision, comment.DecisionApproved)
 	}
-	if !strings.Contains(stdout, "Review recorded: approved") {
-		t.Errorf("signoff stdout missing decision: %q", stdout)
+
+	// The verdict is the human's: no command may write it
+	for _, removed := range []string{"signoff", "accept", "reject", "batch-accept"} {
+		if code, _, stderr := runCapture(t, removed, doc); code != 1 || !strings.Contains(stderr, "Unknown command") {
+			t.Errorf("%s must not exist as a command (exit %d, stderr %q)", removed, code, stderr)
+		}
 	}
 }
 
-// TestListJSONStdoutCleanWithLoadWarnings edits the document out-of-band so
+// TestGetJSONStdoutCleanWithLoadWarnings edits the document out-of-band so
 // loading re-anchors the comment: the warning must go to stderr while stdout
 // remains valid JSON.
-func TestListJSONStdoutCleanWithLoadWarnings(t *testing.T) {
+func TestGetJSONStdoutCleanWithLoadWarnings(t *testing.T) {
 	doc := writeTestDoc(t)
 
 	code, _, stderr := runCapture(t, "add", doc,
@@ -251,16 +273,18 @@ func TestListJSONStdoutCleanWithLoadWarnings(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	code, stdout, stderr := runCapture(t, "list", doc, "--format", "json")
+	code, stdout, stderr := runCapture(t, "get", doc, "--json")
 	if code != 0 {
-		t.Fatalf("list exited %d, stderr: %s", code, stderr)
+		t.Fatalf("get exited %d, stderr: %s", code, stderr)
 	}
-	var comments []map[string]any
-	if err := json.Unmarshal([]byte(stdout), &comments); err != nil {
+	var list struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &list); err != nil {
 		t.Fatalf("stdout is not valid JSON after load warnings: %v\nstdout: %s", err, stdout)
 	}
-	if len(comments) != 1 {
-		t.Fatalf("expected 1 comment, got %d", len(comments))
+	if list.Total != 1 {
+		t.Fatalf("expected 1 comment, got %d", list.Total)
 	}
 	if !strings.Contains(stderr, "re-anchored") {
 		t.Errorf("expected re-anchoring notice on stderr, got: %q", stderr)
@@ -268,12 +292,12 @@ func TestListJSONStdoutCleanWithLoadWarnings(t *testing.T) {
 
 	// The re-anchored line was persisted by the CLI (not by the load itself):
 	// a second list sees the migrated sidecar and prints no further warnings
-	code, _, stderr = runCapture(t, "list", doc, "--format", "json")
+	code, _, stderr = runCapture(t, "get", doc, "--json")
 	if code != 0 {
-		t.Fatalf("second list exited %d", code)
+		t.Fatalf("second get exited %d", code)
 	}
 	if stderr != "" {
-		t.Errorf("second list should load a clean sidecar, stderr: %q", stderr)
+		t.Errorf("second get should load a clean sidecar, stderr: %q", stderr)
 	}
 }
 
@@ -288,7 +312,7 @@ func TestErrorsGoToStderr(t *testing.T) {
 	if stdout != "" {
 		t.Errorf("error message leaked to stdout: %q", stdout)
 	}
-	if !strings.Contains(stderr, "Error: --text flag is required") {
+	if !strings.Contains(stderr, "Error: comment 1: text is required") {
 		t.Errorf("stderr missing error message: %q", stderr)
 	}
 
@@ -303,9 +327,9 @@ func TestErrorsGoToStderr(t *testing.T) {
 		t.Errorf("stderr missing unknown-command message: %q", stderr)
 	}
 
-	code, stdout, stderr = runCapture(t, "list", filepath.Join(t.TempDir(), "missing.md"))
+	code, stdout, stderr = runCapture(t, "get", filepath.Join(t.TempDir(), "missing.md"))
 	if code != 1 {
-		t.Errorf("list on missing file exited %d, want 1", code)
+		t.Errorf("get on missing file exited %d, want 1", code)
 	}
 	if stdout != "" {
 		t.Errorf("missing-file error leaked to stdout: %q", stdout)
@@ -315,21 +339,19 @@ func TestErrorsGoToStderr(t *testing.T) {
 	}
 }
 
-// A verdict signoff stores the reviewed content as the reviewer's baseline;
-// status then names what moved since. A reply-pass leaves the baseline alone.
-func TestSignoffStoresBaselineAndStatusReportsChangedSections(t *testing.T) {
+// A verdict stores the reviewed content as the reviewer's baseline; the inbox
+// then names what moved since. A reply-pass leaves the baseline alone.
+func TestVerdictStoresBaselineAndInboxReportsChangedSections(t *testing.T) {
 	doc := writeTestDoc(t)
 
-	if code, _, stderr := runCapture(t, "signoff", doc, "--author", "eric", "--decision", "approved"); code != 0 {
-		t.Fatalf("signoff exited %d: %s", code, stderr)
-	}
+	recordVerdict(t, doc, "eric", comment.DecisionApproved)
 	base, ok := comment.LoadReviewBaseline(doc, "eric")
 	if !ok {
-		t.Fatal("approved signoff must store a baseline")
+		t.Fatal("an approved verdict must store a baseline")
 	}
 	original, _ := os.ReadFile(doc)
 	if base != string(original) {
-		t.Errorf("baseline = %q, want the signed-off content", base)
+		t.Errorf("baseline = %q, want the reviewed content", base)
 	}
 
 	// Agent edits the second section
@@ -338,36 +360,46 @@ func TestSignoffStoresBaselineAndStatusReportsChangedSections(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	code, stdout, _ := runCapture(t, "status", doc, "--json", "--author", "eric")
-	if code != 0 {
-		t.Fatalf("status exited %d", code)
+	type inboxOut struct {
+		Files []struct {
+			Changes *struct {
+				Reviewer        string   `json:"reviewer"`
+				ChangedLines    int      `json:"changed_lines"`
+				ChangedSections []string `json:"changed_sections"`
+			} `json:"changes"`
+		} `json:"files"`
 	}
-	var st struct {
-		ChangedLines    int      `json:"changed_lines"`
-		ChangedSections []string `json:"changed_sections"`
+	readInbox := func(args ...string) inboxOut {
+		t.Helper()
+		code, stdout, stderr := runCapture(t, append([]string{"inbox", doc, "--json"}, args...)...)
+		if code != 0 {
+			t.Fatalf("inbox exited %d: %s", code, stderr)
+		}
+		var out inboxOut
+		if err := json.Unmarshal([]byte(stdout), &out); err != nil {
+			t.Fatalf("inbox --json invalid: %v\n%s", err, stdout)
+		}
+		return out
 	}
-	if err := json.Unmarshal([]byte(stdout), &st); err != nil {
-		t.Fatalf("status --json invalid: %v\n%s", err, stdout)
+
+	// No --reviewer: the inbox diffs against the latest reviewer's baseline
+	ch := readInbox().Files[0].Changes
+	if ch == nil || ch.Reviewer != "eric" || ch.ChangedLines != 2 || len(ch.ChangedSections) != 1 || ch.ChangedSections[0] != "Title > Section" {
+		t.Errorf("inbox changes = %+v, want 2 lines in [Title > Section] since eric", ch)
 	}
-	if st.ChangedLines != 2 || len(st.ChangedSections) != 1 || st.ChangedSections[0] != "Title > Section" {
-		t.Errorf("status changes = %+v, want 2 lines in [Title > Section]", st)
-	}
-	code, stdout, _ = runCapture(t, "status", doc, "--author", "eric")
-	if code != 0 || !strings.Contains(stdout, "2 line(s), 0 deletion(s) since @eric's last verdict") || !strings.Contains(stdout, "- Title > Section") {
-		t.Errorf("text status should list changed sections, got:\n%s", stdout)
+	code, stdout, _ := runCapture(t, "inbox", doc)
+	if code != 0 || !strings.Contains(stdout, "2 line(s), 0 deletion(s) since @eric's last verdict") {
+		t.Errorf("text inbox should report what changed, got:\n%s", stdout)
 	}
 
 	// A reply-pass does NOT move the baseline: marks keep reading since the verdict
-	if code, _, stderr := runCapture(t, "signoff", doc, "--author", "eric", "--decision", "commented"); code != 0 {
-		t.Fatalf("commented signoff exited %d: %s", code, stderr)
-	}
+	recordVerdict(t, doc, "eric", comment.DecisionCommented)
 	if after, _ := comment.LoadReviewBaseline(doc, "eric"); after != base {
-		t.Error("commented signoff must not replace the baseline")
+		t.Error("a commented reply-pass must not replace the baseline")
 	}
 
-	// No baseline for another reviewer → no changed_* keys at all
-	_, stdout, _ = runCapture(t, "status", doc, "--json", "--author", "someone-else")
-	if strings.Contains(stdout, "changed_lines") {
-		t.Error("status must omit changed_* when the reviewer has no baseline")
+	// No baseline for another reviewer → no changes block at all
+	if ch := readInbox("--reviewer", "someone-else").Files[0].Changes; ch != nil {
+		t.Errorf("inbox must omit changes when the reviewer has no baseline, got %+v", ch)
 	}
 }
