@@ -147,6 +147,16 @@ func ReanchorComment(c *Comment, lines []string, structure *markdown.DocumentStr
 			if r.line != oldLine {
 				c.OriginalLine = oldLine
 				c.Line = r.line
+				// A suggestion's range travels with its anchor. Left behind, an
+				// accept after any edit above it would replace the wrong lines —
+				// silently, whenever no original text was given to verify against.
+				// Only a text match moves it: the section fallback below re-locates
+				// the comment to a heading, which says nothing about the range.
+				if c.IsSuggestion && c.StartLine > 0 {
+					delta := r.line - oldLine
+					c.StartLine += delta
+					c.EndLine += delta
+				}
 				return true, ""
 			}
 			return false, ""
