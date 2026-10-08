@@ -3,3 +3,5 @@
 # Living
 
 - [Living Doc](living-doc.md)
+
+- [One Doc Workflow](one-doc-workflow.md)
