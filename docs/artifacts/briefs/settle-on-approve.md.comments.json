@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "documentHash": "7cee93ff5792b698d6a53591127b7703c7f82e4ffc91f2ffdc7a295b81ed1890",
-  "lastValidated": "2026-10-08T09:52:40.734292-07:00",
+  "lastValidated": "2026-10-08T12:47:24.026782-07:00",
   "threads": [
     {
       "ID": "c4lm0",
@@ -16,7 +16,7 @@
         "selected_text": "The first brief needed only two verdicts, but the end review still left seven threads open. Approving did not settle the agent's picks, so the strict gate never passed. The agent also left threads open that it could have closed. Quality came from fresh adversarial reviews, which the flow treats as optional."
       },
       "AnchorConfidence": "exact",
-      "Resolved": false,
+      "Resolved": true,
       "Blocking": true,
       "Status": "active",
       "Priority": "high",
@@ -151,6 +151,9 @@
           "Line": 27,
           "SectionID": "s6",
           "SectionPath": "Settle On Approve \u003e What \u003e Invariants",
+          "Anchor": {
+            "selected_text": "### Invariants"
+          },
           "AnchorConfidence": "section-level",
           "Resolved": false,
           "Blocking": false,
@@ -182,6 +185,14 @@
       "timestamp": "2026-10-07T18:53:18.205706-07:00",
       "decision": "approved",
       "document_hash": "a81263fd651e1d6b4ba9a6f3b8411ebb5f770b45b7c363d8858090f1cdf11373",
+      "intent_hash": "59963b890e41a666409df3aace8b5286d3ec5c3a52ed5fe1633e45d78a6f1c69",
+      "template": "brief"
+    },
+    {
+      "author": "rcliao",
+      "timestamp": "2026-10-08T12:47:24.026373-07:00",
+      "decision": "approved",
+      "document_hash": "7cee93ff5792b698d6a53591127b7703c7f82e4ffc91f2ffdc7a295b81ed1890",
       "intent_hash": "59963b890e41a666409df3aace8b5286d3ec5c3a52ed5fe1633e45d78a6f1c69",
       "template": "brief"
     }

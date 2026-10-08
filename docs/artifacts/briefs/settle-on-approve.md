@@ -69,6 +69,10 @@ Approving the finished work settles it. Each open pick nobody objected to is acc
 
 ### Status
 
+- 2026-10-08 — **done**
+  - Summary: Approved at the end review. Every check passes except the manual one: one thread stays open.
+  - Evidence: `gate --strict` exit 10 on `cd4ev` only, a note the agent left in a human zone, which neither the approval nor the agent can close.
+  - Next: decide whether approval also closes the agent's unanswered notes in human zones, as it does picks.
 - 2026-10-08 — **active**
   - Summary: Built. Approval settles unanswered picks in `AddReviewRecord`; the TUI dialog names the count; skill and template carry the required adversarial review.
   - Evidence: `go test ./pkg/comment -run SettlePicks`, `./pkg/webreview -run Verdict`, `./pkg/tui -run Verdict` pass; removing the settle call or the objection rule fails them; `./scripts/ci.sh` printed `All CI gates passed.`
