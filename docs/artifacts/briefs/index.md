@@ -5,3 +5,5 @@
 - [Ship OKF-Aware Comments Workflow](okf-comments-workflow.md) — Implementation brief for bundle creation, context loading, and unified review annotations.
 
 - [One Brief](one-brief.md)
+
+- [Settle On Approve](settle-on-approve.md)

@@ -42,6 +42,7 @@ sections:
     review_criteria:
       - "Is every check a command with its expected result, not a description?"
       - "Does every invariant have a check written to break it?"
+      - "Is there a check that a fresh-context reviewer attacks each invariant and reports what it found?"
   - heading: "How"
     required: true
     tier: 4

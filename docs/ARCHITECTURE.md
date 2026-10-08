@@ -230,7 +230,15 @@ The gate remains intentionally mechanical:
 **Picks** (`Comment.Pick`, set by `add --pick`) record a decision the agent made
 alone and proceeds on. A pick is never blocking (add refuses both), so it does
 not stop the default gate; `--strict`, the end-of-work gate, fails until the
-human settles each one.
+human settles each one. An `approved` verdict settles them: `AddReviewRecord`
+resolves every open pick with no reply from anyone but its author, adding an
+"Accepted at approval" reply under the approver's name (`OpenPicks`). Any other
+reply is an objection and keeps the pick open. Both human surfaces record
+through that one call, and `ReplyToThreads` refuses an agent's resolve on an
+open pick, so there is no agent path to settle one. Both surfaces state the
+count before approval; the TUI refuses an approval when the open picks changed
+after its dialog rendered, and the browser's revision check rejects a stale
+verdict.
 
 **Briefs** are the default artifact (`templates/brief.yaml`): Why, What, Shape
 and Checks are `zone: human`, How is the agent's. A verdict on a brief records

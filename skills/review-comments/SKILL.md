@@ -49,10 +49,12 @@ makes the approval stale and locks code edits until the human approves again.
 ## The flow
 
 1. **Draft.** `comments new <slug> --template brief`. Why is the human's: use
-   their words, and if you paraphrase, post a blocking thread asking them to
-   own it. List premises first in How, each with a `file:line` citation, and
+   their words, and if you paraphrase, post a non-blocking thread saying so —
+   never a blocking one, since you cannot close it and approving the brief
+   owns the Why. List premises first in How, each with a `file:line` citation, and
    verify them before you draft the rest — a false premise changes the brief.
-   Write checks as commands. `comments validate` until clean.
+   Write checks as commands, and include one where a fresh-context reviewer
+   attacks each invariant. `comments validate` until clean.
 2. **Self-review.** Post a few specific threads where the brief turns: your
    weakest step, assumptions, rejected options you are least sure of. Mark the
    two or three that matter `priority: high`. Silence means you checked.
@@ -73,9 +75,14 @@ makes the approval stale and locks code edits until the human approves again.
    - Keep How's status current. If a human section is wrong, do not edit it:
      post a thread at that line or a `suggest`, and keep going where you can.
    - Read the inbox at each stopping point; the human steers with threads.
-6. **Finish.** Run every check and quote the output in How's status.
-   `comments gate <doc> --strict` must pass except for your open picks, which
-   the human settles. Hand off once more, naming the picks and the evidence.
+6. **Finish.** Run every check and quote the output in How's status. The
+   fresh-context adversarial review is required, not optional: give it the
+   brief and the diff, and fix or file what it finds. Close every thread you
+   fixed wherever you may (`reply --resolve`); reply in human zones and on
+   picks, which only the human's approval settles. `comments
+   gate <doc> --strict` must then fail only on your open picks: approving the
+   finished work accepts each one nobody replied to. Hand off once more,
+   naming the picks and the evidence.
 
 ## Working with threads (any doc)
 

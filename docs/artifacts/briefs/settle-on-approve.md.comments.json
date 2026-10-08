@@ -1,0 +1,190 @@
+{
+  "version": "2.0",
+  "documentHash": "7cee93ff5792b698d6a53591127b7703c7f82e4ffc91f2ffdc7a295b81ed1890",
+  "lastValidated": "2026-10-08T09:52:40.734292-07:00",
+  "threads": [
+    {
+      "ID": "c4lm0",
+      "Author": "claude",
+      "Timestamp": "2026-10-07T18:47:26.51039-07:00",
+      "Text": "[Q] Why is yours. You asked me to pick the next brief, so this is my framing of the lessons from the last run. Say it stands, or rewrite it.",
+      "Type": "Q",
+      "Line": 13,
+      "SectionID": "s2",
+      "SectionPath": "Settle On Approve \u003e Why",
+      "Anchor": {
+        "selected_text": "The first brief needed only two verdicts, but the end review still left seven threads open. Approving did not settle the agent's picks, so the strict gate never passed. The agent also left threads open that it could have closed. Quality came from fresh adversarial reviews, which the flow treats as optional."
+      },
+      "AnchorConfidence": "exact",
+      "Resolved": false,
+      "Blocking": true,
+      "Status": "active",
+      "Priority": "high",
+      "OriginalLine": 13,
+      "OrphanedReason": "",
+      "OrphanedAt": null,
+      "Replies": [
+        {
+          "ID": "c281s",
+          "Author": "claude",
+          "Timestamp": "2026-10-07T18:53:42.746427-07:00",
+          "Text": "Your approval owns the Why. This blocking thread was my mistake: you can't approve past it, and I can't close it. The brief's Changes now makes it a non-blocking note in the skill. Resolve this one (x in comments view) and the gate passes.",
+          "Type": "",
+          "Line": 11,
+          "SectionID": "s2",
+          "SectionPath": "Settle On Approve \u003e Why",
+          "Anchor": {
+            "selected_text": "## Why"
+          },
+          "AnchorConfidence": "exact",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "active",
+          "Priority": "medium",
+          "OriginalLine": 13,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
+      "IsSuggestion": false,
+      "StartLine": 0,
+      "EndLine": 0,
+      "OriginalText": "",
+      "ProposedText": "",
+      "Accepted": null
+    },
+    {
+      "ID": "c7jqy",
+      "Author": "claude",
+      "Timestamp": "2026-10-07T18:47:26.510417-07:00",
+      "Text": "[Q] Weakest step: the verdict also writes a reply on each settled pick, under the approver's name (\"accepted at approval\"). It's the human's own action, so I think the attribution is honest. But it's the first time a verdict writes anything besides the review record. Alternative: resolve without a reply, which leaves a quieter record.",
+      "Type": "Q",
+      "Line": 61,
+      "SectionID": "s12",
+      "SectionPath": "Settle On Approve \u003e How \u003e Changes",
+      "Anchor": {
+        "selected_text": "- `AddReviewRecord`: on `approved`, resolve each open pick without a reply from another author, and add a reply saying the verdict accepted it.",
+        "context_after": "- The verdict dialog lists open picks: \"approving accepts N picks\"."
+      },
+      "AnchorConfidence": "exact",
+      "Resolved": true,
+      "Blocking": false,
+      "Status": "active",
+      "Priority": "high",
+      "OriginalLine": 61,
+      "OrphanedReason": "",
+      "OrphanedAt": null,
+      "Replies": [
+        {
+          "ID": "c9vz0",
+          "Author": "claude",
+          "Timestamp": "2026-10-07T18:53:48.631062-07:00",
+          "Text": "Ratified by your approval with no reply: settling writes an \"accepted at approval\" reply under the approver's name.",
+          "Type": "",
+          "Line": 61,
+          "SectionID": "s12",
+          "SectionPath": "Settle On Approve \u003e How \u003e Changes",
+          "Anchor": {
+            "selected_text": "- `AddReviewRecord`: on `approved`, resolve each open pick without a reply from another author, and add a reply saying the verdict accepted it.",
+            "context_after": "- The verdict dialog lists open picks: \"approving accepts N picks\"."
+          },
+          "AnchorConfidence": "exact",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "active",
+          "Priority": "medium",
+          "OriginalLine": 61,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
+      "IsSuggestion": false,
+      "StartLine": 0,
+      "EndLine": 0,
+      "OriginalText": "",
+      "ProposedText": "",
+      "Accepted": null
+    },
+    {
+      "ID": "cd4ev",
+      "Author": "claude",
+      "Timestamp": "2026-10-07T18:47:26.51044-07:00",
+      "Text": "[S] Objecting means replying. The rule is any reply from someone other than the pick's author, so a second agent's reply also keeps a pick open. That fails closed: worst case you settle it by hand.",
+      "Type": "S",
+      "Line": 30,
+      "SectionID": "s6",
+      "SectionPath": "Settle On Approve \u003e What \u003e Invariants",
+      "Anchor": {
+        "selected_text": "- A pick with any reply from someone other than its author stays open.",
+        "context_before": "- Only a human verdict settles a pick.",
+        "context_after": "- The TUI and the browser review record the same result."
+      },
+      "AnchorConfidence": "exact",
+      "Resolved": false,
+      "Blocking": false,
+      "Status": "active",
+      "Priority": "medium",
+      "OriginalLine": 30,
+      "OrphanedReason": "",
+      "OrphanedAt": null,
+      "Replies": [
+        {
+          "ID": "c0t43",
+          "Author": "claude",
+          "Timestamp": "2026-10-07T18:53:48.643491-07:00",
+          "Text": "Taken as agreed by your approval: any reply from someone other than the pick's author keeps it open.",
+          "Type": "",
+          "Line": 27,
+          "SectionID": "s6",
+          "SectionPath": "Settle On Approve \u003e What \u003e Invariants",
+          "AnchorConfidence": "section-level",
+          "Resolved": false,
+          "Blocking": false,
+          "Status": "active",
+          "Priority": "medium",
+          "OriginalLine": 30,
+          "OrphanedReason": "",
+          "OrphanedAt": null,
+          "Replies": [],
+          "IsSuggestion": false,
+          "StartLine": 0,
+          "EndLine": 0,
+          "OriginalText": "",
+          "ProposedText": "",
+          "Accepted": null
+        }
+      ],
+      "IsSuggestion": false,
+      "StartLine": 0,
+      "EndLine": 0,
+      "OriginalText": "",
+      "ProposedText": "",
+      "Accepted": null
+    }
+  ],
+  "reviews": [
+    {
+      "author": "rcliao",
+      "timestamp": "2026-10-07T18:53:18.205706-07:00",
+      "decision": "approved",
+      "document_hash": "a81263fd651e1d6b4ba9a6f3b8411ebb5f770b45b7c363d8858090f1cdf11373",
+      "intent_hash": "59963b890e41a666409df3aace8b5286d3ec5c3a52ed5fe1633e45d78a6f1c69",
+      "template": "brief"
+    }
+  ],
+  "template": "brief"
+}

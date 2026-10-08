@@ -43,6 +43,14 @@ func (m Model) repliesThisPass() int {
 	return n
 }
 
+func pickIDs(picks []*comment.Comment) string {
+	ids := make([]string, len(picks))
+	for i, p := range picks {
+		ids[i] = p.ID
+	}
+	return strings.Join(ids, ",")
+}
+
 // recordVerdict applies the queued suggestion decisions, writes the signoff
 // (decision + note) and quits. Shared by both verdict modes so `a`/`c` behave
 // identically whether or not the note has focus.
@@ -51,7 +59,14 @@ func (m Model) recordVerdict(decision string) (tea.Model, tea.Cmd) {
 	// edited the doc or threads — signing off from stale memory would clobber
 	// them (live lost-update, found in dogfooding). Then apply the queued
 	// suggestion decisions against fresh state and record the signoff.
+	shown := pickIDs(comment.OpenPicks(m.doc))
 	m.refreshDocFromDisk()
+	// Approving accepts the open picks, so it may accept only the ones the
+	// dialog showed. A pick filed since then sends the human back to look.
+	if decision == comment.DecisionApproved && pickIDs(comment.OpenPicks(m.doc)) != shown {
+		m.err = fmt.Errorf("the open picks changed while this dialog was up; check them, then approve again")
+		return m, nil
+	}
 	if err := m.applySuggestionQueue(); err != nil {
 		m.err = err
 		return m, nil
@@ -133,6 +148,11 @@ func (m Model) renderVerdictBox() string {
 	fmt.Fprintf(&b, "Submit review for %s\n\n", m.filename)
 	fmt.Fprintf(&b, "%d blocking · %d open · %d pending suggestions\n",
 		len(result.Blocking), len(result.NonBlocking), len(result.PendingSuggestions))
+	// Approving settles the agent's unanswered picks (comment.AddReviewRecord);
+	// say so before the key is pressed, not after
+	if n := len(comment.OpenPicks(m.doc)); n > 0 {
+		fmt.Fprintf(&b, "\nApproving accepts %d pick(s) nobody objected to — reply in one to keep it open\n", n)
+	}
 	if n := len(m.suggestionQueue); n > 0 {
 		fmt.Fprintf(&b, "\n%d queued suggestion decision(s) — applied on submit; Esc keeps them\n", n)
 	}

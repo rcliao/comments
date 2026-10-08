@@ -166,6 +166,65 @@ func TestVerdictDialogShowsQueueCount(t *testing.T) {
 	}
 }
 
+func TestVerdictDialogNamesOpenPicks(t *testing.T) {
+	m := testModel([]*comment.Comment{
+		{ID: "p1", Line: 5, Author: "claude", Text: "Cache or index?", Pick: "index"},
+		{ID: "p2", Line: 5, Author: "claude", Text: "Sync?", Pick: "sync",
+			Replies: []*comment.Comment{{ID: "r1", Author: "rcliao", Text: "No."}}},
+	})
+	if out := m.viewVerdict(); !strings.Contains(out, "Approving accepts 1 pick") {
+		t.Errorf("verdict dialog should name the open picks, got:\n%s", out)
+	}
+	none := testModel([]*comment.Comment{{ID: "c1", Line: 5, Author: "claude", Text: "plain"}})
+	if out := none.viewVerdict(); strings.Contains(out, "Approving accepts") {
+		t.Errorf("dialog mentions picks with none open:\n%s", out)
+	}
+}
+
+// A pick filed while the dialog is up is not accepted under the human's name:
+// approve refuses, nothing is recorded, and the dialog then shows the new count.
+func TestVerdictRefusesPicksNotShown(t *testing.T) {
+	m := testModel(nil)
+	m.filename = filepath.Join(t.TempDir(), "doc.md")
+	if err := os.WriteFile(m.filename, []byte(tuiTestDoc), 0644); err != nil {
+		t.Fatal(err)
+	}
+	m.width, m.height = 100, 40
+	m.handleResize()
+	m.verdictReturnMode = ModeBrowse
+	m.mode = ModeVerdict
+	if strings.Contains(m.viewVerdict(), "Approving accepts") {
+		t.Fatal("dialog shows picks before any exist")
+	}
+	disk, _, err := comment.LoadDocument(m.filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	disk.Threads = append(disk.Threads, &comment.Comment{ID: "p9", Line: 5, Author: "claude", Text: "Cache?", Pick: "index"})
+	if err := comment.SaveToSidecar(m.filename, disk); err != nil {
+		t.Fatal(err)
+	}
+	next, _ := m.handleVerdictKeys(keyMsg("a"))
+	nm := next.(Model)
+	if nm.VerdictDecision != "" || nm.err == nil {
+		t.Fatalf("approve went through with an unseen pick: decision %q, err %v", nm.VerdictDecision, nm.err)
+	}
+	after, _, err := comment.LoadDocument(m.filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after.Reviews) != 0 || after.Threads[0].Resolved {
+		t.Fatalf("unseen pick settled: reviews %d, resolved %v", len(after.Reviews), after.Threads[0].Resolved)
+	}
+	if !strings.Contains(nm.viewVerdict(), "Approving accepts 1 pick") {
+		t.Fatal("dialog does not show the new pick after the refusal")
+	}
+	again, _ := nm.handleVerdictKeys(keyMsg("a"))
+	if again.(Model).VerdictDecision != comment.DecisionApproved {
+		t.Fatal("approving after seeing the pick should go through")
+	}
+}
+
 // The TUI verdict records the same ReviewRecord `comments signoff` writes,
 // note included — an agent polling check_review or watching --until signoff
 // gets the human's message either way.
