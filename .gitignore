@@ -49,3 +49,6 @@ __pycache__/
 !/.comments/templates/
 !/.comments/templates/**
 !/.comments/bundle.yaml
+
+# Claude Code lays generated mod types here on every load
+mods/*/.claude-plugin/types/
