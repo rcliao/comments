@@ -1,6 +1,6 @@
 template: research
 version: 1
-description: RPI research phase — documentarian findings with file:line evidence; open questions live HERE, not in the plan
+description: "Legacy (prefer brief): RPI research phase — documentarian findings with file:line evidence; open questions live HERE, not in the plan"
 doc:
   check_citations: true
   style:

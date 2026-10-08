@@ -47,6 +47,7 @@ func addCommand(filename string, args []string) error {
 	commentType := fs.String("type", "", "Comment type: Q, S, B, T, E (auto-prefixes text)")
 	priority := fs.String("priority", "", "Priority: low, medium (default), high")
 	blocking := fs.Bool("blocking", false, "Must be resolved before the gate passes")
+	pick := fs.String("pick", "", "The option you proceed with unless the human objects (never blocking; settled at the end review)")
 	jsonInput := fs.String("json", "", "Add many: JSON file with an array of comments (use '-' for stdin)")
 	jsonOut := fs.Bool("json-out", false, "Output machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
@@ -74,7 +75,7 @@ Expected format — each comment is placed by exactly one of anchor, section or 
 		}
 		specs = []comment.NewCommentSpec{{
 			Line: *line, Section: *section, Anchor: *anchor, Author: *author,
-			Text: resolved, Type: *commentType, Priority: *priority, Blocking: *blocking,
+			Text: resolved, Type: *commentType, Priority: *priority, Blocking: *blocking, Pick: *pick,
 		}}
 	}
 

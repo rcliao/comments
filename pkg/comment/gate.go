@@ -120,8 +120,15 @@ func AddReviewRecord(doc *DocumentWithComments, author, decision, note string, s
 		Note:         note,
 		DocumentHash: ComputeDocumentHash(doc.Content),
 	}
-	if meta, err := ParseDocumentMetadata(doc.Content); err == nil && (meta.Template == "plan" || strings.EqualFold(meta.Type, "plan")) {
-		record.IntentHash = PlanIntentHash(doc.Content)
+	if meta, err := ParseDocumentMetadata(doc.Content); err == nil {
+		if meta.Template == BriefTemplate {
+			if t, err := loadBuiltinTemplate(BriefTemplate); err == nil {
+				record.Template = BriefTemplate
+				record.IntentHash = BriefContractHash(doc.Content, t)
+			}
+		} else if meta.Template == "plan" || strings.EqualFold(meta.Type, "plan") {
+			record.IntentHash = PlanIntentHash(doc.Content)
+		}
 	}
 	doc.Reviews = append(doc.Reviews, record)
 	return record

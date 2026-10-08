@@ -128,6 +128,31 @@ func TestPlanIntentHashIgnoresStatusOnlyChanges(t *testing.T) {
 	}
 }
 
+// Appending an entry, or a Status heading to a phase that had none, is how an
+// implementing agent records progress; neither may make the approval stale.
+func TestPlanIntentHashIgnoresAppendedStatus(t *testing.T) {
+	appended := strings.Replace(planLedgerFixture, "  - Next: Test it.\n",
+		"  - Next: Test it.\n- 2026-08-27 — **done**\n  - Summary: Built.\n  - Evidence: tests\n  - Next: Phase 2.\n\n", 1)
+	if PlanIntentHash(planLedgerFixture) != PlanIntentHash(appended) {
+		t.Fatal("appended status entry changed plan intent hash")
+	}
+	newHeading := strings.Replace(planLedgerFixture, "More intent.\n",
+		"More intent.\n\n#### Status\n- 2026-08-27 — **active**\n  - Summary: Started.\n  - Evidence: tests\n  - Next: Finish.\n\n", 1)
+	if PlanIntentHash(planLedgerFixture) != PlanIntentHash(newHeading) {
+		t.Fatal("new Status heading changed plan intent hash")
+	}
+}
+
+// Approvals recorded before status blocks were dropped from the hash keep
+// their freshness: the old, line-preserving hash still counts as current.
+func TestPlanApprovalAcceptsLegacyIntentHash(t *testing.T) {
+	legacy := ComputeDocumentHash(MaskPlanStatusLog(planLedgerFixture))
+	doc := &DocumentWithComments{Content: planLedgerFixture, Reviews: []ReviewRecord{{Decision: DecisionApproved, IntentHash: legacy}}}
+	if got := PlanApprovalState(doc).Freshness; got != "current" {
+		t.Fatalf("legacy approval freshness = %q", got)
+	}
+}
+
 func TestPlanImplementationApprovalAndAttention(t *testing.T) {
 	doc := &DocumentWithComments{Content: planLedgerFixture, Threads: []*Comment{{
 		ID: "guardrail", Line: 12, Priority: PriorityHigh, Status: StatusActive,

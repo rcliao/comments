@@ -82,7 +82,22 @@ func PlanApprovalState(doc *DocumentWithComments) PlanApproval {
 		result.Freshness = "unknown"
 		return result
 	}
-	if review.IntentHash != PlanIntentHash(doc.Content) {
+	if review.Template == BriefTemplate {
+		// Judged under the built-in template the verdict recorded, so neither
+		// the doc's frontmatter nor a project template can move the zones.
+		t, err := loadBuiltinTemplate(BriefTemplate)
+		if err != nil {
+			result.Freshness = "unknown"
+			return result
+		}
+		result.Freshness = "current"
+		if review.IntentHash != BriefContractHash(doc.Content, t) {
+			result.Freshness = "stale"
+		}
+		result.FullDocumentChanged = review.DocumentHash != "" && review.DocumentHash != ComputeDocumentHash(doc.Content)
+		return result
+	}
+	if review.IntentHash != PlanIntentHash(doc.Content) && review.IntentHash != legacyPlanIntentHash(doc.Content) {
 		result.Freshness = "stale"
 	} else {
 		result.Freshness = "current"
@@ -292,7 +307,37 @@ func MaskPlanStatusLog(content string) string {
 	return strings.Join(lines, "\n")
 }
 
+// planStatusLines marks every line of every phase's Status block, heading
+// included: progress, not intent.
+func planStatusLines(content string) map[int]bool {
+	out := map[int]bool{}
+	for _, phase := range ParsePlanStatus(content).Phases {
+		for line := phase.statusStart; phase.statusStart > 0 && line <= phase.statusEnd; line++ {
+			out[line] = true
+		}
+	}
+	return out
+}
+
+// PlanIntentHash hashes the plan with every Status block (heading and
+// entries) and every blank line removed, not blanked: appending an entry or a
+// phase's first Status heading, with the spacing around it, is progress, not a
+// change of intent.
 func PlanIntentHash(content string) string {
+	lines := strings.Split(content, "\n")
+	drop := planStatusLines(content)
+	kept := make([]string, 0, len(lines))
+	for i, line := range lines {
+		if !drop[i+1] && strings.TrimSpace(line) != "" {
+			kept = append(kept, line)
+		}
+	}
+	return ComputeDocumentHash(strings.Join(kept, "\n"))
+}
+
+// legacyPlanIntentHash is the hash verdicts recorded before status blocks were
+// removed from it; it still counts as current so those approvals keep.
+func legacyPlanIntentHash(content string) string {
 	return ComputeDocumentHash(MaskPlanStatusLog(content))
 }
 

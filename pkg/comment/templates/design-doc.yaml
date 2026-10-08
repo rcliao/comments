@@ -1,6 +1,6 @@
 template: design-doc
 version: 2
-description: Design one-pager optimized for human review — Intent, Decisions, Data Flow, Data Model, Interfaces, Done; bounded length, forced alternatives, explicit unknowns
+description: "Legacy (prefer brief): Design one-pager optimized for human review — Intent, Decisions, Data Flow, Data Model, Interfaces, Done; bounded length, forced alternatives, explicit unknowns"
 doc:
   check_citations: true
   style:

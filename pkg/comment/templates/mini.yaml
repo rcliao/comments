@@ -1,6 +1,6 @@
 template: mini
 version: 1
-description: Minimal guardrail for small changes (bug fixes, tweaks) — a bounded doc beats no doc, without design-doc ceremony
+description: "Legacy (prefer brief): Minimal guardrail for small changes (bug fixes, tweaks) — a bounded doc beats no doc, without design-doc ceremony"
 doc:
   max_words: 400
 sections:

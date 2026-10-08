@@ -897,6 +897,11 @@ func (m *Model) renderThreadWidth(width int) string {
 	if m.selectedThread.Resolved {
 		rootText = "✓ RESOLVED\n\n" + rootText
 	}
+	// A pick is a decision the agent made alone and is proceeding on: say
+	// what it chose and how to settle it, so a skim of open threads is enough.
+	if m.selectedThread.Pick != "" && !m.selectedThread.Resolved {
+		rootText = "↪ GOING WITH: " + m.selectedThread.Pick + "\n  resolve (x) to accept · reply (r) to object\n\n" + rootText
+	}
 
 	// Add suggestion indicator if root comment is a suggestion
 	if m.selectedThread.IsSuggestion {

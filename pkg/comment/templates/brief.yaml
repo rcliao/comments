@@ -1,0 +1,56 @@
+template: brief
+version: 1
+description: One artifact per piece of work — read in tiers (why, what, checks, how); the human owns Why, What, Shape and Checks, the agent owns tier 4
+doc:
+  check_citations: true
+  style:
+    max_sentence_words: 30
+    max_paragraph_words: 70
+  max_words: 1100
+sections:
+  - heading: "Why"
+    required: true
+    tier: 1
+    zone: human
+    max_words: 100
+    review_criteria:
+      - "Is this the human's own framing? If the human did not write it, quote their words and post a thread asking them to own it."
+  - heading: "What"
+    required: true
+    tier: 2
+    zone: human
+    max_words: 300
+    min_subsections: 3
+    max_subsections: 5
+    max_subsection_words: 90
+    review_criteria:
+      - "Does What state the outcome, what is NOT being done, the invariants that must hold, and when the agent must stop and ask?"
+      - "Is every rejected option recorded with its reason, so it is never silently re-proposed?"
+  - heading: "Shape"
+    required: false
+    tier: 3
+    zone: human
+    max_words: 200
+    review_criteria:
+      - "Include only when the work changes data flow, a data model or an interface. Is each stated as who does what with which data, the entities and key fields that change, and the commands or signatures that change?"
+      - "Does Shape cut scope, rather than add design nobody asked for?"
+  - heading: "Checks"
+    required: true
+    tier: 3
+    zone: human
+    max_words: 220
+    review_criteria:
+      - "Is every check a command with its expected result, not a description?"
+      - "Does every invariant have a check written to break it?"
+  - heading: "How"
+    required: true
+    tier: 4
+    max_words: 480
+    min_subsections: 2
+    review_criteria:
+      - "Are the premises listed first, each with a citation, so they can be verified before building?"
+      - "Does Changes name the files or modules that change, the patterns to follow, and what must not be touched?"
+      - "Is How free of anything the reviewer must approve? Decisions belong in What; How is the agent's to rewrite."
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION:"
+  max: 1

@@ -52,6 +52,9 @@ type Comment struct {
 	// State
 	Resolved bool // Whether the comment/thread has been resolved
 	Blocking bool // If true, this thread must be resolved before the gate passes
+	// Pick is the option the agent proceeds with unless the human objects.
+	// Never blocking; open picks fail only the strict (end-of-work) gate.
+	Pick string `json:",omitempty"`
 
 	// Status tracking (for TODO/task management)
 	Status         string     // Comment status: "active", "orphaned", "resolved", "completed"
@@ -144,6 +147,10 @@ type ReviewRecord struct {
 	Note         string    `json:"note,omitempty"`
 	DocumentHash string    `json:"document_hash,omitempty"`
 	IntentHash   string    `json:"intent_hash,omitempty"`
+	// Template is the template the verdict was given under, when its approval
+	// is hashed by section ownership (brief). Freshness is judged under this
+	// template, never the one the doc's frontmatter names later.
+	Template string `json:"template,omitempty"`
 }
 
 // DocumentWithComments represents a parsed document with comment threads (v2.0)

@@ -982,3 +982,19 @@ func TestHiddenLineNumbersStillCarryChangedMarks(t *testing.T) {
 		t.Errorf("hidden numbers, no marks: gutter should be 3, got %d", got)
 	}
 }
+
+// An open pick names the option the agent is proceeding with, and how to
+// accept (resolve) or object (reply); a settled one drops the prompt.
+func TestThreadViewShowsOpenPick(t *testing.T) {
+	q := &comment.Comment{ID: "p1", Author: "claude", Line: 5, Text: "Cache or index?", Pick: "index"}
+	m := testModel([]*comment.Comment{q})
+	m.selectedThread = q
+	m.mode = ModeThreadView
+	if out := m.renderThread(); !strings.Contains(out, "GOING WITH: index") {
+		t.Fatalf("open pick not shown, got:\n%s", out)
+	}
+	q.Resolved = true
+	if out := m.renderThread(); strings.Contains(out, "GOING WITH") {
+		t.Fatalf("settled pick still prompts, got:\n%s", out)
+	}
+}
