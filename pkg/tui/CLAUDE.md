@@ -163,7 +163,8 @@ The screen still reads as browse, so keys split three ways
 - **Browse-shaped keys fall through with browse semantics** instead of dying:
   `c` closes the panel and starts the comment flow at the cursor line, `q`
   opens the verdict dialog (Esc restores the panel; `q` does NOT quit from
-  the panel), `?` opens help over the doc+panel view.
+  the panel, except on a living doc, where it quits as in browse), `?` opens
+  help over the doc+panel view.
 - **Everything else is ignored** (notably `S`/`L`/`t` — close the panel
   first). If you add a fall-through key, it must behave exactly as it does in
   browse and must close or preserve the panel deliberately.
@@ -215,7 +216,7 @@ the baseline does not.
 ## Living docs: no verdict, a seen baseline, live reload
 
 A doc with `comments.template: living` has nothing to approve. `q` (browse or
-panel, when started on a file) and Ctrl+C record what the reader saw as their
+panel, whether the doc was named on the command line or picked) and Ctrl+C record what the reader saw as their
 baseline (`comment.SaveSeenBaseline`, `markSeen`) and quit, so the next open
 tints only what changed since they last looked. Other docs keep the verdict
 baseline described above.
@@ -249,6 +250,9 @@ if !m.ready {
 ```
 
 **Common bug**: forgetting to call `handleResize()` after loading a file from the file picker — always check dimensions exist before initializing viewports.
+`loadFile` (the picker path) and `NewModelWithFile` both call
+`restoreViewState` before the viewports are laid out, so a picked file resumes
+where it was left too.
 
 The model keeps multiple viewports that must stay in sync (`documentViewport` ~60% width, `commentViewport` ~40%, `threadViewport` full-width, `commentInput` textarea). On a mode change, update the **active** viewport's content, not all of them.
 

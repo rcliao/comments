@@ -49,7 +49,7 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "q":
-		if comment.IsLivingDoc(m.doc.Content) && m.startedWithFile {
+		if comment.IsLivingDoc(m.doc.Content) {
 			m.markSeen()
 			m.saveViewStateNow()
 			return m, tea.Quit

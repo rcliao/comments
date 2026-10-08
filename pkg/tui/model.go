@@ -235,12 +235,7 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 		m.diskStamp = diskStamp(filename)
 	}
 
-	// Resume the previous review position, if one was persisted
-	if st, ok := loadViewState(filename); ok {
-		m.selectedLine = st.SelectedLine
-		m.restoredYOffset = st.YOffset
-		m.hideLineNumbers = st.HideLineNumbers
-	}
+	m.restoreViewState(filename)
 
 	return m
 }
@@ -490,6 +485,8 @@ func (m Model) loadFile(path string) (tea.Model, tea.Cmd) {
 	m.tableCache = m.buildTableCache()
 	m.refreshChangedLines()
 	m.diskStamp = diskStamp(path)
+	// A picked file resumes where it was left, the same as a named one
+	m.restoreViewState(path)
 
 	// If we have dimensions, initialize viewports now
 	if m.width > 0 && m.height > 0 {

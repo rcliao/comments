@@ -181,3 +181,66 @@ func TestLivingRailShowsPhaseAndNow(t *testing.T) {
 		}
 	}
 }
+
+// openPicked opens a living doc the way `comments view` with no file does:
+// the picker model, then loadFile on the chosen path.
+func openPicked(t *testing.T, path string) Model {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(livingTestDoc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := NewModel()
+	m.author = "reader"
+	m.width, m.height = 100, 40
+	next, _ := m.loadFile(path)
+	return next.(Model)
+}
+
+// A living doc picked from the picker has no verdict either: q in browse and
+// in the thread panel records what you saw and quits.
+func TestPickedLivingQuitSkipsVerdict(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		mode ViewMode
+	}{{"browse", ModeBrowse}, {"thread panel", ModeThreadView}} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "work.md")
+			m := openPicked(t, path)
+			if m.startedWithFile {
+				t.Fatal("a picker session should not count as started with a file")
+			}
+			m.mode = tc.mode
+			next, cmd := m.handleKeyPress(keyMsg("q"))
+			if nm := next.(Model); nm.mode == ModeVerdict || cmd == nil {
+				t.Fatalf("q on a picked living doc should quit, got mode %v", nm.mode)
+			}
+			if loaded, _, _ := comment.LoadFromSidecar(path); len(loaded.Reviews) != 0 {
+				t.Fatalf("q recorded a review: %v", loaded.Reviews)
+			}
+			if _, ok := comment.LoadReviewBaseline(path, "reader"); !ok {
+				t.Fatal("q did not record the seen baseline")
+			}
+		})
+	}
+}
+
+// The hint says what q does: quit, even in a picker session.
+func TestPickedLivingHintSaysQuit(t *testing.T) {
+	m := openPicked(t, filepath.Join(t.TempDir(), "work.md"))
+	if !strings.Contains(m.viewBrowse(), "q: quit") {
+		t.Fatal("a picked living doc's hint should say q: quit")
+	}
+}
+
+// A picked file resumes where it was left, the same as a named one.
+func TestPickedFileRestoresPosition(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "work.md")
+	if err := saveViewState(path, viewState{SelectedLine: 9, YOffset: 3, HideLineNumbers: true}); err != nil {
+		t.Fatal(err)
+	}
+	m := openPicked(t, path)
+	if m.selectedLine != 9 || m.restoredYOffset != 3 || !m.hideLineNumbers {
+		t.Fatalf("picked file restored line=%d offset=%d hide=%v, want 9/3/true",
+			m.selectedLine, m.restoredYOffset, m.hideLineNumbers)
+	}
+}
