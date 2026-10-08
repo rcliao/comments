@@ -149,7 +149,8 @@ func DefaultBundleConfig(projectDir string) BundleConfig {
 			"designs":   {Path: "designs", Type: "Design", Templates: []string{"design-doc", "rfc"}, Description: "Technical designs and proposals under review."},
 			"decisions": {Path: "decisions", Type: "Decision", Templates: []string{"adr"}, Description: "Durable decisions and their tradeoffs."},
 			"as-built":  {Path: "as-built", Type: "AsBuilt", Templates: []string{"as-built"}, Description: "What shipped and how it was verified."},
-			"briefs":    {Path: "briefs", Type: "Brief", Templates: []string{"mini"}, Description: "Small reviewable changes that do not need a full plan."},
+			"briefs":    {Path: "briefs", Type: "Brief", Templates: []string{"brief", "mini"}, Description: "One tiered artifact per piece of work; approved once, kept current by the agent."},
+			"living":    {Path: "living", Type: "Living", Templates: []string{"living"}, Description: "One doc kept current while the agent builds; chat steers, nothing to approve."},
 		},
 	}
 }
@@ -399,7 +400,7 @@ func newDocumentContent(bundle *Bundle, path string, collection BundleCollection
 		"type":     collection.Type,
 		"title":    title,
 		"status":   "draft",
-		"comments": map[string]any{"template": template.Name},
+		"comments": scaffoldComments(template.Name),
 	}
 	if strings.TrimSpace(description) != "" {
 		frontmatter["description"] = strings.TrimSpace(description)
@@ -533,4 +534,14 @@ func readCollectionConcepts(root string) ([]indexedConcept, error) {
 	})
 	sort.Slice(concepts, func(i, j int) bool { return concepts[i].path < concepts[j].path })
 	return concepts, err
+}
+
+// scaffoldComments is the tool's frontmatter block for a new concept; a living
+// doc starts in the shaping phase.
+func scaffoldComments(template string) map[string]any {
+	block := map[string]any{"template": template}
+	if template == LivingTemplate {
+		block["phase"] = "shaping"
+	}
+	return block
 }

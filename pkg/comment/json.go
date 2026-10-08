@@ -18,6 +18,7 @@ type CommentView struct {
 	Status           string `json:"status"`
 	Priority         string `json:"priority"`
 	Blocking         bool   `json:"blocking"`
+	Pick             string `json:"pick,omitempty"`
 	Resolved         bool   `json:"resolved"`
 	ReplyCount       int    `json:"reply_count"`
 	SectionPath      string `json:"section_path,omitempty"`
@@ -54,6 +55,7 @@ func newCommentViewIn(c *Comment, threadID string) CommentView {
 		Status:           c.GetStatus(),
 		Priority:         c.GetPriority(),
 		Blocking:         c.Blocking,
+		Pick:             c.Pick,
 		Resolved:         c.Resolved,
 		ReplyCount:       c.CountReplies(),
 		SectionPath:      c.SectionPath,

@@ -1,6 +1,6 @@
 template: adr
 version: 1
-description: Architecture Decision Record (MADR-style) — forces alternatives and consequences
+description: "Legacy (prefer brief): Architecture Decision Record (MADR-style) — forces alternatives and consequences"
 doc:
   max_words: 1200
 sections:

@@ -1,0 +1,63 @@
+template: living
+version: 1
+description: "One doc from research to recap: findings, plan, status, decisions and explanation in one place, kept current while the agent builds; chat steers, a go in chat starts the build"
+doc:
+  check_citations: true
+  style:
+    max_sentence_words: 30
+    max_paragraph_words: 70
+  max_words: 1400
+sections:
+  - heading: "Now"
+    required: true
+    tier: 1
+    max_words: 80
+    review_criteria:
+      - "Does Now say the state, what is next, and what is needed from the human, in a few lines? Is it overwritten each turn, not appended?"
+      - "Is Now's first line the doc's recap: one line, under 400 characters, readable on its own, rewritten each turn?"
+      - "At done, does Now hold the result and the evidence for it (commands and their output, commits)?"
+  - heading: "Why"
+    required: true
+    tier: 1
+    max_words: 100
+    review_criteria:
+      - "Is Why in the human's words? Quote them in a `>` blockquote, which the sentence and paragraph caps skip. Change it only when they do, and say so in chat."
+  - heading: "Findings"
+    required: false
+    tier: 2
+    max_words: 400
+    cite_each_item: true
+    review_criteria:
+      - "Is every finding numbered (F1, F2), one claim each, with its own citation, and verified against the source rather than recalled?"
+      - "Does each finding say what is true now, not what to build? Building is Plan's job."
+  - heading: "Plan"
+    required: true
+    tier: 2
+    max_words: 400
+    review_criteria:
+      - "Does Plan name the slices in build order, what changes in each, and what is not being done?"
+      - "Does each slice cite the findings that justify it, and does every finding lead somewhere or get set aside in Decisions?"
+  - heading: "Decisions"
+    required: true
+    tier: 2
+    max_words: 250
+    review_criteria:
+      - "Does every decision made in chat or alone have a line saying what was decided, why, and where it came from (chat, a thread, or the agent)?"
+      - "Is the go recorded as a dated line, and are rejected options recorded with their reason?"
+  - heading: "Explanation"
+    required: false
+    tier: 3
+    max_words: 400
+    review_criteria:
+      - "Is Explanation written for the human, rewritten as how-it-works changes, rather than a log of what happened?"
+      - "At done, is Explanation the recap: what was built, how it works, and what is left?"
+  - heading: "Checks"
+    required: true
+    tier: 3
+    max_words: 200
+    review_criteria:
+      - "Is every check a command with its expected result?"
+      - "Has a fresh-context reviewer read the doc against the code before the go, and the diff against Plan before done?"
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION:"
+  max: 1

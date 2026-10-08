@@ -15,6 +15,7 @@ package tui
 import (
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
+	"github.com/rcliao/comments/pkg/comment"
 )
 
 // handleThreadViewKeys handles keys in thread view mode
@@ -48,6 +49,11 @@ func (m Model) handleThreadViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "q":
+		if comment.IsLivingDoc(m.doc.Content) {
+			m.markSeen()
+			m.saveViewStateNow()
+			return m, tea.Quit
+		}
 		// Fall-through: q reads as browse's verdict entry, not app-quit;
 		// Esc from the verdict returns to the open panel
 		m.verdictReturnMode = ModeThreadView

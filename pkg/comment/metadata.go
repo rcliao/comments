@@ -29,6 +29,7 @@ type DocumentMetadata struct {
 	Description string            `json:"description,omitempty"`
 	Status      string            `json:"status,omitempty"`
 	Template    string            `json:"template,omitempty"`
+	Phase       string            `json:"phase,omitempty"` // comments.phase: shaping, building, done (living docs)
 	Tags        []string          `json:"tags,omitempty"`
 	Related     []RelatedDocument `json:"related,omitempty"`
 	Sources     []KnowledgeSource `json:"sources,omitempty"`
@@ -55,6 +56,7 @@ func ParseDocumentMetadata(content string) (DocumentMetadata, error) {
 	}
 	if comments, ok := stringMap(fm.Values["comments"]); ok {
 		meta.Template = md.FrontmatterString(comments, "template")
+		meta.Phase = md.FrontmatterString(comments, "phase")
 	}
 	meta.Related = parseRelated(fm.Values["related"])
 	meta.Sources = parseSources(fm.Values["sources"])
@@ -143,6 +145,11 @@ func ValidateOKFMetadata(content string) []Violation {
 	}
 	if meta.Type == "" {
 		return []Violation{{Rule: "missing_type", Line: 1, Message: "OKF frontmatter requires a non-empty type"}}
+	}
+	switch meta.Phase {
+	case "", "shaping", "building", "done":
+	default:
+		return []Violation{{Rule: "invalid_phase", Line: 1, Message: fmt.Sprintf("comments.phase %q must be shaping, building, or done", meta.Phase)}}
 	}
 	if meta.Status != "" && meta.Status != "draft" && meta.Status != "stable" && meta.Status != "deprecated" {
 		return []Violation{{Rule: "invalid_status", Line: 1, Message: fmt.Sprintf("OKF status %q must be draft, stable, or deprecated", meta.Status)}}

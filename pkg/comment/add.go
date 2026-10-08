@@ -16,6 +16,7 @@ type NewCommentSpec struct {
 	Type     string `json:"type,omitempty" jsonschema:"Q question, S suggestion, B bug, T todo, E enhancement"`
 	Priority string `json:"priority,omitempty" jsonschema:"low, medium (default) or high"`
 	Blocking bool   `json:"blocking,omitempty" jsonschema:"Must be resolved before the gate passes"`
+	Pick     string `json:"pick,omitempty" jsonschema:"The option you proceed with unless the human objects; never blocking, settled at the end review (gate --strict)"`
 }
 
 // AddResult reports the comments an add created, in the order they were given.
@@ -60,6 +61,8 @@ func AddComments(doc *DocumentWithComments, specs []NewCommentSpec) (*AddResult,
 			return nil, fmt.Errorf("%s: invalid type %q (valid: Q, S, B, T, E)", where, spec.Type)
 		case !validPriorities[spec.Priority]:
 			return nil, fmt.Errorf("%s: invalid priority %q (valid: low, medium, high)", where, spec.Priority)
+		case spec.Pick != "" && spec.Blocking:
+			return nil, fmt.Errorf("%s: a pick is never blocking: you proceed on it, so ask a blocking question without one", where)
 		case spec.Line != 0 && (spec.Line < 1 || spec.Line > lineCount):
 			return nil, fmt.Errorf("%s: line %d is outside the document (1-%d)", where, spec.Line, lineCount)
 		}
@@ -100,6 +103,7 @@ func AddComments(doc *DocumentWithComments, specs []NewCommentSpec) (*AddResult,
 		}
 		c.Status = "active"
 		c.Blocking = spec.Blocking
+		c.Pick = spec.Pick
 		UpdateCommentSection(c, doc.Content)
 		doc.Threads = append(doc.Threads, c)
 		result.Added = append(result.Added, NewCommentView(c))

@@ -46,6 +46,11 @@ func ReplyToThreads(doc *DocumentWithComments, absPath string, specs []ReplySpec
 			return nil, fmt.Errorf("%s: thread not found: %s", where, spec.ThreadID)
 		}
 		if spec.Resolve {
+			// Only the human's approval settles a pick (AddReviewRecord); an
+			// agent closing its own pick would pass the strict gate unseen.
+			if root.Pick != "" && !root.Resolved && actor != ActorHuman {
+				return nil, fmt.Errorf("%s: thread %s is a pick; the human's approval settles it — reply without resolving, or file a new pick", where, root.ID)
+			}
 			if err := GuardZoneResolve(doc, absPath, root.ID, actor); err != nil {
 				return nil, fmt.Errorf("%s: %w", where, err)
 			}

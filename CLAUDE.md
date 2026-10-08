@@ -58,6 +58,7 @@ Command surface: run `./comments` with no args for full usage. The core review-l
 ./comments view doc.md                                  # interactive TUI (the human review surface)
 ./comments add doc.md --line 10 --author eric --text "Fix this" --blocking
 ./comments add doc.md --anchor "quoted target line" --author claude --text "..."   # no grep for line numbers
+./comments add doc.md --anchor "..." --author claude --text "Cache or index?" --pick index   # decided alone; settled at the end review
 ./comments gate doc.md            # exit 0 = approved, 10 = changes requested
 ./comments watch specs/ --until signoff                 # agent: block until the human's verdict (NDJSON events)
 ./comments inbox doc.md --json    # agent: THE read — decision, open threads, suggestions, violations, changes
@@ -143,7 +144,16 @@ Comments can target a markdown section instead of a line: `--section "Implementa
 - **Suggestions** are multi-line only: `StartLine`/`EndLine` + `OriginalText`/`ProposedText`, acceptance state is `Accepted *bool` (nil=pending, true=accepted, false=rejected).
 - **Staleness**: sidecars store a SHA-256 `documentHash`; a hash mismatch on load marks the sidecar stale and triggers the re-anchoring cascade.
 
-## RPI Flow (Research → Plan → Implement)
+## Brief Flow (gated)
+
+One `brief` per piece of work (`comments new <slug> --template brief`): Why, What, Shape and Checks are the human's and approved once; How is the agent's to keep current. The agent builds against runnable Checks, files `--pick`s instead of asking, and hands the finished work back once (`gate --strict`). See `skills/review-comments/SKILL.md` and `docs/artifacts/briefs/one-brief.md`.
+
+## Living Doc Flow (default: one doc, research to recap)
+
+The default for a piece of work: one `living` doc (`comments new <slug> --template living`) runs from research to recap. Shaping: cited Findings (each needs its own `file:line`), then Plan, Decisions, Checks, a fresh review, and one ask. A go in chat starts the build, recorded in Decisions; `comments.phase` moves shaping → building → done. The agent updates Now (its first line is the recap) and Decisions in the same turn as the code. No verdict; `comments view` reloads live, shows phase and Now on the rail, and tints what changed since the reader last looked; the comments-review mod shows the same recap and how many code edits the doc is behind. See `docs/artifacts/living/one-doc-workflow.md`.
+
+## RPI Flow (Research → Plan → Implement) — legacy
+
 
 For feature-sized work the AUTONOMOUS CHAIN is the default: interview once, then question → research (`research-deep`) → draft-blind coverage scout + evidence verifier until convergence → plan → `comments analyze plan --against research` → ONE human sitting on the plan. Accepted coverage gaps become new `Qn` questions; rejected candidates remain resolved rationale threads; shape-changing survivors pause the chain. The paired eval under `scripts/eval/autonomous-research/` measures the provisional pass cap before dogfood. Say "gate the research" for the two-gate flow. Plans carry no open questions, cite or explicitly exclude every research finding, and split success criteria into automated/manual. See `skills/review-comments/SKILL.md`.
 

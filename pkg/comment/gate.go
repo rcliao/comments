@@ -120,11 +120,57 @@ func AddReviewRecord(doc *DocumentWithComments, author, decision, note string, s
 		Note:         note,
 		DocumentHash: ComputeDocumentHash(doc.Content),
 	}
-	if meta, err := ParseDocumentMetadata(doc.Content); err == nil && (meta.Template == "plan" || strings.EqualFold(meta.Type, "plan")) {
-		record.IntentHash = PlanIntentHash(doc.Content)
+	if meta, err := ParseDocumentMetadata(doc.Content); err == nil {
+		if meta.Template == BriefTemplate {
+			if t, err := loadBuiltinTemplate(BriefTemplate); err == nil {
+				record.Template = BriefTemplate
+				record.IntentHash = BriefContractHash(doc.Content, t)
+			}
+		} else if meta.Template == "plan" || strings.EqualFold(meta.Type, "plan") {
+			record.IntentHash = PlanIntentHash(doc.Content)
+		}
 	}
 	doc.Reviews = append(doc.Reviews, record)
+	if record.Decision == DecisionApproved {
+		settlePicks(doc, author)
+	}
 	return record
+}
+
+// OpenPicks returns the picks an approval would settle: unresolved, and with
+// no reply from anyone but the pick's author. Any other reply is an objection
+// and keeps the pick open for the human to settle by hand.
+func OpenPicks(doc *DocumentWithComments) []*Comment {
+	var picks []*Comment
+	for _, thread := range doc.Threads {
+		if thread.Pick == "" || thread.Resolved || hasReplyFromOther(thread.Replies, thread.Author) {
+			continue
+		}
+		picks = append(picks, thread)
+	}
+	return picks
+}
+
+func hasReplyFromOther(replies []*Comment, author string) bool {
+	for _, r := range replies {
+		if r.Author != author || hasReplyFromOther(r.Replies, author) {
+			return true
+		}
+	}
+	return false
+}
+
+// settlePicks accepts every open pick under the approver's name. Its only
+// caller is AddReviewRecord on an approved verdict, so a pick is settled only
+// by a human verdict — there is no agent path to it.
+func settlePicks(doc *DocumentWithComments, approver string) []string {
+	var settled []string
+	for _, pick := range OpenPicks(doc) {
+		pick.Replies = append(pick.Replies, NewReply(approver, "Accepted at approval: "+pick.Pick, pick))
+		pick.Resolved = true
+		settled = append(settled, pick.ID)
+	}
+	return settled
 }
 
 // RecordVerdict is a human's review pass, written in full: the review record,

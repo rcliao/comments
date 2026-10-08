@@ -1,6 +1,6 @@
 template: plan
 version: 2
-description: RPI plan phase — lightweight approved intent with verifiable phases and optional in-document status ledgers
+description: "Legacy (prefer brief): RPI plan phase — lightweight approved intent with verifiable phases and optional in-document status ledgers"
 doc:
   check_citations: true
   style:

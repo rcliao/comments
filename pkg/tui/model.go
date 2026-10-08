@@ -75,6 +75,9 @@ type Model struct {
 	// no baseline exists). Their line numbers render in the changed accent;
 	// with line numbers hidden a bar column carries the mark instead.
 	changedLines map[int]bool
+	// diskStamp is the size+mtime of the doc and sidecar at the last load,
+	// so the reload tick only reloads when something else wrote them
+	diskStamp string
 
 	// Reference peek state (docs/design-reference-jump.md)
 	refsByLine        map[int][]resolvedRef // citations per doc line, resolved at load
@@ -229,14 +232,10 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 		m.fenceCache = m.buildFenceCache()
 		m.tableCache = m.buildTableCache()
 		m.refreshChangedLines()
+		m.diskStamp = diskStamp(filename)
 	}
 
-	// Resume the previous review position, if one was persisted
-	if st, ok := loadViewState(filename); ok {
-		m.selectedLine = st.SelectedLine
-		m.restoredYOffset = st.YOffset
-		m.hideLineNumbers = st.HideLineNumbers
-	}
+	m.restoreViewState(filename)
 
 	return m
 }
@@ -244,9 +243,9 @@ func NewModelWithFile(doc *comment.DocumentWithComments, filename string) Model 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
 	if m.mode == ModeFilePicker {
-		return m.filePicker.Init()
+		return tea.Batch(m.filePicker.Init(), reloadTick())
 	}
-	return nil
+	return reloadTick()
 }
 
 // Update handles messages and updates the model
@@ -261,10 +260,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Ctrl+C is the universal silent escape: persist the reading
 		// position, quit without a verdict (queued decisions stay unapplied)
 		if msg.String() == "ctrl+c" {
+			m.markSeen()
 			m.saveViewStateNow()
 			return m, tea.Quit
 		}
 		return m.handleKeyPress(msg)
+
+	case reloadTickMsg:
+		return m.handleReloadTick()
 
 	case editorFinishedMsg:
 		// $EDITOR handoff ended; resume the review where it was
@@ -481,6 +484,9 @@ func (m Model) loadFile(path string) (tea.Model, tea.Cmd) {
 	m.fenceCache = m.buildFenceCache()
 	m.tableCache = m.buildTableCache()
 	m.refreshChangedLines()
+	m.diskStamp = diskStamp(path)
+	// A picked file resumes where it was left, the same as a named one
+	m.restoreViewState(path)
 
 	// If we have dimensions, initialize viewports now
 	if m.width > 0 && m.height > 0 {
@@ -519,6 +525,13 @@ func (m *Model) refreshDocFromDisk() {
 	if err != nil || fresh == nil {
 		return
 	}
+	m.applyFresh(fresh)
+}
+
+// applyFresh swaps in a freshly loaded document, keeping the selected thread,
+// the cursor and the range on the same text, and re-deriving every cache
+// positioned against the old content.
+func (m *Model) applyFresh(fresh *comment.DocumentWithComments) {
 	selectedID := ""
 	if m.selectedThread != nil {
 		selectedID = m.selectedThread.ID

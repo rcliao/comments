@@ -265,6 +265,7 @@ type gateView struct {
 	Blocking           int    `json:"blocking"`
 	NonBlocking        int    `json:"non_blocking"`
 	PendingSuggestions int    `json:"pending_suggestions"`
+	OpenPicks          int    `json:"open_picks"`
 }
 
 type sectionView struct {
@@ -350,7 +351,7 @@ func (s *Server) buildState(target documentTarget) (stateView, error) {
 		DocID: target.ID, Name: target.Name, Author: s.author, Revision: rev,
 		RenderedHTML: rendered, Lines: strings.Split(doc.Content, "\n"), Sections: sections,
 		Document:  comment.NewDocumentView(doc),
-		Gate:      gateView{Decision: gate.Decision, Blocking: len(gate.Blocking), NonBlocking: len(gate.NonBlocking), PendingSuggestions: len(gate.PendingSuggestions)},
+		Gate:      gateView{Decision: gate.Decision, Blocking: len(gate.Blocking), NonBlocking: len(gate.NonBlocking), PendingSuggestions: len(gate.PendingSuggestions), OpenPicks: len(comment.OpenPicks(doc))},
 		Documents: summaries,
 	}, nil
 }

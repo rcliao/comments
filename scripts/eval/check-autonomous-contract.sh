@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-skill="$repo_root/skills/review-comments/SKILL.md"
+skill="$repo_root/skills/review-comments/legacy.md"
 
 required=(
   "Coverage scout — source-derived, draft-blind"

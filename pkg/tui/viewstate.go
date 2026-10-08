@@ -56,6 +56,16 @@ func saveViewState(docFilename string, st viewState) error {
 	return os.WriteFile(path, data, 0644)
 }
 
+// restoreViewState resumes the persisted reading position for a document, or
+// starts at the top when none was saved. Call it before the viewports are
+// laid out: handleResize applies restoredYOffset.
+func (m *Model) restoreViewState(docFilename string) {
+	st, _ := loadViewState(docFilename)
+	m.selectedLine = st.SelectedLine
+	m.restoredYOffset = st.YOffset
+	m.hideLineNumbers = st.HideLineNumbers
+}
+
 // saveViewStateNow persists the current reading position; best-effort on quit
 func (m *Model) saveViewStateNow() {
 	if m.doc == nil || m.filename == "" {

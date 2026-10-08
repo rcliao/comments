@@ -118,8 +118,8 @@ func BuildDocumentContext(docPath string, options ContextOptions) (*DocumentCont
 		}
 	}
 	if mode == "implementation" {
-		if current.Template != "plan" && !strings.EqualFold(current.Type, "plan") {
-			return nil, fmt.Errorf("implementation context requires a plan document")
+		if current.Template != "plan" && current.Template != BriefTemplate && !strings.EqualFold(current.Type, "plan") {
+			return nil, fmt.Errorf("implementation context requires a plan or brief document")
 		}
 		doc, _, err := LoadFromSidecar(absPath)
 		if err != nil {

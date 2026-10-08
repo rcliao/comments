@@ -1,6 +1,6 @@
 template: rfc
 version: 1
-description: RFC (Rust-RFC-style) — motivation, guide/reference explanation, drawbacks, rationale, unresolved questions
+description: "Legacy (prefer brief): RFC (Rust-RFC-style) — motivation, guide/reference explanation, drawbacks, rationale, unresolved questions"
 doc:
   max_words: 3000
 sections:

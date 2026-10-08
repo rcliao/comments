@@ -17,6 +17,12 @@ import (
 func (m Model) handleBrowseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q":
+		// A living doc has no verdict: q records what you saw and quits
+		if m.doc != nil && comment.IsLivingDoc(m.doc.Content) {
+			m.markSeen()
+			m.saveViewStateNow()
+			return m, tea.Quit
+		}
 		// Exit is a verdict (approved TUI design): q opens the verdict dialog
 		if m.doc != nil {
 			m.verdictReturnMode = ModeBrowse
@@ -250,7 +256,8 @@ func (m Model) viewBrowse() string {
 		helpText = "j/k: move • r: open thread • " + followHint + " • n/N: next/prev NEW • Tab: cycle threads • c: comment • s: suggest • t: TOC • ?: help • Esc: cancel"
 	} else {
 		quitText := "back"
-		if m.startedWithFile {
+		// A living doc quits on q however it was opened
+		if m.startedWithFile || (m.doc != nil && comment.IsLivingDoc(m.doc.Content)) {
 			quitText = "quit"
 		}
 		helpText = fmt.Sprintf("j/k: navigate • c: comment • Enter: expand • t: TOC • S: sidebar • ?: help • q: %s", quitText)

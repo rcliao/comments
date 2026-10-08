@@ -47,6 +47,8 @@ type InboxFile struct {
 	// anchors were just re-validated: check Orphaned and reanchor what moved.
 	Stale   bool          `json:"is_stale,omitempty"`
 	Changes *InboxChanges `json:"changes,omitempty"`
+	// Living is set for a living doc: its phase and Now's first line.
+	Living *LivingState `json:"living,omitempty"`
 }
 
 // Inbox is the agent's single read: everything that needs attention, and the
@@ -155,6 +157,9 @@ func BuildInbox(absPath string, opts InboxOptions) (*Inbox, error) {
 			File: fr.File, Decision: fr.Decision, Template: fr.Template, Violations: fr.Violations,
 			StructureUnchecked: fr.StructureUnchecked, LastReview: fr.LastReview,
 			Stale: load != nil && load.Stale,
+		}
+		if st, ok := ReadLivingState(doc.Content); ok {
+			file.Living = &st
 		}
 		for _, c := range doc.GetAllComments() {
 			if c.Status == "orphaned" {

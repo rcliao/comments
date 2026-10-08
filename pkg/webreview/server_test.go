@@ -284,3 +284,33 @@ func postRaw(t *testing.T, server *Server, action actionRequest) *httptest.Respo
 	server.ServeHTTP(recorder, authorizedRequest(t, server, http.MethodPost, "/api/action", action))
 	return recorder
 }
+
+// A browser approval settles open picks exactly as the TUI does: the same
+// core call, the same reply under the approver's name.
+func TestVerdictSettlesPicksLikeTUI(t *testing.T) {
+	server, path := newTestServer(t, "# Review\n\nReady.\n")
+	doc, _, err := comment.LoadDocument(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.Threads = []*comment.Comment{
+		{ID: "p1", Author: "claude", Line: 3, Text: "Cache or index?", Pick: "index"},
+		{ID: "p2", Author: "claude", Line: 3, Text: "Sync or async?", Pick: "sync",
+			Replies: []*comment.Comment{{ID: "r1", Author: "Rae", Text: "Async."}}},
+	}
+	if err := comment.SaveToSidecar(path, doc); err != nil {
+		t.Fatal(err)
+	}
+	state := readState(t, server)
+	if state.Gate.OpenPicks != 1 {
+		t.Fatalf("open_picks = %d, want 1 so the page can warn before approve", state.Gate.OpenPicks)
+	}
+	state = postAction(t, server, http.StatusOK, actionRequest{Action: "verdict", Revision: state.Revision, Author: "Rae", Decision: comment.DecisionApproved})
+	got := map[string]bool{}
+	for _, th := range state.Document.Threads {
+		got[th.ID] = th.Resolved
+	}
+	if !got["p1"] || got["p2"] {
+		t.Fatalf("resolved = %v, want p1 settled and p2 (objected) open", got)
+	}
+}

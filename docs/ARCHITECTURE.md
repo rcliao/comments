@@ -222,9 +222,56 @@ The gate remains intentionally mechanical:
 - unresolved blocking root threads fail;
 - template violations fail when a template is selected or recorded;
 - strict mode additionally fails on unresolved non-blocking threads and
-  pending suggestions;
+  pending suggestions — which makes it the end-of-work gate, since every open
+  pick is such a thread;
 - semantic correctness stays with human/reviewer threads rather than an
   opaque model score.
+
+**Picks** (`Comment.Pick`, set by `add --pick`) record a decision the agent made
+alone and proceeds on. A pick is never blocking (add refuses both), so it does
+not stop the default gate; `--strict`, the end-of-work gate, fails until the
+human settles each one. An `approved` verdict settles them: `AddReviewRecord`
+resolves every open pick with no reply from anyone but its author, adding an
+"Accepted at approval" reply under the approver's name (`OpenPicks`). Any other
+reply is an objection and keeps the pick open. Both human surfaces record
+through that one call, and `ReplyToThreads` refuses an agent's resolve on an
+open pick, so there is no agent path to settle one. Both surfaces state the
+count before approval; the TUI refuses an approval when the open picks changed
+after its dialog rendered, and the browser's revision check rejects a stale
+verdict.
+
+**Living docs** (`templates/living.yaml`, collection `living`) are the
+lighter mode: Now, Why, Plan, Decisions, Explanation, Checks, kept current by
+the agent while it builds, with chat as the interface. They have no zones and
+no verdict. In `comments view`, `q` records a *seen* baseline
+(`SaveSeenBaseline`, the same per-reader file as the verdict baseline) and
+quits, so the next open tints what changed since the reader last looked.
+Every view polls the doc and sidecar once a second and reloads in browse and
+the thread panel only (`pkg/tui/livereload.go`).
+
+A living doc runs from research to recap. `comments.phase` (shaping,
+building, done) is the tool's lifecycle field beside OKF's `status`, checked
+in `ValidateOKFMetadata`. Its optional Findings section sets `cite_each_item`:
+every top-level list item must carry its own `file:line` or `thread:`
+citation (`uncited_item`), and `check_citations` makes each one resolve.
+`ReadLivingState` returns the phase and Now's first line, the doc's recap.
+The TUI rail shows them in place of the verdict badge, and `inbox --json`
+carries them as `files[].living`, which the mod reads instead of parsing
+the doc itself. Claude Code's own recap cannot be fed or read by a plugin
+(docs/research-notes/plan-mode-mods-2026-10.md, round 5), so the status line
+puts the doc's recap beside it.
+
+**Briefs** are the default artifact (`templates/brief.yaml`): Why, What, Shape
+and Checks are `zone: human`, How is the agent's. A verdict on a brief records
+`template: brief` and `BriefContractHash` as its intent hash: everything but
+the bodies of agent sections (How), with blank-line runs collapsed. Inside
+How, a line that renders as a top-level heading (indented ATX, setext) still
+counts. It is judged under the embedded template only (`loadBuiltinTemplate`),
+so neither frontmatter, a project template nor the working directory can move
+the zones. Agent edits to How never stale the approval; any other edit does.
+A forged review record in the sidecar is the same exposure plans already have.
+Plans keep the older intent hash (Status blocks excluded). The other templates
+are labelled legacy and still load and gate.
 
 Human zones are enforced by actor, not by surface. `COMMENTS_ACTOR` is the
 explicit override; otherwise a real terminal means human and redirected output
@@ -357,6 +404,51 @@ return HTTP 409 plus refreshed state on mismatch. A lightweight SSE stream
 announces external file changes; the client then refetches canonical state.
 This makes a browser session safe alongside CLI, MCP, or TUI writes without
 introducing a second storage system.
+
+## Claude Code mod (experimental)
+
+`mods/comments-review/` is a Claude Code mod (a plugin of function hooks,
+Claude Code 2.1.287+), loaded with `claude --plugin-dir mods/comments-review`
+and not yet shipped in the published plugin. It adds no storage and no agent
+tool: every read and write goes through the `comments` binary or the
+`comments serve` API, so the parity rule and the human-only verdict hold.
+The design is `docs/artifacts/plans/plan-contract-loop.md`.
+
+- **Review surface.** `/review-doc <doc>` opens `comments view` in a herdr side
+  pane when the session runs inside herdr (`HERDR_ENV`), else an in-Claude pane
+  that talks to a `comments serve` child whose token stays in mod memory.
+- **Wake-up.** A `comments watch --until signoff` loop started at session start
+  turns the human's verdict into a prompt to Claude carrying the gate state.
+- **Hand-off.** Claude's own blocking `comments watch <plan> --until signoff`
+  on a `plan`-template doc is answered at once: review opens beside the
+  session, and until the verdict only read tools run, so ending the turn is the
+  agent's only move. Other docs keep the blocking watch.
+- **Plan mode.** `ExitPlanMode` is denied while the plan is saved as a comments
+  doc and reviewed; after approval with a passing gate, the next call is
+  allowed with the reviewed doc as the plan.
+- **Locks.** Claude's Edit/Write on a doc under review are refused.
+- **Contract gate.** A handed-off plan becomes active; Claude's Edit/Write
+  outside it are refused until the last verdict is approved, the gate passes,
+  and the approval is `current` (`comments context --for implementation`,
+  which accepts plans and briefs). The intent hash leaves out every Status block and blank
+  line, so appending progress never makes an approval stale; hashes recorded
+  before that rule still count. The check fails closed; only
+  the person's own `/review-doc --unlock` (a `composer` origin) bypasses it.
+- **Living docs.** Writing a `template: living` doc makes it the session's
+  living doc; every other file edit counts as drift until the doc changes
+  again. The count shows in the status line (with the doc's phase and Now)
+  and in a `[comments living doc]`
+  note after compaction or a restart (path and count only). A living doc is
+  never locked by the contract gate, and `/review-doc --park` (person only)
+  sets a parked plan aside so its lock lifts. The doc and its drift count are
+  kept per working directory across restarts; `/review-doc --done` ends it.
+  `./scripts/ci.sh` validates and tests the mod when the `claude` CLI is on
+  PATH, and says so loudly when it is not.
+- **Contract memory.** The active plan is kept per working directory; on
+  compaction the mod keeps exactly one `[comments contract]` note (plan, gate,
+  lock state), and a restarted session gets the same note once (a `$.state`
+  flag keeps hot reloads, which also fire `session.start`, from repeating it). The note holds
+  gate-derived state only, never thread text or plan prose.
 
 ## Concurrency and consistency
 

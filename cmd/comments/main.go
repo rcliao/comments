@@ -306,7 +306,7 @@ Scripts and maintenance:
 
 Flags (every command also has -h):
   add        --anchor TEXT | --section PATH | --line N   --author NAME --text TEXT
-             [--type Q|S|B|T|E] [--priority low|medium|high] [--blocking]
+             [--type Q|S|B|T|E] [--priority low|medium|high] [--blocking | --pick OPTION]
              --json FILE|-   add many        --json-out   machine-readable result
   reply      --thread ID --author NAME --text TEXT [--resolve]
              --json FILE|-   reply to many   --json-out

@@ -1,0 +1,25 @@
+{
+  "name": "comments-review",
+  "version": "0.1.0",
+  "description": "Review a comments doc from Claude Code: comments view in a herdr side pane when available, else an in-Claude pane; the verdict wakes Claude.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "binary": {
+      "type": "string",
+      "title": "comments binary",
+      "description": "Path or name of the comments CLI used to run `comments serve`.",
+      "default": "comments"
+    },
+    "surface": {
+      "type": "string",
+      "title": "Review surface",
+      "description": "auto: comments view in a herdr side pane when inside herdr, else the in-Claude pane. herdr: herdr only. pane: always the in-Claude pane.",
+      "default": "auto",
+      "options": [
+        "auto",
+        "herdr",
+        "pane"
+      ]
+    }
+  }
+}

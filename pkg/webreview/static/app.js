@@ -188,6 +188,10 @@ function renderGate() {
   } else {
     $("#gate-summary").innerHTML = "";
   }
+  // Approving accepts the agent's unanswered picks; say so before the click
+  const picks = $("#verdict-picks");
+  picks.hidden = !gate.open_picks;
+  picks.textContent = gate.open_picks ? `Approving accepts ${gate.open_picks} pick(s) nobody objected to. Reply in one to keep it open.` : "";
 }
 
 function rootThreads() { return app.state.document.threads || []; }
@@ -337,13 +341,14 @@ function threadCard(thread) {
   const state = thread.resolved ? "Resolved" : thread.is_suggestion && thread.accepted != null ? (thread.accepted ? "Accepted" : "Rejected") : "Open";
   const stateLabel = state === "Open" ? "" : `<span class="thread-state">${state}</span>`;
   const typeBadge = thread.type ? `<span class="badge">${escapeHTML(typeNames[thread.type] || thread.type)}</span>` : "";
+  const pick = thread.pick ? `<p class="thread-pick">Going with: ${escapeHTML(thread.pick)}</p>` : "";
   const replies = (thread.replies || []).map(reply => `<div class="reply"><span class="reply-author">${escapeHTML(reply.author)}</span><p class="thread-text">${escapeHTML(reply.text)}</p></div>`).join("");
   const diff = thread.is_suggestion ? `<div class="suggestion-diff"><div class="diff-del">− ${escapeHTML(thread.original_text)}</div><div class="diff-add">+ ${escapeHTML(thread.proposed_text)}</div></div>` : "";
   const suggestionActions = thread.is_suggestion && thread.accepted == null ? `<button data-action="accept" data-id="${thread.id}">Accept edit</button><button data-action="reject" data-id="${thread.id}">Reject</button>` : "";
   const resolveAction = thread.resolved ? `<button data-action="reopen" data-id="${thread.id}">Reopen</button>` : `<button data-action="resolve" data-id="${thread.id}">Resolve</button>`;
   return `<section class="thread-card ${thread.blocking ? "blocking" : ""} ${thread.resolved ? "resolved" : ""}" id="thread-${thread.id}" data-thread-id="${thread.id}" data-thread-line="${thread.line}" tabindex="-1">
     <div class="thread-head"><div class="thread-meta"><span class="comment-avatar" aria-hidden="true">${escapeHTML((thread.author || "C")[0].toUpperCase())}</span><span class="thread-author">${escapeHTML(thread.author)}</span>${typeBadge}${thread.blocking ? '<span class="badge warn">Blocking</span>' : ""}</div>${stateLabel}</div>
-    <div class="thread-body"><p class="thread-text">${escapeHTML(displayThreadText(thread))}</p>${diff}${replies}</div>
+    <div class="thread-body"><p class="thread-text">${escapeHTML(displayThreadText(thread))}</p>${diff}${pick}${replies}</div>
     <div class="thread-actions"><button data-action="jump" data-line="${thread.line}" aria-label="Show comment in source" title="Show in source">View</button><button data-action="reply-toggle" data-id="${thread.id}">Reply</button>${resolveAction}${suggestionActions}</div>
     <div class="reply-box" id="reply-${thread.id}"><div class="reply-input-wrap"><textarea id="reply-input-${thread.id}" data-thread-id="${thread.id}" rows="2" aria-label="Reply text" placeholder="Reply to this thread"></textarea><span class="reply-hint">Enter or ⌘↵ sends · Shift+Enter adds a line · Esc cancels</span></div><button class="primary" data-action="reply" data-id="${thread.id}">Send</button></div>
   </section>`;
