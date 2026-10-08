@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { allowedDuringReview, isHandoffFront, markerFor, nextThreadLine, parseServeUrl, placeCursor, toSnapshot, watchTarget } from '../hooks/review'
+import { allowedDuringReview, driftStatus, isHandoffFront, isLivingFront, livingNote, markerFor, nextThreadLine, parseServeUrl, placeCursor, toSnapshot, watchTarget } from '../hooks/review'
 import { INITIAL_VIEW } from '../hooks/review'
 
 type Thread = Record<string, unknown>
@@ -439,9 +439,97 @@ test('phase 3: a restarted session restores the active plan, and compaction keep
   expect(compacted.messages[0]?.text).toBe('summary of the work so far')
 })
 
+test('living doc: writing it makes it the session doc, code edits count as drift, and a locked plan never blocks it', async ($, on) => {
+  const statuses: string[] = []
+  mock.clock(on)
+  mock.env(on, {})
+  mock.store(on, { 'activePlan:/repo': 'docs/plan.md' })
+  on('ui.status', async (_$, e) => {
+    statuses.push(String((e as { text?: unknown }).text ?? JSON.stringify(e)))
+    return { value: undefined } as never
+  })
+  on('ui.toast', async () => ({ value: undefined }) as never)
+  on('session.start', async (_$, e) => e as never)
+  on('command.register', async () => ({ value: undefined }) as never)
+  on('fs.read', async () => ({ value: '---\ncomments:\n    template: plan\n---\n# P\n' }) as never)
+  on('process.run', async (_$, e) => {
+    const out = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '' } as never })
+    if (e.argv[1] === 'context') return out(JSON.stringify({ implementation: { approval: { decision: '', freshness: 'missing' } } }))
+    if (e.argv[1] === 'gate') return out(JSON.stringify({ decision: 'changes_requested', summary: { blocking: 1, non_blocking: 0, pending_suggestions: 0 } }))
+    if (e.argv[1] === 'inbox') return out(JSON.stringify({ items: [] }))
+    return out('')
+  })
+  on('process.spawn', async function* () {
+    return { value: { code: 1, signal: null } }
+  })
+  on('tool.call', async () => ({ result: 'ran' }) as never)
+  on('session.compact', async () => ({ messages: [{ role: 'user', text: 'summary', toolUses: [] }] }) as never)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true } as Parameters<typeof $.session.start>[0])
+
+  const living = '---\ncomments:\n    template: living\n---\n# Work\n\n## Now\n\n- building\n'
+  const write = (id: string, path: string, content: string) => $.tool.call({ tool: 'Write', tool_use_id: id, file_path: path, content } as never)
+  const edit = (id: string) => $.tool.call({ tool: 'Edit', tool_use_id: id, file_path: '/repo/pkg/x.go', old_string: 'a', new_string: 'b' } as never)
+
+  // The parked-but-active plan locks code, yet the living doc is always writable.
+  expect(JSON.stringify(await edit('e0'))).toContain('Code edits wait')
+  expect(JSON.stringify(await write('w1', '/repo/docs/work.md', living))).toContain('ran')
+
+  // --park needs the person; from a composer origin it lifts the lock.
+  const refused = await $.command.run({ command: 'review-doc', args: '--park' } as Parameters<typeof $.command.run>[0])
+  expect(refused.text).toContain('only from your own Enter')
+  const parked = await $.command.run({ command: 'review-doc', args: '--park', origin: { kind: 'composer' } } as unknown as Parameters<typeof $.command.run>[0])
+  expect(parked.text).toContain('Parked docs/plan.md')
+  expect(JSON.stringify(await edit('e1'))).toContain('ran')
+  expect(JSON.stringify(await edit('e2'))).toContain('ran')
+
+  const compacted = (await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'earlier turn', toolUses: [] }] } as never)) as unknown as { messages: { text?: string }[] }
+  const notes = compacted.messages.filter(m => (m.text ?? '').startsWith('[comments living doc]'))
+  expect(notes).toHaveLength(1)
+  expect(notes[0]?.text).toContain('Living doc: /repo/docs/work.md. 2 code edits since it last changed.')
+  expect(statuses.join('\n')).toContain('doc work.md: 2 code edits since the doc')
+
+  // Updating the doc brings the tracks back together.
+  await write('w2', '/repo/docs/work.md', living + '- done\n')
+  const again = (await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'earlier turn', toolUses: [] }] } as never)) as unknown as { messages: { text?: string }[] }
+  expect(again.messages.find(m => (m.text ?? '').startsWith('[comments living doc]'))?.text).toContain('It is current with the code.')
+})
+
 test('plans and briefs are hand-offs; research and design docs are not', () => {
   expect(isHandoffFront('comments:\n    template: plan')).toBe(true)
   expect(isHandoffFront('comments:\n    template: brief')).toBe(true)
   expect(isHandoffFront('comments:\n    template: research-deep')).toBe(false)
   expect(isHandoffFront('comments:\n    template: briefing')).toBe(false)
+})
+
+test('living doc: a restarted session restores the real drift, and --done clears it', async ($, on) => {
+  mock.clock(on)
+  mock.env(on, {})
+  mock.store(on, { 'livingDoc:/repo': '/repo/docs/work.md', 'drift:/repo': '3' })
+  on('ui.status', async () => ({ value: undefined }) as never)
+  on('ui.toast', async () => ({ value: undefined }) as never)
+  on('session.start', async (_$, e) => e as never)
+  on('command.register', async () => ({ value: undefined }) as never)
+  on('process.run', async () => ({ value: { exitCode: 0, stdout: '{}', stderr: '' } as never }))
+  on('process.spawn', async function* () {
+    return { value: { code: 1, signal: null } }
+  })
+  on('session.compact', async () => ({ messages: [{ role: 'user', text: 'summary', toolUses: [] }] }) as never)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true } as Parameters<typeof $.session.start>[0])
+  const compact = async () =>
+    ((await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'earlier turn', toolUses: [] }] } as never)) as unknown as { messages: { text?: string }[] }).messages.find(m =>
+      (m.text ?? '').startsWith('[comments living doc]'),
+    )
+  expect((await compact())?.text).toContain('3 code edits since it last changed.')
+
+  const done = await $.command.run({ command: 'review-doc', args: '--done' } as Parameters<typeof $.command.run>[0])
+  expect(done.text).toContain('Done with /repo/docs/work.md')
+  expect(await compact()).toBeUndefined()
+})
+
+test('living docs are recognised by frontmatter, and the drift text counts edits', () => {
+  expect(isLivingFront('comments:\n    template: living')).toBe(true)
+  expect(isLivingFront('comments:\n    template: brief')).toBe(false)
+  expect(driftStatus('/a/work.md', 0)).toBe('doc work.md: current')
+  expect(driftStatus('/a/work.md', 1)).toBe('doc work.md: 1 code edit since the doc')
+  expect(livingNote('w.md', 3)).toContain('3 code edits since it last changed.')
 })

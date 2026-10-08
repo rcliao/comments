@@ -26,6 +26,11 @@ import {
   allowedDuringReview,
   type ServeEndpoint,
   isHandoffFront,
+  driftStatus,
+  frontOf,
+  isLivingFront,
+  LIVING_MARK,
+  livingNote,
 } from './review'
 
 const PANE = 'comments-review'
@@ -38,6 +43,9 @@ const unlockedPlan = atom({ plugin: 'comments-review', key: 'unlockedPlan' } as 
 // Whether this session was already reminded of the contract. session.start
 // fires again on every hot reload of the mod; $.state outlives a reload but
 // not the process, so this keeps the reminder to once per session.
+// The session's living doc and the code edits made since it last changed.
+const livingDoc = atom({ plugin: 'comments-review', key: 'livingDoc' } as const, null as string | null)
+const drift = atom({ plugin: 'comments-review', key: 'drift' } as const, 0)
 const reminded = atom({ plugin: 'comments-review', key: 'reminded' } as const, false)
 
 // The tallest the thread panel grows: header, body and a few replies.
@@ -436,6 +444,11 @@ async function contractOf($: EngineInterface, doc: string): Promise<Contract> {
 
 async function showContract($: EngineInterface) {
   const doc = await read($, activePlan)
+  if (!doc && !watched) {
+    const living = await read($, livingDoc)
+    if (living) $.ui.status(driftStatus(living, await read($, drift)))
+    return
+  }
   if (!doc || watched) return
   const name = doc.replace(/^.*\//, '')
   if ((await read($, unlockedPlan)) === doc) return $.ui.status(`plan ${name}: unlocked by you`)
@@ -443,10 +456,12 @@ async function showContract($: EngineInterface) {
   $.ui.status(c.state === 'unlocked' ? `plan ${name}: approved, edits open` : `plan ${name}: edits locked (${c.reason})`)
 }
 
-async function contractDeny($: EngineInterface, path: unknown): Promise<string | null> {
+async function contractDeny($: EngineInterface, path: unknown, content?: unknown): Promise<string | null> {
   const doc = await read($, activePlan)
   if (!doc) return null
   if (typeof path === 'string' && absolute(path) === absolute(doc)) return null
+  // A living doc is markdown the agent keeps current; it is never code.
+  if (typeof path === 'string' && (await livingTarget($, absolute(path), content))) return null
   if ((await read($, unlockedPlan)) === doc) return null
   const c = await contractOf($, doc)
   if (c.state === 'unlocked') return null
@@ -471,6 +486,68 @@ async function contractNote($: EngineInterface): Promise<string | null> {
   const picks = await openPicks($, doc).catch(() => null)
   const pickLine = picks === null ? '' : ` ${picks} open pick${picks === 1 ? '' : 's'} for the end review.`
   return `${CONTRACT_MARK} Active plan: ${doc}. Gate: ${blocking}. Code edits: ${edits}.${pickLine} Implement only what the plan says; decide alone where you can and file a pick (\`comments add --pick\`) instead of asking; run \`comments context ${doc} --for implementation\` for phases and status.`
+}
+
+// With no plan active, the living doc's note stands in for the contract's.
+async function sessionNote($: EngineInterface): Promise<string | null> {
+  const note = await contractNote($).catch(() => null)
+  if (note) return note
+  const living = await read($, livingDoc)
+  return living ? livingNote(living, await read($, drift)) : null
+}
+
+// --- living docs: the doc and the build move together ----------------------
+//
+// Writing a doc whose frontmatter says `template: living` makes it the
+// session's living doc; every other file edit counts as drift until the doc
+// changes again. The count is a nudge in the status line and the session
+// note, never a lock.
+
+async function livingTarget($: EngineInterface, path: string, content: unknown): Promise<boolean> {
+  if (!/\.md$/.test(path)) return false
+  if (typeof content === 'string') return isLivingFront(frontOf(content))
+  try {
+    return isLivingFront(frontOf(await $.fs.read(path)))
+  } catch {
+    return false
+  }
+}
+
+async function trackEdit($: EngineInterface, path: unknown, content: unknown) {
+  if (typeof path !== 'string') return
+  const abs = absolute(path)
+  if (await livingTarget($, abs, content)) {
+    await update($, livingDoc, () => abs)
+    await update($, drift, () => 0)
+    await $.store.set(`livingDoc:${sessionCwd}`, abs).catch(() => undefined)
+  } else if (await read($, livingDoc)) {
+    await update($, drift, n => n + 1)
+  } else {
+    return
+  }
+  // The count outlives a restart, so a resumed session never reads "current"
+  // for a doc the build has run ahead of.
+  await $.store.set(`drift:${sessionCwd}`, String(await read($, drift))).catch(() => undefined)
+  await showContract($).catch(() => undefined)
+}
+
+async function restoreLivingDoc($: EngineInterface) {
+  if (await read($, livingDoc)) return
+  const saved = await $.store.get(`livingDoc:${sessionCwd}`)
+  if (typeof saved !== 'string' || saved === '') return
+  await update($, livingDoc, () => saved)
+  const count = Number(await $.store.get(`drift:${sessionCwd}`))
+  await update($, drift, () => (Number.isFinite(count) && count > 0 ? count : 0))
+}
+
+async function clearLivingDoc($: EngineInterface): Promise<string | null> {
+  const doc = await read($, livingDoc)
+  await update($, livingDoc, () => null)
+  await update($, drift, () => 0)
+  await $.store.set(`livingDoc:${sessionCwd}`, '').catch(() => undefined)
+  await $.store.set(`drift:${sessionCwd}`, '0').catch(() => undefined)
+  $.ui.status('')
+  return doc
 }
 
 // Picks the agent filed and the human has not settled yet.
@@ -598,10 +675,11 @@ export const register: Register = (on, options) => {
     await $.command.register({
       name: 'review-doc',
       description: 'Review a comments doc in a pane (comment, reply, resolve, suggestions, verdict)',
-      argumentHint: '<doc.md>',
+      argumentHint: '<doc.md> | --unlock | --park | --done',
     })
     sessionCwd = e.cwd
     await restoreActivePlan($).catch(() => undefined)
+    await restoreLivingDoc($).catch(() => undefined)
     void supervise($)
     void superviseWatch($)
     // Live refresh: the agent may reply or edit while the pane is open.
@@ -613,7 +691,7 @@ export const register: Register = (on, options) => {
     if (v.doc !== '' && v.status !== 'idle') void openReview($, v.doc)
     const started = await next(e)
     // On a resumed or restarted session, remind Claude of the contract once.
-    const note = await contractNote($).catch(() => null)
+    const note = await sessionNote($).catch(() => null)
     if (note && (await claimReminder($).catch(() => false))) await $.session.append({ message: { type: 'user', content: [{ type: 'text', text: note }] } }).catch(() => undefined)
     return started
   })
@@ -660,10 +738,18 @@ export const register: Register = (on, options) => {
   // Phase 2: code edits outside the active plan wait for its approval. Fails
   // closed: a broken check keeps edits locked.
   on('tool.call', { tool: ['Edit', 'Write', 'NotebookEdit'] }, async ($, e, next) => {
-    const args = e as unknown as { file_path?: unknown; notebook_path?: unknown }
-    const deny = await contractDeny($, args.file_path ?? args.notebook_path)
+    const args = e as unknown as { file_path?: unknown; notebook_path?: unknown; content?: unknown }
+    const deny = await contractDeny($, args.file_path ?? args.notebook_path, args.content)
     return deny === null ? next(e) : { deny }
   }).catch(() => ({ deny: 'The plan contract check failed, so code edits stay locked. Only the user can override with /review-doc --unlock.' }))
+
+  // Living docs: track which file changed after the edit lands. Main session only.
+  on('tool.call', { tool: ['Edit', 'Write', 'NotebookEdit'] }, async ($, e, next) => {
+    const args = e as unknown as { file_path?: unknown; notebook_path?: unknown; content?: unknown; agentId?: string }
+    const result = await next(e)
+    if (!args.agentId && !JSON.stringify(result).includes('"deny"')) await trackEdit($, args.file_path ?? args.notebook_path, args.content).catch(() => undefined)
+    return result
+  }).catch(($, e, next) => next(e))
 
   // #3: no Edit/Write to a doc while it is under review.
   on('tool.call', { tool: ['Edit', 'Write', 'NotebookEdit'] }, async ($, e, next) => {
@@ -678,11 +764,11 @@ export const register: Register = (on, options) => {
   // Phase 3: compaction keeps exactly one fresh contract note.
   on('session.compact', async ($, e, next) => {
     if ((e as unknown as { agentId?: string }).agentId !== undefined) return next(e)
-    const note = await contractNote($).catch(() => null)
+    const note = await sessionNote($).catch(() => null)
     if (!note) return next(e)
     const result = await next(e)
     if (result.skip !== undefined) return result
-    const kept = result.messages.filter(m => !(m.text ?? '').startsWith(CONTRACT_MARK))
+    const kept = result.messages.filter(m => !(m.text ?? '').startsWith(CONTRACT_MARK) && !(m.text ?? '').startsWith(LIVING_MARK))
     return { ...result, messages: [...kept, { role: 'user' as const, text: note, toolUses: [] }] }
   }).catch(($, e, next) => next(e))
 
@@ -701,6 +787,25 @@ export const register: Register = (on, options) => {
       await update($, unlockedPlan, () => doc)
       await showContract($)
       return { text: `Unlocked code edits for ${doc} by hand. The contract check is bypassed until another plan is handed off.` }
+    }
+    // `--park` sets the active plan aside: no lock, no contract note, until a
+    // plan is handed off again. The person's own Enter only, like --unlock.
+    if (/(^|\s)--park(\s|$)/.test(e.args)) {
+      if (e.origin?.kind !== 'composer') return { text: '/review-doc --park runs only from your own Enter at the prompt.' }
+      const doc = await read($, activePlan)
+      if (!doc) return { text: 'No plan is active, so there is nothing to park.' }
+      await update($, activePlan, () => null)
+      await update($, unlockedPlan, () => null)
+      await $.store.set(`activePlan:${sessionCwd}`, '').catch(() => undefined)
+      contractCache = null
+      await showContract($)
+      return { text: `Parked ${doc}: code edits are no longer gated on it. Handing a plan off makes it active again.` }
+    }
+    // `--done` ends the living doc for this repo: no note, no drift count,
+    // until a living doc is written again.
+    if (/(^|\s)--done(\s|$)/.test(e.args)) {
+      const doc = await clearLivingDoc($)
+      return { text: doc ? `Done with ${doc}: no living doc is tracked now.` : 'No living doc is tracked.' }
     }
     // `--pane` forces the in-Claude pane even inside herdr.
     const forcePane = /(^|\s)--pane(\s|$)/.test(e.args)

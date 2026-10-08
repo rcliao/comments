@@ -33,3 +33,8 @@ collections:
     type: Brief
     templates: [brief, mini]
     description: One tiered artifact per piece of work; approved once, kept current by the agent.
+  living:
+    path: living
+    type: Living
+    templates: [living]
+    description: One doc kept current while the agent builds; chat steers, nothing to approve.

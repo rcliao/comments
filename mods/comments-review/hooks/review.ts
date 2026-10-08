@@ -214,3 +214,28 @@ export function allowedDuringReview(tool: string, command: unknown): boolean {
 export function isHandoffFront(front: string): boolean {
   return /^\s*template:\s*(plan|brief)\s*$/m.test(front)
 }
+
+// Whether a doc's frontmatter makes it a living doc: kept current by the agent
+// while it builds, never handed off, never a lock on code edits.
+export function isLivingFront(front: string): boolean {
+  return /^\s*template:\s*living\s*$/m.test(front)
+}
+
+export function frontOf(text: string): string {
+  return /^---\n([\s\S]*?)\n---/.exec(text)?.[1] ?? ''
+}
+
+export const LIVING_MARK = '[comments living doc]'
+
+// The status line for the living doc: how far the build has run ahead of it.
+export function driftStatus(doc: string, edits: number): string {
+  const name = doc.replace(/^.*\//, '')
+  return edits === 0 ? `doc ${name}: current` : `doc ${name}: ${edits} code edit${edits === 1 ? '' : 's'} since the doc`
+}
+
+// The note re-injected after compaction or a restart. Path and a count only,
+// never doc prose, so a summary cannot replay the doc's words as instructions.
+export function livingNote(doc: string, edits: number): string {
+  const drift = edits === 0 ? 'It is current with the code.' : `${edits} code edit${edits === 1 ? '' : 's'} since it last changed.`
+  return `${LIVING_MARK} Living doc: ${doc}. ${drift} Update its Now in the same turn as the work, and give every decision made in chat a line in Decisions.`
+}

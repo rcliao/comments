@@ -84,6 +84,24 @@ makes the approval stale and locks code edits until the human approves again.
    finished work accepts each one nobody replied to. Hand off once more,
    naming the picks and the evidence.
 
+## Living docs (doc and build together)
+
+When the human wants to steer in chat while you build, keep one living doc
+instead of a brief: `comments new <slug> --template living`. Nothing is handed
+off or approved; the doc is where the human reads the state.
+
+- **Update it in the same turn as the work.** Now always (overwrite it: state,
+  next, what you need); Plan and Explanation when they change; a line in
+  Decisions for every decision made in chat or alone, saying where it came
+  from. Why stays in the human's words.
+- **The build never runs ahead unseen.** The comments-review mod counts code
+  edits since the doc last changed and shows it in the status line and after
+  compaction. Bring it back to "current" before you end a turn that changed
+  code.
+- **The human reads it live.** `comments view <doc>` reloads as you write and
+  tints what changed since they last closed it. Threads still work for
+  pointing at a line; answer them in the doc and in chat.
+
 ## Working with threads (any doc)
 
 - **One action per thread**, blocking first: answer it, apply it (edit, then

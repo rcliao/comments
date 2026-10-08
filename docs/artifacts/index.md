@@ -12,6 +12,8 @@ okf_version: "0.2"
 
 - [Designs](designs/) — Technical designs and proposals under review.
 
+- [Living](living/) — One doc kept current while the agent builds; chat steers, nothing to approve.
+
 - [Plans](plans/) — Implementation intent and verification strategy.
 
 - [Research](research/) — Questions, evidence, and findings that inform delivery.

@@ -148,6 +148,10 @@ Comments can target a markdown section instead of a line: `--section "Implementa
 
 One `brief` per piece of work (`comments new <slug> --template brief`): Why, What, Shape and Checks are the human's and approved once; How is the agent's to keep current. The agent builds against runnable Checks, files `--pick`s instead of asking, and hands the finished work back once (`gate --strict`). See `skills/review-comments/SKILL.md` and `docs/artifacts/briefs/one-brief.md`.
 
+## Living Doc Flow (doc and build together)
+
+When the human wants to steer in chat while the agent builds: one `living` doc (`comments new <slug> --template living`) holds plan, status, decisions and explanation, and the agent updates it in the same turn as the code. No verdict; `comments view` reloads live and tints what changed since the reader last looked; the comments-review mod shows how many code edits the doc is behind. See `docs/artifacts/living/living-doc.md`.
+
 ## RPI Flow (Research → Plan → Implement) — legacy
 
 

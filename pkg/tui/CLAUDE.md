@@ -212,6 +212,20 @@ every theme (test-enforced) or the mark is invisible. This is a second "since"
 notion on purpose: `lastSignoffTime` counts `commented` passes for NEW badges;
 the baseline does not.
 
+## Living docs: no verdict, a seen baseline, live reload
+
+A doc with `comments.template: living` has nothing to approve. `q` (browse or
+panel, when started on a file) and Ctrl+C record what the reader saw as their
+baseline (`comment.SaveSeenBaseline`, `markSeen`) and quit, so the next open
+tints only what changed since they last looked. Other docs keep the verdict
+baseline described above.
+
+Every view polls the doc and sidecar once a second (`livereload.go`,
+`reloadTickMsg`, a size+mtime stamp) and reloads through `refreshDocFromDisk`
+when something else wrote them. It reloads only in browse and the thread
+panel; in any typing or dialog mode the stamp stays stale and the reload waits
+until the human is back, so nothing being typed is swapped out.
+
 ## Styles and themes
 
 Styles live on `m.styles` (a `*styleSet` built from a `Theme` at model

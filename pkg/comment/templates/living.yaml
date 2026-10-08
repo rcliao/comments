@@ -1,0 +1,48 @@
+template: living
+version: 1
+description: "One doc kept current while the agent builds: plan, status, decisions and explanation in one place; chat steers, nothing to approve"
+doc:
+  style:
+    max_sentence_words: 30
+    max_paragraph_words: 70
+  max_words: 1400
+sections:
+  - heading: "Now"
+    required: true
+    tier: 1
+    max_words: 80
+    review_criteria:
+      - "Does Now say the state, what is next, and what is needed from the human, in a few lines? Is it overwritten each turn, not appended?"
+  - heading: "Why"
+    required: true
+    tier: 1
+    max_words: 100
+    review_criteria:
+      - "Is Why in the human's words? Change it only when they do, and say so in chat."
+  - heading: "Plan"
+    required: true
+    tier: 2
+    max_words: 400
+    review_criteria:
+      - "Does Plan name the slices in build order, what changes in each, and what is not being done?"
+  - heading: "Decisions"
+    required: true
+    tier: 2
+    max_words: 250
+    review_criteria:
+      - "Does every decision made in chat or alone have a line saying what was decided, why, and where it came from (chat, a thread, or the agent)?"
+  - heading: "Explanation"
+    required: false
+    tier: 3
+    max_words: 400
+    review_criteria:
+      - "Is Explanation written for the human, rewritten as how-it-works changes, rather than a log of what happened?"
+  - heading: "Checks"
+    required: true
+    tier: 3
+    max_words: 200
+    review_criteria:
+      - "Is every check a command with its expected result, plus a fresh-context review?"
+markers:
+  needs_clarification: "[NEEDS CLARIFICATION:"
+  max: 1

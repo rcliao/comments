@@ -150,6 +150,7 @@ func DefaultBundleConfig(projectDir string) BundleConfig {
 			"decisions": {Path: "decisions", Type: "Decision", Templates: []string{"adr"}, Description: "Durable decisions and their tradeoffs."},
 			"as-built":  {Path: "as-built", Type: "AsBuilt", Templates: []string{"as-built"}, Description: "What shipped and how it was verified."},
 			"briefs":    {Path: "briefs", Type: "Brief", Templates: []string{"brief", "mini"}, Description: "One tiered artifact per piece of work; approved once, kept current by the agent."},
+			"living":    {Path: "living", Type: "Living", Templates: []string{"living"}, Description: "One doc kept current while the agent builds; chat steers, nothing to approve."},
 		},
 	}
 }

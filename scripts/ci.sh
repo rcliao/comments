@@ -52,6 +52,16 @@ step "autonomous research contract"
 ./scripts/eval/check-autonomous-contract.sh
 python3 -m unittest discover -s scripts/eval/autonomous-research -p 'test_*.py'
 
+step "comments-review mod"
+# The mod's tests need the claude CLI, which CI runners do not have. Locally it
+# runs; elsewhere the skip is said out loud, never read as a pass.
+if command -v claude >/dev/null 2>&1; then
+  claude plugin validate mods/comments-review
+  claude plugin test mods/comments-review
+else
+  echo "SKIPPED: claude CLI not on PATH, so mods/comments-review was not tested" >&2
+fi
+
 printf '\n\033[1mAll CI gates passed.\033[0m\n'
 
 # A hook that was never wired up is indistinguishable from a hook that passed,

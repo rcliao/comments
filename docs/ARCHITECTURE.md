@@ -240,6 +240,15 @@ count before approval; the TUI refuses an approval when the open picks changed
 after its dialog rendered, and the browser's revision check rejects a stale
 verdict.
 
+**Living docs** (`templates/living.yaml`, collection `living`) are the
+lighter mode: Now, Why, Plan, Decisions, Explanation, Checks, kept current by
+the agent while it builds, with chat as the interface. They have no zones and
+no verdict. In `comments view`, `q` records a *seen* baseline
+(`SaveSeenBaseline`, the same per-reader file as the verdict baseline) and
+quits, so the next open tints what changed since the reader last looked.
+Every view polls the doc and sidecar once a second and reloads in browse and
+the thread panel only (`pkg/tui/livereload.go`).
+
 **Briefs** are the default artifact (`templates/brief.yaml`): Why, What, Shape
 and Checks are `zone: human`, How is the agent's. A verdict on a brief records
 `template: brief` and `BriefContractHash` as its intent hash: everything but
@@ -413,6 +422,15 @@ The design is `docs/artifacts/plans/plan-contract-loop.md`.
   line, so appending progress never makes an approval stale; hashes recorded
   before that rule still count. The check fails closed; only
   the person's own `/review-doc --unlock` (a `composer` origin) bypasses it.
+- **Living docs.** Writing a `template: living` doc makes it the session's
+  living doc; every other file edit counts as drift until the doc changes
+  again. The count shows in the status line and in a `[comments living doc]`
+  note after compaction or a restart (path and count only). A living doc is
+  never locked by the contract gate, and `/review-doc --park` (person only)
+  sets a parked plan aside so its lock lifts. The doc and its drift count are
+  kept per working directory across restarts; `/review-doc --done` ends it.
+  `./scripts/ci.sh` validates and tests the mod when the `claude` CLI is on
+  PATH, and says so loudly when it is not.
 - **Contract memory.** The active plan is kept per working directory; on
   compaction the mod keeps exactly one `[comments contract]` note (plan, gate,
   lock state), and a restarted session gets the same note once (a `$.state`

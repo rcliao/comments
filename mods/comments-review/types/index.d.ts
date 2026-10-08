@@ -72,6 +72,8 @@ declare module 'claude-code' {
       activePlan: string | null
       unlockedPlan: string | null
       reminded: boolean
+      livingDoc: string | null
+      drift: number
     }
   }
 }
