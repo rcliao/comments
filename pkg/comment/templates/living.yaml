@@ -21,7 +21,7 @@ sections:
     tier: 1
     max_words: 100
     review_criteria:
-      - "Is Why in the human's words? Change it only when they do, and say so in chat."
+      - "Is Why in the human's words? Quote them in a `>` blockquote, which the sentence and paragraph caps skip. Change it only when they do, and say so in chat."
   - heading: "Findings"
     required: false
     tier: 2

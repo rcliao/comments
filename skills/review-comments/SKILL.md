@@ -47,7 +47,8 @@ approved. `comments.phase` in its frontmatter says where it is.
    citation.
 2. **Fresh review, then ask once.** A fresh-context reviewer reads the doc
    against the code; fold in what it finds. Then ask the human for a go,
-   naming the open Decisions with your recommendation for each.
+   naming the open Decisions with your recommendation for each. The ask is
+   those decisions and the doc's path, not a copy of Plan: they read the doc.
 3. **Go.** A go in chat starts the build. Record it as a dated line in
    Decisions and set phase `building`.
 4. **Building.** Every turn that changes code changes the doc in the same
@@ -57,7 +58,10 @@ approved. `comments.phase` in its frontmatter says where it is.
    came from, and Plan or Explanation when they change. The comments-review
    mod shows how many code edits the doc is behind; bring it back to current
    before you end a turn.
-5. **Done.** Run every check and a fresh review of the diff against Plan. Set
+5. **Done.** Run every check and a fresh review of the diff against Plan.
+   Run a manual TUI check yourself before handing it over: `tmux new-session
+   -d`, then `send-keys` and `capture-pane -p`. Only what really needs the
+   human's eyes goes on Now's "Needs you" line. Set
    phase `done`. Now holds the result and its evidence, and Explanation
    becomes the recap: what was built, how it works, what is left. The doc
    stays as the record.
