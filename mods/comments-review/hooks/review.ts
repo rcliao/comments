@@ -227,10 +227,17 @@ export function frontOf(text: string): string {
 
 export const LIVING_MARK = '[comments living doc]'
 
-// The status line for the living doc: how far the build has run ahead of it.
-export function driftStatus(doc: string, edits: number): string {
+export type LivingState = { phase?: string; now?: string }
+
+// The status line for the living doc: how far the build has run ahead of it,
+// then the doc's own recap (phase and Now's first line), so it sits beside
+// Claude Code's recap and comes from the doc.
+export function driftStatus(doc: string, edits: number, state?: LivingState | null): string {
   const name = doc.replace(/^.*\//, '')
-  return edits === 0 ? `doc ${name}: current` : `doc ${name}: ${edits} code edit${edits === 1 ? '' : 's'} since the doc`
+  const drift = edits === 0 ? `doc ${name}: current` : `doc ${name}: ${edits} code edit${edits === 1 ? '' : 's'} since the doc`
+  const phase = state?.phase ? ` · ${state.phase}` : ''
+  const now = state?.now ? ` · ${state.now.length > 80 ? state.now.slice(0, 79) + '…' : state.now}` : ''
+  return drift + phase + now
 }
 
 // The note re-injected after compaction or a restart. Path and a count only,

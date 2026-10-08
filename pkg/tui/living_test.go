@@ -164,3 +164,20 @@ func TestLiveReloadRedrawsOpenThread(t *testing.T) {
 		t.Fatalf("open thread panel did not show the new reply:\n%s", view)
 	}
 }
+
+// A living doc's rail reads like a status page: phase and Now, no verdict.
+func TestLivingRailShowsPhaseAndNow(t *testing.T) {
+	doc := strings.Replace(livingTestDoc, "    template: living\n", "    phase: building\n    template: living\n", 1)
+	m := NewModelWithFile(&comment.DocumentWithComments{Content: doc}, "work.md")
+	got := plainRail(&m, 120)
+	for _, want := range []string{"BUILDING", "State: building.", "q  close"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("rail %q lacks %q", got, want)
+		}
+	}
+	for _, not := range []string{"APPROVED", "verdict"} {
+		if strings.Contains(got, not) {
+			t.Errorf("living rail %q shows %q", got, not)
+		}
+	}
+}

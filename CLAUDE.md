@@ -144,13 +144,13 @@ Comments can target a markdown section instead of a line: `--section "Implementa
 - **Suggestions** are multi-line only: `StartLine`/`EndLine` + `OriginalText`/`ProposedText`, acceptance state is `Accepted *bool` (nil=pending, true=accepted, false=rejected).
 - **Staleness**: sidecars store a SHA-256 `documentHash`; a hash mismatch on load marks the sidecar stale and triggers the re-anchoring cascade.
 
-## Brief Flow (default)
+## Brief Flow (gated)
 
 One `brief` per piece of work (`comments new <slug> --template brief`): Why, What, Shape and Checks are the human's and approved once; How is the agent's to keep current. The agent builds against runnable Checks, files `--pick`s instead of asking, and hands the finished work back once (`gate --strict`). See `skills/review-comments/SKILL.md` and `docs/artifacts/briefs/one-brief.md`.
 
-## Living Doc Flow (doc and build together)
+## Living Doc Flow (default: one doc, research to recap)
 
-When the human wants to steer in chat while the agent builds: one `living` doc (`comments new <slug> --template living`) holds plan, status, decisions and explanation, and the agent updates it in the same turn as the code. No verdict; `comments view` reloads live and tints what changed since the reader last looked; the comments-review mod shows how many code edits the doc is behind. See `docs/artifacts/living/living-doc.md`.
+The default for a piece of work: one `living` doc (`comments new <slug> --template living`) runs from research to recap. Shaping: cited Findings (each needs its own `file:line`), then Plan, Decisions, Checks, a fresh review, and one ask. A go in chat starts the build, recorded in Decisions; `comments.phase` moves shaping → building → done. The agent updates Now (its first line is the recap) and Decisions in the same turn as the code. No verdict; `comments view` reloads live, shows phase and Now on the rail, and tints what changed since the reader last looked; the comments-review mod shows the same recap and how many code edits the doc is behind. See `docs/artifacts/living/one-doc-workflow.md`.
 
 ## RPI Flow (Research → Plan → Implement) — legacy
 

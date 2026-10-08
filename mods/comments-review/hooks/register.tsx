@@ -31,6 +31,7 @@ import {
   isLivingFront,
   LIVING_MARK,
   livingNote,
+  type LivingState,
 } from './review'
 
 const PANE = 'comments-review'
@@ -446,7 +447,7 @@ async function showContract($: EngineInterface) {
   const doc = await read($, activePlan)
   if (!doc && !watched) {
     const living = await read($, livingDoc)
-    if (living) $.ui.status(driftStatus(living, await read($, drift)))
+    if (living) $.ui.status(driftStatus(living, await read($, drift), await livingState($, living).catch(() => null)))
     return
   }
   if (!doc || watched) return
@@ -529,6 +530,13 @@ async function trackEdit($: EngineInterface, path: unknown, content: unknown) {
   // for a doc the build has run ahead of.
   await $.store.set(`drift:${sessionCwd}`, String(await read($, drift))).catch(() => undefined)
   await showContract($).catch(() => undefined)
+}
+
+// The doc's phase and Now, read through the binary (`inbox --json` carries
+// them), so the mod has no parser of its own to drift from the Go one.
+async function livingState($: EngineInterface, doc: string): Promise<LivingState | null> {
+  const inbox = JSON.parse((await $.process.run([binary, 'inbox', doc, '--json'])).stdout) as { files?: { living?: LivingState }[] }
+  return inbox.files?.[0]?.living ?? null
 }
 
 async function restoreLivingDoc($: EngineInterface) {

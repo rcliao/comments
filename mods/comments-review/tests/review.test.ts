@@ -456,7 +456,7 @@ test('living doc: writing it makes it the session doc, code edits count as drift
     const out = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '' } as never })
     if (e.argv[1] === 'context') return out(JSON.stringify({ implementation: { approval: { decision: '', freshness: 'missing' } } }))
     if (e.argv[1] === 'gate') return out(JSON.stringify({ decision: 'changes_requested', summary: { blocking: 1, non_blocking: 0, pending_suggestions: 0 } }))
-    if (e.argv[1] === 'inbox') return out(JSON.stringify({ items: [] }))
+    if (e.argv[1] === 'inbox') return out(JSON.stringify({ items: [], files: [{ living: { phase: 'building', now: 'wiring the rail' } }] }))
     return out('')
   })
   on('process.spawn', async function* () {
@@ -486,7 +486,7 @@ test('living doc: writing it makes it the session doc, code edits count as drift
   const notes = compacted.messages.filter(m => (m.text ?? '').startsWith('[comments living doc]'))
   expect(notes).toHaveLength(1)
   expect(notes[0]?.text).toContain('Living doc: /repo/docs/work.md. 2 code edits since it last changed.')
-  expect(statuses.join('\n')).toContain('doc work.md: 2 code edits since the doc')
+  expect(statuses.join('\n')).toContain('doc work.md: 2 code edits since the doc · building · wiring the rail')
 
   // Updating the doc brings the tracks back together.
   await write('w2', '/repo/docs/work.md', living + '- done\n')
@@ -531,5 +531,6 @@ test('living docs are recognised by frontmatter, and the drift text counts edits
   expect(isLivingFront('comments:\n    template: brief')).toBe(false)
   expect(driftStatus('/a/work.md', 0)).toBe('doc work.md: current')
   expect(driftStatus('/a/work.md', 1)).toBe('doc work.md: 1 code edit since the doc')
+  expect(driftStatus('/a/work.md', 0, { phase: 'building', now: 'slice 2 done' })).toBe('doc work.md: current · building · slice 2 done')
   expect(livingNote('w.md', 3)).toContain('3 code edits since it last changed.')
 })

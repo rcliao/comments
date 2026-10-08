@@ -91,7 +91,11 @@ type TemplateSection struct {
 	// claim them back with a [Q1] heading tag. Set both to make coverage a
 	// checkable property — see coverage.go for why omission needs its own check.
 	EnumeratesQuestions bool `yaml:"enumerates_questions"`
-	AnswersQuestions    bool `yaml:"answers_questions"`
+	// CiteEachItem requires every top-level list item in the section to carry
+	// its own citation (file:line or thread:), so a finding cannot ride on a
+	// neighbour's evidence. Whether each citation resolves is check_citations'.
+	CiteEachItem     bool `yaml:"cite_each_item"`
+	AnswersQuestions bool `yaml:"answers_questions"`
 	// Tier is a reading-depth label, not new prose: a reader with one minute
 	// stops after tier 1, one with ten reads through the last tier. It marks a
 	// path over sections the doc already has, so a short version never has to be
@@ -424,6 +428,15 @@ func ValidateTemplate(content string, t *Template) []Violation {
 		}
 	}
 
+	for _, ts := range t.Sections {
+		if !ts.CiteEachItem {
+			continue
+		}
+		if section := findTemplateSection(structure, ts.Heading); section != nil {
+			violations = append(violations, uncitedItems(lines, section, ts.Heading)...)
+		}
+	}
+
 	// Question coverage: cross-check the decomposed question against the
 	// findings claiming to answer it. Only runs when the template opts in by
 	// naming both ends.
@@ -583,4 +596,21 @@ func BuildValidationReport(content, file string, t *Template) *ValidationReport 
 		File: file, Template: t.Name, Conforms: len(violations) == 0,
 		Violations: violations, SectionWords: SectionWordReport(content, t),
 	}
+}
+
+// uncitedItems reports each top-level list item in section with no citation.
+func uncitedItems(lines []string, section *markdown.Section, heading string) []Violation {
+	var out []Violation
+	for _, item := range sectionItems(lines, section) {
+		line := item.Line
+		if len(markdown.ParseReferences(item.Text)) == 0 {
+			out = append(out, Violation{
+				Rule:    "uncited_item",
+				Section: heading,
+				Line:    line,
+				Message: fmt.Sprintf("line %d: this %s item has no citation — add file:line or thread:, or cut it", line, heading),
+			})
+		}
+	}
+	return out
 }

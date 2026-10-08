@@ -205,3 +205,10 @@ Still ours, as far as these scans found: (1) a verdict only a human can record, 
 The field's direction explains our dogfooding friction: humans gate decisions and verify outcomes, and everything between is a queue, not a stop (auto mode, parked, Spec Kit converge, Kiro Quick Plan). We made every round a verdict. Repositioned: comments is the decision record and gate for agent work — the human signs the plan once and the finished work once; between them the agent proceeds and queues what it needs as threads carrying its own pick, settled in bulk without a verdict; the end review is evidence anchored to the plan's lines.
 
 Constraint (2.1.292): a mod may gate tools but never stand in for the user's answer to a question or plan dialog. Check whether our `classic.PermissionRequest` allow of the second ExitPlanMode call still works.
+
+## Round 5 — Claude Code's recap (2026-10-08, one researcher, docs and CHANGELOG to 2.1.295)
+
+- Recap is a one-line summary, capped at 400 characters (v2.1.236). It is generated in the background once 3+ minutes have passed since the last completed turn and the session has 3+ turns. It shows when you return to an unfocused terminal; `/recap` runs it on demand. It was introduced in v2.1.108. Sources: code.claude.com/docs/en/interactive-mode#session-recap, CHANGELOG.md.
+- Configuration: `awaySummaryEnabled` in settings or `/config` → "Session recap", and the env var `CLAUDE_CODE_ENABLE_AWAY_SUMMARY`. There is no prompt or length override.
+- No hook event carries recap text, there is no documented way to feed or read it, and no file stores it (the hooks page was only partly read). What a plugin can reach: the session name (`/rename`, statusline `session_name`), the status line, and the `Stop` hook's `last_assistant_message`.
+- Implication: comments cannot feed Claude Code's recap. It can put the doc's Now in front of the human in the status line, beside the recap, so the two tell the same story.

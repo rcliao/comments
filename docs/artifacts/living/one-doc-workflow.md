@@ -1,5 +1,6 @@
 ---
 comments:
+    phase: done
     template: living
 status: draft
 title: One Doc Workflow
@@ -12,9 +13,9 @@ How comments should support one doc that starts as a researched brief and become
 
 ## Now
 
-- **State:** shaping. Research done (Findings), brief drafted, and a fresh review folded in. Nothing built.
-- **Next:** on your go, slice 1.
-- **Needs you:** two **open** Decisions; say go, or change them.
+- **State:** done. All four slices are built, reviewed twice, and committed. Your doc now shows its phase and this line in `comments view` and in Claude Code's status line.
+- **Next:** your next real task runs this way; that is the last check.
+- **Needs you:** a push to PR #28, if you want it.
 
 ## Why
 
@@ -29,6 +30,7 @@ In your words: "an initial doc where agent research to produce a quality brief, 
 - F5. Plans are mostly thrown away: 85 plan files committed across 36,710 repos. Ending the doc as the recap is our bet on what makes it worth keeping, not a finding of the source. docs/research-notes/plan-mode-mods-2026-10.md:167
 - F6. The skill leads with the brief flow; living docs are a side section. There are ten templates to choose from. skills/review-comments/SKILL.md:33 skills/review-comments/SKILL.md:87
 - F7. Frontmatter already has a validated `status` (draft, stable, deprecated), so a lifecycle field must not duplicate it. pkg/comment/metadata.go:147
+- F8. Claude Code's recap is a one-line summary of up to 400 characters. It shows when you return after 3+ minutes, or on `/recap`. No hook event carries it, no plugin can feed or read it, and no file stores it. The session name and the status line are what a plugin can reach. docs/research-notes/plan-mode-mods-2026-10.md:213
 
 ## Plan
 
@@ -46,15 +48,23 @@ In your words: "an initial doc where agent research to produce a quality brief, 
 
 - The skill leads with this flow: research, then brief, then build, then recap, in one doc. Briefs, plans and research docs move to legacy. Nothing is deleted.
 
+**Slice 4: the doc's Now is the recap a plugin can show** (mods/comments-review; F8)
+
+- The status line shows the doc's phase and the State line of Now, so the recap sits beside Claude Code's own and comes from the doc.
+- Now's criteria say its State line reads as a recap: one line, under 400 characters, rewritten each turn.
+
 **Not doing**
+
+- No attempt to feed or read Claude Code's own recap: no supported way exists (F8).
 
 - No hosted page, no deleting templates, no change to threads.
 
 ## Decisions
 
 - One doc from research to recap, not a research doc plus a brief: two docs drift apart. (chat, 2026-10-08)
-- **open:** How is the go recorded? Recommended: your "go" in chat, written as a dated Decisions line. That keeps F3's one sign-off on the plan without a verdict round. The alternative is a recorded verdict that unlocks edits, like the brief gate.
-- **open:** Where does the phase live? Recommended: `comments.phase` (shaping, building, done), owned by the tool, leaving OKF's `status` alone (F7). The alternative is to derive it from the go line and Now.
+- **Go: 2026-10-08.** A go in chat is the sign-off; it is recorded here, with no verdict. (chat)
+- The phase lives in `comments.phase` (shaping, building, done), leaving OKF's `status` alone (F7). You did not object to the recommendation. (agent, 2026-10-08)
+- Integrate with Claude Code's recap, so the session's own recap and the doc's Now tell the same story. (chat, 2026-10-08)
 - Rejected: Claude Docs as the surface. It is not in the repo, and it has no changed-since view or drift count. (agent, F4)
 - Folded into slice 1: a separate recap slice; it is template wording. (agent, after review)
 
@@ -64,7 +74,11 @@ In your words: "an initial doc where agent research to produce a quality brief, 
 
 You steer in chat until you say go, and I record that in Decisions. In building, every turn that changes code changes Now, and decisions get lines. At done, Now carries the evidence and Explanation becomes the recap.
 
-**How you follow it.** Keep `comments view` open on the doc. The rail says the phase and what is happening; tinted lines are what changed since you last closed it.
+**How you follow it.** Keep `comments view` open on the doc. The rail says the phase and Now's first line, and tinted lines are what changed since you last closed it. The status line under Claude Code shows the same recap, plus how many code edits the doc is behind. Claude Code's own recap stays as it is; the doc's sits beside it.
+
+**What the review changed.** A fresh review of the diff found that the citation rule checked list lines inside code fences, and that numbered, `+` and indented lists slipped past it. Both are fixed with tests. Now is parsed the same way as findings, and `comments new` scaffolds `phase: shaping`.
+
+**What was built.** Slice 1: Findings with `cite_each_item`, `comments.phase`, and criteria for a brief and for done. Slice 2: the living rail. Slice 3: the skill leads with this flow. Slice 4: `inbox --json` carries `files[].living`, which the mod shows in the status line.
 
 ## Checks
 

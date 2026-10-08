@@ -55,6 +55,11 @@ func (m *Model) newRailState() railState {
 
 // renderRail draws the rail row at the given width.
 func (m Model) renderRail(width int) string {
+	if m.doc != nil {
+		if living, ok := comment.ReadLivingState(m.doc.Content); ok {
+			return m.renderLivingRail(width, living)
+		}
+	}
 	st := (&m).newRailState()
 	s := m.styles
 
@@ -110,4 +115,32 @@ func truncateANSI(s string, n int) string {
 		return s
 	}
 	return lipgloss.NewStyle().MaxWidth(n).Render(s)
+}
+
+// renderLivingRail is the rail for a living doc: there is no verdict, so the
+// row reads like a status page, the phase and Now's first line, which is the
+// doc's own recap. Open threads still count, since they are what needs you.
+func (m Model) renderLivingRail(width int, living comment.LivingState) string {
+	s := m.styles
+	phase := living.Phase
+	if phase == "" {
+		phase = "living"
+	}
+	left := " " + s.railApproved.Render(strings.ToUpper(phase))
+	g := comment.EvaluateGate(m.doc, false)
+	if open := len(g.NonBlocking) + len(g.Blocking); open > 0 {
+		left += s.help.Render(" · ") + s.commentMarker.Render(fmt.Sprintf("%d open", open))
+	}
+	right := s.help.Render("q  close ")
+	if living.Now != "" {
+		room := width - lipgloss.Width(left) - lipgloss.Width(right) - 3
+		if room > 8 {
+			left += s.help.Render("   " + truncate(living.Now, room, "…"))
+		}
+	}
+	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 1 {
+		return truncateANSI(left, max(width, 1))
+	}
+	return left + strings.Repeat(" ", gap) + right
 }

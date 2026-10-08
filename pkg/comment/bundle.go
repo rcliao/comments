@@ -400,7 +400,7 @@ func newDocumentContent(bundle *Bundle, path string, collection BundleCollection
 		"type":     collection.Type,
 		"title":    title,
 		"status":   "draft",
-		"comments": map[string]any{"template": template.Name},
+		"comments": scaffoldComments(template.Name),
 	}
 	if strings.TrimSpace(description) != "" {
 		frontmatter["description"] = strings.TrimSpace(description)
@@ -534,4 +534,14 @@ func readCollectionConcepts(root string) ([]indexedConcept, error) {
 	})
 	sort.Slice(concepts, func(i, j int) bool { return concepts[i].path < concepts[j].path })
 	return concepts, err
+}
+
+// scaffoldComments is the tool's frontmatter block for a new concept; a living
+// doc starts in the shaping phase.
+func scaffoldComments(template string) map[string]any {
+	block := map[string]any{"template": template}
+	if template == LivingTemplate {
+		block["phase"] = "shaping"
+	}
+	return block
 }

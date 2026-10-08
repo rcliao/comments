@@ -1,6 +1,6 @@
 ---
 name: review-comments
-description: Align with the human on one short brief, then build autonomously against it using the comments CLI/MCP — draft the brief, hand it off for one review, keep its How current, file picks instead of asking, and hand the finished work back once. Also processes human review threads on any managed Markdown doc.
+description: Run a piece of work from one living doc with the comments CLI/MCP — research it into a cited brief, build on the human's go in chat, keep the doc's Now and Decisions current every turn, and finish with the doc as the recap. Also gated briefs, and processing human review threads on any managed Markdown doc.
 ---
 
 # Review Comments Workflow
@@ -13,7 +13,8 @@ time** and never decide for the human.
 
 | You want to | Use |
 |---|---|
-| start a piece of work | `new <slug> --template brief`, then `context <doc> --for drafting` |
+| start a piece of work | `new <slug> --template living` (a gated brief: `--template brief`) |
+| load the writing brief and related docs | `context <doc> --for drafting` |
 | check your draft | `validate <doc>` |
 | annotate | `add` — flags for one, `--json` for many; `--anchor "quoted line"` |
 | record a decision you made alone | `add --pick <option>` — never blocking; settled at the end |
@@ -30,7 +31,43 @@ accepting or rejecting suggestions, and resolving threads in `zone: human`
 sections happen only in `comments view` or `comments serve`. A refused
 `--resolve` posts nothing: reply without it. Never set `COMMENTS_ACTOR`.
 
-## The brief
+## The flow: one doc, research to recap
+
+One living doc carries the work from start to finish. The human reads it
+whenever they want the state and steers in chat; nothing is handed off or
+approved. `comments.phase` in its frontmatter says where it is.
+
+1. **Shaping.** `comments new <slug> --template living` starts it in phase
+   `shaping`; add a `## Findings` section. Research first: numbered Findings (F1, F2), one claim each, every one with
+   its own `file:line` or `thread:` citation that you have opened, not
+   recalled. Put sources you read outside the repo in a research note and cite
+   its line. Then Why in the human's words, Plan in slices that cite the
+   findings they rest on, Decisions with rejected options, and Checks as
+   commands. `comments validate` until clean; it fails a finding without a
+   citation.
+2. **Fresh review, then ask once.** A fresh-context reviewer reads the doc
+   against the code; fold in what it finds. Then ask the human for a go,
+   naming the open Decisions with your recommendation for each.
+3. **Go.** A go in chat starts the build. Record it as a dated line in
+   Decisions and set phase `building`.
+4. **Building.** Every turn that changes code changes the doc in the same
+   turn. Now always: overwrite it, never append. Its first line is the doc's
+   recap: one line, under 400 characters, readable on its own. Then a
+   Decisions line for each decision made in chat or alone, saying where it
+   came from, and Plan or Explanation when they change. The comments-review
+   mod shows how many code edits the doc is behind; bring it back to current
+   before you end a turn.
+5. **Done.** Run every check and a fresh review of the diff against Plan. Set
+   phase `done`. Now holds the result and its evidence, and Explanation
+   becomes the recap: what was built, how it works, what is left. The doc
+   stays as the record.
+
+The human reads it live: `comments view <doc>` reloads as you write, its rail
+shows the phase and Now, and `q` marks what they saw, so the next open tints
+only what changed since. Threads still work for pointing at a line; answer
+them in the doc and in chat.
+
+## Gated briefs (when the human wants edits locked until they approve)
 
 One brief per piece of work, read in tiers. The human owns everything but How.
 
@@ -46,7 +83,7 @@ The approval covers the frontmatter, the `#`/`##` outline, and the whole of
 Why, What, Shape and Checks. Edit How as often as you like; any other edit
 makes the approval stale and locks code edits until the human approves again.
 
-## The flow
+### The gated flow
 
 1. **Draft.** `comments new <slug> --template brief`. Why is the human's: use
    their words, and if you paraphrase, post a non-blocking thread saying so —
@@ -83,24 +120,6 @@ makes the approval stale and locks code edits until the human approves again.
    gate <doc> --strict` must then fail only on your open picks: approving the
    finished work accepts each one nobody replied to. Hand off once more,
    naming the picks and the evidence.
-
-## Living docs (doc and build together)
-
-When the human wants to steer in chat while you build, keep one living doc
-instead of a brief: `comments new <slug> --template living`. Nothing is handed
-off or approved; the doc is where the human reads the state.
-
-- **Update it in the same turn as the work.** Now always (overwrite it: state,
-  next, what you need); Plan and Explanation when they change; a line in
-  Decisions for every decision made in chat or alone, saying where it came
-  from. Why stays in the human's words.
-- **The build never runs ahead unseen.** The comments-review mod counts code
-  edits since the doc last changed and shows it in the status line and after
-  compaction. Bring it back to "current" before you end a turn that changed
-  code.
-- **The human reads it live.** `comments view <doc>` reloads as you write and
-  tints what changed since they last closed it. Threads still work for
-  pointing at a line; answer them in the doc and in chat.
 
 ## Working with threads (any doc)
 

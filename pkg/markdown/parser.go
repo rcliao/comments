@@ -294,3 +294,26 @@ func (d *DocumentStructure) collectPaths(sections []*Section, paths *[]string) {
 		d.collectPaths(section.Children, paths)
 	}
 }
+
+// FencedLines reports, per line, whether it sits inside a fenced code block
+// (fence lines included), so a line-based rule can skip example code.
+func FencedLines(lines []string) []bool {
+	out := make([]bool, len(lines))
+	inFence := false
+	var ch byte
+	var n int
+	for i, line := range lines {
+		if inFence {
+			out[i] = true
+			if closesFence(line, ch, n) {
+				inFence = false
+			}
+			continue
+		}
+		if c, l, ok := parseFenceOpen(line); ok {
+			inFence, ch, n = true, c, l
+			out[i] = true
+		}
+	}
+	return out
+}

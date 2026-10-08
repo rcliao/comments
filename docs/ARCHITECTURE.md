@@ -249,6 +249,18 @@ quits, so the next open tints what changed since the reader last looked.
 Every view polls the doc and sidecar once a second and reloads in browse and
 the thread panel only (`pkg/tui/livereload.go`).
 
+A living doc runs from research to recap. `comments.phase` (shaping,
+building, done) is the tool's lifecycle field beside OKF's `status`, checked
+in `ValidateOKFMetadata`. Its optional Findings section sets `cite_each_item`:
+every top-level list item must carry its own `file:line` or `thread:`
+citation (`uncited_item`), and `check_citations` makes each one resolve.
+`ReadLivingState` returns the phase and Now's first line, the doc's recap.
+The TUI rail shows them in place of the verdict badge, and `inbox --json`
+carries them as `files[].living`, which the mod reads instead of parsing
+the doc itself. Claude Code's own recap cannot be fed or read by a plugin
+(docs/research-notes/plan-mode-mods-2026-10.md, round 5), so the status line
+puts the doc's recap beside it.
+
 **Briefs** are the default artifact (`templates/brief.yaml`): Why, What, Shape
 and Checks are `zone: human`, How is the agent's. A verdict on a brief records
 `template: brief` and `BriefContractHash` as its intent hash: everything but
@@ -424,7 +436,8 @@ The design is `docs/artifacts/plans/plan-contract-loop.md`.
   the person's own `/review-doc --unlock` (a `composer` origin) bypasses it.
 - **Living docs.** Writing a `template: living` doc makes it the session's
   living doc; every other file edit counts as drift until the doc changes
-  again. The count shows in the status line and in a `[comments living doc]`
+  again. The count shows in the status line (with the doc's phase and Now)
+  and in a `[comments living doc]`
   note after compaction or a restart (path and count only). A living doc is
   never locked by the contract gate, and `/review-doc --park` (person only)
   sets a parked plan aside so its lock lifts. The doc and its drift count are
