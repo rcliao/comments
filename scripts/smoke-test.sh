@@ -91,4 +91,42 @@ go build -o "$workdir/verdict" ./scripts/eval/surface-parity/verdict
 python3 scripts/eval/surface-parity/drive.py ./comments "$workdir/parity" "$workdir/verdict" | tail -2
 echo "✓ CLI and MCP agree across the full review loop"
 
+# Hooks check: ci.sh once string-compared core.hooksPath to ".githooks" and
+# called a clone with an absolute path "not wired up" while its pre-push ran.
+# Each case runs check-hooks.sh inside a scratch repo (git -C would not do: the
+# script resolves hooks relative to where it stands).
+check_hooks="$repo_root/scripts/check-hooks.sh"
+hooks_repo="$workdir/hooks-repo"
+# Under a git hook (pre-push runs this script), git exports GIT_DIR and its
+# kin; left set, every git call below would read and WRITE the real repo's
+# config instead of the scratch repo's.
+# shellcheck disable=SC2046
+unset $(git rev-parse --local-env-vars)
+git init -q "$hooks_repo"
+mkdir -p "$hooks_repo/.githooks"
+printf '#!/bin/sh\n' > "$hooks_repo/.githooks/pre-commit"
+printf '#!/bin/sh\n' > "$hooks_repo/.githooks/pre-push"
+chmod +x "$hooks_repo/.githooks/pre-commit" "$hooks_repo/.githooks/pre-push"
+expect_hooks() { # <want: wired|unwired> <label>
+  # Ignore global/system config: a developer's global core.hooksPath would
+  # otherwise break the "unset" case.
+  if (cd "$hooks_repo" && GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 "$check_hooks" >/dev/null); then
+    got=wired
+  else
+    got=unwired
+  fi
+  if [ "$got" != "$1" ]; then
+    echo "FAIL: hooks check with $2: want $1, got $got" >&2
+    exit 1
+  fi
+}
+expect_hooks unwired "core.hooksPath unset"
+git -C "$hooks_repo" config core.hooksPath .githooks
+expect_hooks wired "a relative core.hooksPath"
+git -C "$hooks_repo" config core.hooksPath "$hooks_repo/.githooks"
+expect_hooks wired "an absolute core.hooksPath"
+chmod -x "$hooks_repo/.githooks/pre-push"
+expect_hooks unwired "a non-executable pre-push"
+echo "✓ hooks check follows where git runs hooks from"
+
 echo "SMOKE TEST PASSED"

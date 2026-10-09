@@ -2,6 +2,8 @@
 
 # Living
 
+- [Hooks Check Lies](hooks-check-lies.md)
+
 - [Living Doc](living-doc.md)
 
 - [One Doc Workflow](one-doc-workflow.md)

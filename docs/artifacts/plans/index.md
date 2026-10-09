@@ -2,4 +2,8 @@
 
 # Plans
 
+- [Decide Once](decide-once.md)
+
+- [Plan Contract Loop](plan-contract-loop.md)
+
 - [Lightweight Plan Ledger](plan-ledger.md) — Track implementation alignment, phase status, verification, and human attention without owning agent execution.

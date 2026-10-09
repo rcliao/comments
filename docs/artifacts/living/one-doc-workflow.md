@@ -14,8 +14,8 @@ How comments should support one doc that starts as a researched brief and become
 ## Now
 
 - **State:** done. All four slices are built, reviewed twice, and committed. Your doc now shows its phase and this line in `comments view` and in Claude Code's status line.
-- **Next:** the dogfood run's picker fix and its three skill and template tweaks ship with PR #28, as plugin 3.1.0. Your own next task is still the last check.
-- **Needs you:** nothing.
+- **Next:** dogfood round 2 on the installed 3.1.0 skill fixed `ci.sh`'s false "hooks not wired up" warning (`28fc384`, shipped to main on your go); findings 7–10 are in docs/research-notes/dogfood-subagent-2026-10-08.md.
+- **Needs you:** calls on findings 7, 8 and 10.
 
 ## Why
 
@@ -68,6 +68,7 @@ In your words: "an initial doc where agent research to produce a quality brief, 
 - Rejected: Claude Docs as the surface. It is not in the repo, and it has no changed-since view or drift count. (agent, F4)
 - Folded into slice 1: a separate recap slice; it is template wording. (agent, after review)
 - Ship the dogfood run's fix and skill tweaks on PR #28 and merge to main. (chat, 2026-10-08)
+- Ship round 2's hooks-check fix to main. (chat, 2026-10-08)
 
 ## Explanation
 
