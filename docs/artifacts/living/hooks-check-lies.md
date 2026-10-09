@@ -43,6 +43,7 @@ Not doing: an info line naming which copy runs (dropped per your go), more smoke
 - **D2.** Separate `scripts/check-hooks.sh`, exercised by the smoke test (chat).
 - **D3.** Unset `core.hooksPath` is not wired, even if `.git/hooks` has hooks (chat).
 - Agent: smoke cases run with `GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1`, so a developer's global `core.hooksPath` cannot break the unset case (diff reviewer's note).
+- Shipping, the pre-push hook failed the unset case: git exports `GIT_DIR` to hooks, so the scratch repo read (and would have written) the real repo's config. The smoke cases now unset `git rev-parse --local-env-vars` first. (Claude, while shipping)
 - Rejected: normalizing the string (strip `$repo_root/`) — still misses `~` paths, symlinks, and the exec-bit case.
 - Rejected: `GIT_CONFIG_COUNT` overrides in Checks — Claude sessions already export `GIT_CONFIG_COUNT=2` for `safe.directory`, and index 0 would clobber it (fresh reviewer).
 

@@ -97,6 +97,11 @@ echo "✓ CLI and MCP agree across the full review loop"
 # script resolves hooks relative to where it stands).
 check_hooks="$repo_root/scripts/check-hooks.sh"
 hooks_repo="$workdir/hooks-repo"
+# Under a git hook (pre-push runs this script), git exports GIT_DIR and its
+# kin; left set, every git call below would read and WRITE the real repo's
+# config instead of the scratch repo's.
+# shellcheck disable=SC2046
+unset $(git rev-parse --local-env-vars)
 git init -q "$hooks_repo"
 mkdir -p "$hooks_repo/.githooks"
 printf '#!/bin/sh\n' > "$hooks_repo/.githooks/pre-commit"
