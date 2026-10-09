@@ -22,10 +22,10 @@ type: Living
 ## Findings
 
 - **F1.** `ci.sh` decided "wired up" by comparing the raw config string to the literal `.githooks` (scripts/ci.sh:69, before this change).
-- **F2.** Your clone sets `core.hooksPath` to the absolute `/Users/rcliao/src/rcliao/comments/.githooks`, read from `.git/config` (docs/artifacts/living/hooks-check-lies-notes.md:7).
-- **F3.** That absolute path holds executable `pre-commit` and `pre-push` (docs/artifacts/living/hooks-check-lies-notes.md:9), and `pre-push` ends in `exec ./scripts/ci.sh` (.githooks/pre-push:34). So the hook does run the suite; the hook is telling the truth.
-- **F4.** `git rev-parse --git-path hooks` returns the directory git will actually run hooks from: `/abs/x` for an absolute setting, `../.githooks` for a relative one asked from a subdirectory (docs/artifacts/living/hooks-check-lies-notes.md:14, docs/artifacts/living/hooks-check-lies-notes.md:16).
-- **F5.** Because your path is absolute, this worktree's effective hooks dir is the main clone's `.githooks`, not its own copy (docs/artifacts/living/hooks-check-lies-notes.md:12). A relative `.githooks` would resolve to each worktree's own copy instead (fresh reviewer's scratch-repo probe, git 2.50.1).
+- **F2.** Your clone sets `core.hooksPath` to the absolute `/Users/rcliao/src/rcliao/comments/.githooks`, read from `.git/config` (docs/research-notes/hooks-check-lies-notes.md:7).
+- **F3.** That absolute path holds executable `pre-commit` and `pre-push` (docs/research-notes/hooks-check-lies-notes.md:9), and `pre-push` ends in `exec ./scripts/ci.sh` (.githooks/pre-push:34). So the hook does run the suite; the hook is telling the truth.
+- **F4.** `git rev-parse --git-path hooks` returns the directory git will actually run hooks from: `/abs/x` for an absolute setting, `../.githooks` for a relative one asked from a subdirectory (docs/research-notes/hooks-check-lies-notes.md:14, docs/research-notes/hooks-check-lies-notes.md:16).
+- **F5.** Because your path is absolute, this worktree's effective hooks dir is the main clone's `.githooks`, not its own copy (docs/research-notes/hooks-check-lies-notes.md:12). A relative `.githooks` would resolve to each worktree's own copy instead (fresh reviewer's scratch-repo probe, git 2.50.1).
 - **F6.** Nothing tested the check; the only references were the check itself and setup docs (./CLAUDE.md:26, ./CLAUDE.md:32, .githooks/pre-push:6).
 
 ## Plan

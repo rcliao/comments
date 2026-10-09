@@ -31,3 +31,21 @@ Result: commit `922ee32` on `worktree-agent-a10bf66dff87efe80`. Its doc is `docs
 Done in PR #28 (plugin 3.1.0): 1 and 2 in the skill's flow steps 2 and 5, and 3 in the living template's Why criterion.
 
 Not exercised: `comments view` live reload during the build (the human only looked at the end), the mod's drift count (subagents do not get the status line), and threads.
+
+## Round 2: installed skill 3.1.0, `ci.sh`'s false "hooks not wired" warning
+
+Commit `28fc384` on `worktree-agent-a4e224262453b8dcf`. The doc is `docs/artifacts/living/hooks-check-lies.md` on that branch.
+
+1. Shaping took about 5 minutes. The agent loaded the installed skill unprompted and ran a fresh reviewer before asking, which corrected one finding. The ask led with D1–D3, each with a recommendation, and ended "a plain go is enough".
+2. Eric pushed back: go, but drop one slice and keep 4 of 7 smoke cases. The doc took it in the same turn: a dated chat line in Decisions, the slice gone from Plan, and the dropped work under "Not doing".
+3. Build took about 9 minutes. A fresh review of the diff, CI green. Claude reran `check-hooks.sh` in the real clone (exit 0) and in a fresh repo (exit 1, with the note).
+
+| # | Seen | Change |
+|---|---|---|
+| 7 | Round 1's fix held: no Plan copy in the ask. But the ask still restated the cause and appended a full Blocked/Changed/Found report, about 3x what a go needs. That report format comes from the user's global CLAUDE.md, which applies to every turn. | Decide whether the go ask counts as an end-of-run report. If not, the skill says the ask is the decisions only. |
+| 8 | `validate` requires `file:line` even for command output the agent watched, so it wrote a notes file just to cite its lines. Those line citations break when the notes change. | Option: let a Finding cite a fenced output block in the doc itself, or add a `cmd:` evidence form. |
+| 9 | `comments new` rewrote the stale `plans/index.md` again, and the agent reverted it by hand. | Commit the refreshed index once. |
+| 10 | Shaping planned more than the bug needed (a new script, 7 cases, an info line). | Living Plan criterion: "is each slice needed for the ask?" Scoping is otherwise left to the human's pushback. |
+| 11 | The agent put its untyped notes file inside `docs/artifacts/living/`, and `comments bundle index` then refused the whole bundle ("OKF concept is missing type"); the next `comments new` would have failed the same way. Nothing warned when the file was written. | Moved to `docs/research-notes/` while shipping. Option: the skill says research notes go in `docs/research-notes/`, or `validate` warns about untyped files in a collection. |
+
+Shipped with round 2: 9 (the refreshed `plans/index.md`) and 11 (the notes file moved). 7, 8 and 10 wait on the human.
